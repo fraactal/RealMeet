@@ -10,6 +10,8 @@ from app.schemas.appointments import (
     AppointmentClientRead,
     AppointmentProfessionalRead,
     AppointmentCreate,
+    AppointmentHistoryRead,
+    AppointmentPrivateNotesUpdate,
     AppointmentProfessionalStatusUpdate,
     AppointmentStatusUpdate,
 )
@@ -21,30 +23,59 @@ router = APIRouter()
 AppointmentActorRead = AppointmentClientRead | AppointmentProfessionalRead | AppointmentAdminRead
 
 
-def serialize_appointment_for_user(appointment, user) -> AppointmentActorRead:
+def serialize_appointment_for_user(appointment, user, service: AppointmentService) -> AppointmentActorRead:
+    history = [AppointmentHistoryRead.model_validate(item) for item in service.list_history(appointment.id)]
+    data = {
+        "id": appointment.id,
+        "professional_id": appointment.professional_id,
+        "client_id": appointment.client_id,
+        "category_id": appointment.category_id,
+        "specialty_id": appointment.specialty_id,
+        "start_datetime": appointment.start_datetime,
+        "end_datetime": appointment.end_datetime,
+        "status": appointment.status,
+        "consultation_mode": appointment.consultation_mode,
+        "meeting_provider": appointment.meeting_provider.value if appointment.meeting_provider else None,
+        "meeting_url": appointment.meeting_url,
+        "external_meeting_id": appointment.external_meeting_id,
+        "calendar_event_id": appointment.calendar_event_id,
+        "cancellation_reason": appointment.cancellation_reason,
+        "client_notes": appointment.client_notes,
+        "history": history,
+    }
     if user.role == UserRole.professional:
-        return AppointmentProfessionalRead.model_validate(appointment)
+        return AppointmentProfessionalRead(**data, professional_private_notes=appointment.professional_private_notes)
     if user.role == UserRole.admin:
-        return AppointmentAdminRead.model_validate(appointment)
-    return AppointmentClientRead.model_validate(appointment)
+        return AppointmentAdminRead(**data)
+    return AppointmentClientRead(**data)
 
 
 @router.post("", response_model=AppointmentClientRead, dependencies=[Depends(require_client)])
 def create_appointment(payload: AppointmentCreate, user=Depends(get_current_user), db: Session = Depends(get_db)) -> AppointmentClientRead:
-    appointment = AppointmentService(db).create(user, payload)
-    return AppointmentClientRead.model_validate(appointment)
+    service = AppointmentService(db)
+    appointment = service.create(user, payload)
+    return serialize_appointment_for_user(appointment, user, service)
 
 
 @router.get("/me", response_model=list[AppointmentActorRead])
 def list_my_appointments(user=Depends(get_current_user), db: Session = Depends(get_db)) -> list[AppointmentActorRead]:
-    items = AppointmentService(db).list_for_user(user)
-    return [serialize_appointment_for_user(item, user) for item in items]
+    service = AppointmentService(db)
+    items = service.list_for_user(user)
+    return [serialize_appointment_for_user(item, user, service) for item in items]
+
+
+@router.get("/professional/me", response_model=list[AppointmentProfessionalRead], dependencies=[Depends(require_professional)])
+def list_professional_appointments(user=Depends(get_current_user), db: Session = Depends(get_db)) -> list[AppointmentProfessionalRead]:
+    service = AppointmentService(db)
+    items = service.list_for_user(user)
+    return [serialize_appointment_for_user(item, user, service) for item in items]
 
 
 @router.get("/{appointment_id}", response_model=AppointmentActorRead)
 def get_appointment(appointment_id: int, user=Depends(get_current_user), db: Session = Depends(get_db)) -> AppointmentActorRead:
-    item = AppointmentService(db).get_for_actor(appointment_id, user)
-    return serialize_appointment_for_user(item, user)
+    service = AppointmentService(db)
+    item = service.get_for_actor(appointment_id, user)
+    return serialize_appointment_for_user(item, user, service)
 
 
 @router.patch("/{appointment_id}/cancel", response_model=AppointmentActorRead)
@@ -56,8 +87,8 @@ def cancel_appointment(
 ) -> AppointmentActorRead:
     service = AppointmentService(db)
     appointment = service.get_for_actor(appointment_id, user)
-    item = service.transition(appointment, user, AppointmentStatus.cancelled, payload)
-    return serialize_appointment_for_user(item, user)
+    item = service.cancel(appointment, user, payload)
+    return serialize_appointment_for_user(item, user, service)
 
 
 @router.patch("/professional/{appointment_id}/confirm", response_model=AppointmentProfessionalRead, dependencies=[Depends(require_professional)])
@@ -70,7 +101,7 @@ def confirm_appointment(
     service = AppointmentService(db)
     appointment = service.get_for_actor(appointment_id, user)
     item = service.transition(appointment, user, AppointmentStatus.confirmed, payload)
-    return AppointmentProfessionalRead.model_validate(item)
+    return serialize_appointment_for_user(item, user, service)
 
 
 @router.patch("/professional/{appointment_id}/complete", response_model=AppointmentProfessionalRead, dependencies=[Depends(require_professional)])
@@ -83,4 +114,47 @@ def complete_appointment(
     service = AppointmentService(db)
     appointment = service.get_for_actor(appointment_id, user)
     item = service.transition(appointment, user, AppointmentStatus.completed, payload)
-    return AppointmentProfessionalRead.model_validate(item)
+    return serialize_appointment_for_user(item, user, service)
+
+
+@router.patch("/professional/{appointment_id}/no-show", response_model=AppointmentProfessionalRead, dependencies=[Depends(require_professional)])
+def mark_no_show_appointment(
+    appointment_id: int,
+    payload: AppointmentProfessionalStatusUpdate,
+    user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> AppointmentProfessionalRead:
+    service = AppointmentService(db)
+    appointment = service.get_for_actor(appointment_id, user)
+    item = service.transition(appointment, user, AppointmentStatus.no_show, payload)
+    return serialize_appointment_for_user(item, user, service)
+
+
+@router.patch("/professional/{appointment_id}/cancel", response_model=AppointmentProfessionalRead, dependencies=[Depends(require_professional)])
+def cancel_professional_appointment(
+    appointment_id: int,
+    payload: AppointmentProfessionalStatusUpdate,
+    user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> AppointmentProfessionalRead:
+    service = AppointmentService(db)
+    appointment = service.get_for_actor(appointment_id, user)
+    item = service.cancel(appointment, user, payload)
+    return serialize_appointment_for_user(item, user, service)
+
+
+@router.patch(
+    "/professional/{appointment_id}/private-notes",
+    response_model=AppointmentProfessionalRead,
+    dependencies=[Depends(require_professional)],
+)
+def update_private_notes(
+    appointment_id: int,
+    payload: AppointmentPrivateNotesUpdate,
+    user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> AppointmentProfessionalRead:
+    service = AppointmentService(db)
+    appointment = service.get_for_actor(appointment_id, user)
+    item = service.update_private_notes(appointment, user, payload)
+    return serialize_appointment_for_user(item, user, service)

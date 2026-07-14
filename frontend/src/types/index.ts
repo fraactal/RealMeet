@@ -214,15 +214,58 @@ export interface AvailabilityResponse {
   slots: AvailableSlot[];
 }
 
+export type AppointmentStatus = "pending" | "confirmed" | "cancelled" | "completed" | "no_show";
+
+export interface AppointmentHistory {
+  id: number;
+  appointment_id: number;
+  changed_by_user_id: number;
+  old_status?: string | null;
+  new_status: string;
+  comment?: string | null;
+  created_at: string;
+}
+
+export interface AppointmentCreate {
+  professional_id: number;
+  specialty_id?: number | null;
+  start_datetime: string;
+  client_notes?: string | null;
+}
+
 export interface Appointment {
   id: number;
   professional_id: number;
   client_id: number;
+  category_id?: number | null;
+  specialty_id?: number | null;
   start_datetime: string;
   end_datetime: string;
-  status: "pending" | "confirmed" | "cancelled" | "completed" | "no_show";
+  status: AppointmentStatus;
+  consultation_mode?: ConsultationMode;
+  meeting_provider?: string | null;
   meeting_url?: string | null;
+  external_meeting_id?: string | null;
+  calendar_event_id?: string | null;
+  cancellation_reason?: string | null;
   client_notes?: string | null;
+  history?: AppointmentHistory[];
+}
+
+export interface ProfessionalAppointment extends Appointment {
+  professional_private_notes?: string | null;
+}
+
+export interface AppointmentStatusUpdate {
+  reason?: string | null;
+}
+
+export interface AppointmentProfessionalStatusUpdate extends AppointmentStatusUpdate {
+  professional_private_notes?: string | null;
+}
+
+export interface AppointmentPrivateNotesUpdate {
+  professional_private_notes?: string | null;
 }
 
 export interface ProfessionalMetrics {

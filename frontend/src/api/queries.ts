@@ -2,6 +2,10 @@ import api from "./client";
 import type {
   AdminMetrics,
   Appointment,
+  AppointmentCreate,
+  AppointmentPrivateNotesUpdate,
+  AppointmentProfessionalStatusUpdate,
+  AppointmentStatusUpdate,
   AvailabilityBlock,
   AvailabilityBlockWrite,
   AvailabilityResponse,
@@ -13,6 +17,7 @@ import type {
   ClientSelfProfile,
   ClientSelfProfileUpdate,
   ProfessionalMetrics,
+  ProfessionalAppointment,
   ProfessionalPublicProfile,
   ProfessionalPublicProfileUpdate,
   ProfessionalPublic,
@@ -183,6 +188,61 @@ export async function fetchProfessionalAvailability(professionalId: number, date
 
 export async function fetchMyAppointments(): Promise<Appointment[]> {
   const { data } = await api.get("/appointments/me");
+  return data;
+}
+
+export async function createAppointment(payload: AppointmentCreate): Promise<Appointment> {
+  const { data } = await api.post("/appointments", payload);
+  return data;
+}
+
+export async function cancelAppointment(appointmentId: number, payload: AppointmentStatusUpdate): Promise<Appointment> {
+  const { data } = await api.patch(`/appointments/${appointmentId}/cancel`, payload);
+  return data;
+}
+
+export async function fetchProfessionalAppointments(): Promise<ProfessionalAppointment[]> {
+  const { data } = await api.get("/appointments/professional/me");
+  return data;
+}
+
+export async function confirmProfessionalAppointment(
+  appointmentId: number,
+  payload: AppointmentProfessionalStatusUpdate,
+): Promise<ProfessionalAppointment> {
+  const { data } = await api.patch(`/appointments/professional/${appointmentId}/confirm`, payload);
+  return data;
+}
+
+export async function completeProfessionalAppointment(
+  appointmentId: number,
+  payload: AppointmentProfessionalStatusUpdate,
+): Promise<ProfessionalAppointment> {
+  const { data } = await api.patch(`/appointments/professional/${appointmentId}/complete`, payload);
+  return data;
+}
+
+export async function markNoShowProfessionalAppointment(
+  appointmentId: number,
+  payload: AppointmentProfessionalStatusUpdate,
+): Promise<ProfessionalAppointment> {
+  const { data } = await api.patch(`/appointments/professional/${appointmentId}/no-show`, payload);
+  return data;
+}
+
+export async function cancelProfessionalAppointment(
+  appointmentId: number,
+  payload: AppointmentProfessionalStatusUpdate,
+): Promise<ProfessionalAppointment> {
+  const { data } = await api.patch(`/appointments/professional/${appointmentId}/cancel`, payload);
+  return data;
+}
+
+export async function updateAppointmentPrivateNotes(
+  appointmentId: number,
+  payload: AppointmentPrivateNotesUpdate,
+): Promise<ProfessionalAppointment> {
+  const { data } = await api.patch(`/appointments/professional/${appointmentId}/private-notes`, payload);
   return data;
 }
 

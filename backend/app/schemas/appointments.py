@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.models.appointment import AppointmentStatus
 from app.models.professional_profile import ConsultationMode
@@ -11,15 +11,29 @@ class AppointmentCreate(BaseModel):
     professional_id: int
     specialty_id: int | None = None
     start_datetime: datetime
-    client_notes: str | None = None
+    client_notes: str | None = Field(default=None, max_length=2000)
 
 
 class AppointmentStatusUpdate(BaseModel):
-    reason: str | None = None
+    reason: str | None = Field(default=None, max_length=255)
 
 
 class AppointmentProfessionalStatusUpdate(AppointmentStatusUpdate):
-    professional_private_notes: str | None = None
+    professional_private_notes: str | None = Field(default=None, max_length=5000)
+
+
+class AppointmentPrivateNotesUpdate(BaseModel):
+    professional_private_notes: str | None = Field(default=None, max_length=5000)
+
+
+class AppointmentHistoryRead(ORMModel):
+    id: int
+    appointment_id: int
+    changed_by_user_id: int
+    old_status: str | None
+    new_status: str
+    comment: str | None
+    created_at: datetime
 
 
 class AppointmentBaseRead(ORMModel):
@@ -38,6 +52,7 @@ class AppointmentBaseRead(ORMModel):
     calendar_event_id: str | None
     cancellation_reason: str | None
     client_notes: str | None
+    history: list[AppointmentHistoryRead] = Field(default_factory=list)
 
 
 class AppointmentClientRead(AppointmentBaseRead):

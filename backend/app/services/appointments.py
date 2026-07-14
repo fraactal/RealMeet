@@ -1,16 +1,28 @@
 from datetime import UTC, datetime, timedelta
 
 from fastapi import HTTPException, status
-from sqlalchemy import func, or_, select
-from sqlalchemy.orm import Session
+from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session, selectinload
 
-from app.emails.service import email_service
+from app.models.user import UserRole
 from app.meetings.factory import get_meeting_provider
 from app.models.appointment import Appointment, AppointmentHistory, AppointmentStatus
 from app.models.client_profile import ClientProfile
 from app.models.professional_profile import ProfessionalProfile
 from app.models.user import User
-from app.schemas.appointments import AppointmentCreate, AppointmentProfessionalStatusUpdate, AppointmentStatusUpdate
+from app.schemas.appointments import AppointmentCreate, AppointmentPrivateNotesUpdate, AppointmentProfessionalStatusUpdate, AppointmentStatusUpdate
+from app.services.availability import AvailabilityService
+
+
+ACTIVE_STATUSES = [AppointmentStatus.pending, AppointmentStatus.confirmed]
+CLIENT_CANCELABLE_STATUSES = [AppointmentStatus.pending, AppointmentStatus.confirmed]
+PROFESSIONAL_TRANSITIONS = {
+    AppointmentStatus.confirmed: [AppointmentStatus.pending],
+    AppointmentStatus.cancelled: [AppointmentStatus.pending, AppointmentStatus.confirmed],
+    AppointmentStatus.completed: [AppointmentStatus.confirmed],
+    AppointmentStatus.no_show: [AppointmentStatus.confirmed],
+}
 
 
 class AppointmentService:
@@ -22,27 +34,31 @@ class AppointmentService:
         if not client_profile:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Client profile not found")
 
-        professional = self.db.get(ProfessionalProfile, payload.professional_id)
+        start_datetime = self._ensure_aware_utc(payload.start_datetime)
+        if start_datetime <= datetime.now(UTC):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Appointment must be in the future")
+
+        professional = self.db.scalar(
+            select(ProfessionalProfile)
+            .options(selectinload(ProfessionalProfile.user), selectinload(ProfessionalProfile.category))
+            .where(ProfessionalProfile.id == payload.professional_id)
+            .with_for_update()
+        )
         if not professional:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Professional not found")
+        if not professional.is_public or not professional.user.is_active:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Professional not found")
 
-        end_datetime = payload.start_datetime + timedelta(minutes=professional.session_duration_minutes)
-        overlap = self.db.scalar(
-            select(Appointment).where(
-                Appointment.professional_id == professional.id,
-                Appointment.start_datetime < end_datetime,
-                Appointment.end_datetime > payload.start_datetime,
-                Appointment.status.in_([AppointmentStatus.pending, AppointmentStatus.confirmed]),
-            )
-        )
-        if overlap:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Selected slot is already booked")
+        duration_minutes = self._get_duration_minutes(professional)
+        end_datetime = start_datetime + timedelta(minutes=duration_minutes)
+        self._ensure_no_active_overlap(professional.id, client_profile.id, start_datetime, end_datetime)
+        self._ensure_available_slot(professional, start_datetime, end_datetime)
 
         meeting_payload = None
         if professional.consultation_mode.value in {"online", "hybrid"}:
             meeting_payload = get_meeting_provider().create_meeting(
                 professional_name=f"{professional.user.first_name} {professional.user.last_name}",
-                starts_at=payload.start_datetime,
+                starts_at=start_datetime,
             )
 
         appointment = Appointment(
@@ -50,7 +66,7 @@ class AppointmentService:
             client_id=client_profile.id,
             category_id=professional.category_id,
             specialty_id=payload.specialty_id,
-            start_datetime=payload.start_datetime,
+            start_datetime=start_datetime,
             end_datetime=end_datetime,
             consultation_mode=professional.consultation_mode,
             meeting_provider=meeting_payload.provider if meeting_payload else None,
@@ -60,24 +76,21 @@ class AppointmentService:
             client_notes=payload.client_notes,
         )
         self.db.add(appointment)
-        self.db.flush()
-        self._add_history(appointment.id, user.id, None, AppointmentStatus.pending.value, "Appointment created")
-        self.db.commit()
+        try:
+            self.db.flush()
+            self._add_history(appointment.id, user.id, None, AppointmentStatus.pending.value, "Appointment created")
+            self.db.commit()
+        except IntegrityError as exc:
+            self.db.rollback()
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Selected slot is already booked") from exc
         self.db.refresh(appointment)
-
-        email_service.send("Nueva reserva", user.email, f"Tu reserva fue creada para {appointment.start_datetime.isoformat()}")
-        email_service.send(
-            "Nueva reserva recibida",
-            professional.user.email,
-            f"Has recibido una nueva reserva para {appointment.start_datetime.isoformat()}",
-        )
         return appointment
 
     def list_for_user(self, user: User) -> list[Appointment]:
         query = select(Appointment).order_by(Appointment.start_datetime.desc())
-        if user.role.value == "client":
+        if user.role == UserRole.client:
             query = query.join(ClientProfile, Appointment.client_id == ClientProfile.id).where(ClientProfile.user_id == user.id)
-        elif user.role.value == "professional":
+        elif user.role == UserRole.professional:
             query = query.join(ProfessionalProfile, Appointment.professional_id == ProfessionalProfile.id).where(
                 ProfessionalProfile.user_id == user.id
             )
@@ -87,17 +100,35 @@ class AppointmentService:
         appointment = self.db.get(Appointment, appointment_id)
         if not appointment:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Appointment not found")
-        if user.role.value == "admin":
+        if user.role == UserRole.admin:
             return appointment
-        if user.role.value == "client":
+        if user.role == UserRole.client:
             client_profile = self.db.scalar(select(ClientProfile).where(ClientProfile.user_id == user.id))
             if not client_profile or appointment.client_id != client_profile.id:
-                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
-        if user.role.value == "professional":
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Appointment not found")
+        if user.role == UserRole.professional:
             professional = self.db.scalar(select(ProfessionalProfile).where(ProfessionalProfile.user_id == user.id))
             if not professional or appointment.professional_id != professional.id:
-                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Appointment not found")
         return appointment
+
+    def list_history(self, appointment_id: int) -> list[AppointmentHistory]:
+        return list(
+            self.db.scalars(
+                select(AppointmentHistory)
+                .where(AppointmentHistory.appointment_id == appointment_id)
+                .order_by(AppointmentHistory.created_at.asc(), AppointmentHistory.id.asc())
+            )
+        )
+
+    def cancel(self, appointment: Appointment, user: User, payload: AppointmentStatusUpdate) -> Appointment:
+        if user.role == UserRole.client:
+            self._ensure_client_can_cancel(appointment)
+        elif user.role == UserRole.professional:
+            self._ensure_professional_transition(appointment, AppointmentStatus.cancelled)
+        elif user.role != UserRole.admin:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
+        return self._set_status(appointment, user, AppointmentStatus.cancelled, payload.reason)
 
     def transition(
         self,
@@ -106,14 +137,36 @@ class AppointmentService:
         new_status: AppointmentStatus,
         payload: AppointmentStatusUpdate | AppointmentProfessionalStatusUpdate,
     ) -> Appointment:
+        if user.role == UserRole.professional:
+            self._ensure_professional_transition(appointment, new_status)
+        elif user.role == UserRole.admin:
+            self._ensure_admin_transition(appointment, new_status)
+        else:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
+        item = self._set_status(appointment, user, new_status, payload.reason)
+        professional_private_notes = getattr(payload, "professional_private_notes", None)
+        if user.role == UserRole.professional and professional_private_notes is not None:
+            item.professional_private_notes = professional_private_notes
+            self._add_history(item.id, user.id, item.status.value, item.status.value, "Private notes updated")
+            self.db.commit()
+            self.db.refresh(item)
+        return item
+
+    def update_private_notes(self, appointment: Appointment, user: User, payload: AppointmentPrivateNotesUpdate) -> Appointment:
+        if user.role != UserRole.professional:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
+        appointment.professional_private_notes = payload.professional_private_notes
+        self._add_history(appointment.id, user.id, appointment.status.value, appointment.status.value, "Private notes updated")
+        self.db.commit()
+        self.db.refresh(appointment)
+        return appointment
+
+    def _set_status(self, appointment: Appointment, user: User, new_status: AppointmentStatus, reason: str | None) -> Appointment:
         old_status = appointment.status.value
         appointment.status = new_status
-        if payload.reason:
-            appointment.cancellation_reason = payload.reason
-        professional_private_notes = getattr(payload, "professional_private_notes", None)
-        if user.role.value == "professional" and professional_private_notes is not None:
-            appointment.professional_private_notes = professional_private_notes
-        self._add_history(appointment.id, user.id, old_status, new_status.value, payload.reason or f"Status changed to {new_status.value}")
+        if new_status == AppointmentStatus.cancelled and reason:
+            appointment.cancellation_reason = reason
+        self._add_history(appointment.id, user.id, old_status, new_status.value, reason or f"Status changed to {new_status.value}")
         self.db.commit()
         self.db.refresh(appointment)
         return appointment
@@ -129,3 +182,62 @@ class AppointmentService:
                 created_at=datetime.now(UTC),
             )
         )
+
+    def _ensure_no_active_overlap(self, professional_id: int, client_id: int, start_datetime: datetime, end_datetime: datetime) -> None:
+        overlap = self.db.scalar(
+            select(Appointment).where(
+                Appointment.professional_id == professional_id,
+                Appointment.start_datetime < end_datetime,
+                Appointment.end_datetime > start_datetime,
+                Appointment.status.in_(ACTIVE_STATUSES),
+            )
+        )
+        if overlap:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Selected slot is already booked")
+        client_overlap = self.db.scalar(
+            select(Appointment).where(
+                Appointment.client_id == client_id,
+                Appointment.start_datetime < end_datetime,
+                Appointment.end_datetime > start_datetime,
+                Appointment.status.in_(ACTIVE_STATUSES),
+            )
+        )
+        if client_overlap:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Client already has an active appointment at this time")
+
+    def _ensure_available_slot(self, professional: ProfessionalProfile, start_datetime: datetime, end_datetime: datetime) -> None:
+        slots = AvailabilityService(self.db).list_slots(professional, start_datetime, end_datetime)
+        if not any(slot["start_datetime"] == start_datetime and slot["end_datetime"] == end_datetime for slot in slots):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Selected slot is not available")
+
+    @staticmethod
+    def _ensure_client_can_cancel(appointment: Appointment) -> None:
+        if appointment.status not in CLIENT_CANCELABLE_STATUSES:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Appointment cannot be cancelled")
+        if appointment.start_datetime <= datetime.now(UTC):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Past appointments cannot be cancelled")
+
+    @staticmethod
+    def _ensure_professional_transition(appointment: Appointment, new_status: AppointmentStatus) -> None:
+        allowed_from = PROFESSIONAL_TRANSITIONS.get(new_status)
+        if not allowed_from or appointment.status not in allowed_from:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid appointment status transition")
+
+    @staticmethod
+    def _ensure_admin_transition(appointment: Appointment, new_status: AppointmentStatus) -> None:
+        if new_status not in PROFESSIONAL_TRANSITIONS:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid appointment status transition")
+        if appointment.status not in PROFESSIONAL_TRANSITIONS[new_status]:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid appointment status transition")
+
+    @staticmethod
+    def _get_duration_minutes(professional: ProfessionalProfile) -> int:
+        if professional.session_duration_minutes and professional.session_duration_minutes > 0:
+            return professional.session_duration_minutes
+        return 60
+
+    @staticmethod
+    def _ensure_aware_utc(value: datetime) -> datetime:
+        if value.tzinfo is None:
+            return value.replace(tzinfo=UTC)
+        return value.astimezone(UTC)

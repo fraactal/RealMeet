@@ -12,13 +12,15 @@ Decision Modulo 3: el administrador puede crear, actualizar, activar y desactiva
 
 ## Professional
 
-Puede editar su perfil, gestionar especialidades propias, gestionar disponibilidad, bloquear horarios, ver sus reservas, confirmar, cancelar y completar reservas, ver metricas propias y agregar notas privadas.
+Puede editar su perfil, gestionar especialidades propias, gestionar disponibilidad, bloquear horarios, ver sus reservas, confirmar, cancelar, completar y marcar `no_show` segun transiciones validas, ver metricas propias y agregar notas privadas.
 
 Estado observado en Modulo 0: existen endpoints de perfil, disponibilidad, metricas y transiciones profesionales. La exposicion de notas privadas detectada en `AppointmentRead` fue remediada en `REM-P0-001` mediante contratos de salida por contexto.
 
 Decision Modulo 2: el perfil propio profesional se limita a campos base existentes. No debe permitir modificar categorias, especialidades, precio, publicacion, verificaciones, agenda ni disponibilidad desde el contrato base.
 
 Decision Modulo 3: el profesional puede gestionar especialidades activas propias, campos publicos autorizados y visibilidad `is_public`. No puede gestionar disponibilidad, agenda, precios ni verificaciones clinicas.
+
+Decision Modulo 5: el profesional solo lista y gestiona reservas asociadas a su propio perfil. Las notas privadas solo aparecen en `AppointmentProfessionalRead`; clientes y administradores no las reciben por contrato.
 
 ## Client
 
@@ -29,6 +31,8 @@ Estado observado en Modulo 0: existe registro cliente, login, busqueda publica, 
 Decision Modulo 2: el cliente debe contar con perfil propio seguro y no puede modificar rol, `is_active`, identificadores, hash ni campos administrativos.
 
 Decision Modulo 3: el cliente consume el catalogo publico con los mismos contratos que un usuario anonimo; no obtiene datos privados adicionales de profesionales.
+
+Decision Modulo 5: el cliente puede crear reservas solo desde slots disponibles recalculados por backend, listar reservas propias y cancelar reservas futuras `pending` o `confirmed`. No puede confirmar, completar, marcar `no_show` ni recibir notas privadas del profesional.
 
 ## Regla base
 

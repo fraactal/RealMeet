@@ -1,16 +1,26 @@
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { normalizeApiError } from "../api/errors";
-import { fetchCategories, fetchProfessional, fetchProfessionalAvailability, fetchProfessionals, fetchSpecialties } from "../api/queries";
+import {
+  createAppointment,
+  fetchCategories,
+  fetchProfessional,
+  fetchProfessionalAvailability,
+  fetchProfessionals,
+  fetchSpecialties,
+} from "../api/queries";
 import { Badge } from "../components/ui/Badge";
 import { Card } from "../components/ui/Card";
-import type { ConsultationMode, ProfessionalSearchParams } from "../types";
+import { useAuthStore } from "../store/auth";
+import type { AvailableSlot, ConsultationMode, ProfessionalSearchParams } from "../types";
 
 const PAGE_SIZE = 6;
 const today = new Date().toISOString().slice(0, 10);
 
 export function ProfessionalsPage() {
+  const queryClient = useQueryClient();
+  const { user } = useAuthStore();
   const [search, setSearch] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [specialtyId, setSpecialtyId] = useState("");
@@ -18,6 +28,7 @@ export function ProfessionalsPage() {
   const [page, setPage] = useState(1);
   const [selectedProfessionalId, setSelectedProfessionalId] = useState<number | null>(null);
   const [availabilityDate, setAvailabilityDate] = useState(today);
+  const [bookingMessage, setBookingMessage] = useState<string | null>(null);
 
   const filters = useMemo<ProfessionalSearchParams>(
     () => ({
@@ -58,6 +69,22 @@ export function ProfessionalsPage() {
     enabled: selectedProfessionalId !== null,
     retry: false,
   });
+  const bookingMutation = useMutation({
+    mutationFn: (slot: AvailableSlot) =>
+      createAppointment({
+        professional_id: selectedProfessionalId ?? 0,
+        specialty_id: specialtyId ? Number(specialtyId) : null,
+        start_datetime: slot.start_datetime,
+      }),
+    onSuccess: () => {
+      setBookingMessage("Reserva creada correctamente.");
+      void queryClient.invalidateQueries({ queryKey: ["my-appointments"] });
+      void queryClient.invalidateQueries({ queryKey: ["professional-availability", selectedProfessionalId, availabilityDate] });
+    },
+    onError: (error) => {
+      setBookingMessage(normalizeApiError(error).message);
+    },
+  });
 
   const resetPage = () => {
     setPage(1);
@@ -74,6 +101,7 @@ export function ProfessionalsPage() {
 
   const apiError = professionalsQuery.isError ? normalizeApiError(professionalsQuery.error) : null;
   const data = professionalsQuery.data;
+  const canBook = user?.role === "client";
 
   return (
     <div className="space-y-6">
@@ -288,8 +316,11 @@ export function ProfessionalsPage() {
                       className="block rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-brand"
                     />
                   </label>
-                  <p className="text-sm text-slate-500">La reserva de un horario se habilitara en el siguiente modulo.</p>
+                  <p className="text-sm text-slate-500">
+                    {canBook ? "Selecciona un horario disponible para reservar." : "Inicia sesion como cliente para reservar un horario."}
+                  </p>
                 </div>
+                {bookingMessage ? <p className="mt-4 text-sm font-medium text-slate-700">{bookingMessage}</p> : null}
                 {availabilityQuery.isPending ? <p className="mt-4 text-sm text-slate-500">Cargando horarios...</p> : null}
                 {availabilityQuery.isError ? <p className="mt-4 text-sm text-red-600">{normalizeApiError(availabilityQuery.error).message}</p> : null}
                 {availabilityQuery.data && availabilityQuery.data.slots.length === 0 ? (
@@ -299,8 +330,12 @@ export function ProfessionalsPage() {
                   {availabilityQuery.data?.slots.map((slot) => (
                     <button
                       key={slot.start_datetime}
-                      className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700"
-                      disabled
+                      className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50"
+                      disabled={!canBook || bookingMutation.isPending}
+                      onClick={() => {
+                        setBookingMessage(null);
+                        bookingMutation.mutate(slot);
+                      }}
                     >
                       {new Date(slot.start_datetime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                     </button>

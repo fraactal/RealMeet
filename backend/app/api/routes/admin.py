@@ -4,17 +4,18 @@ from sqlalchemy.orm import Session
 
 from app.core.deps import require_admin
 from app.db.session import get_db
-from app.models.appointment import Appointment
+from app.models.appointment import Appointment, AppointmentStatus
 from app.models.category import Category
 from app.models.professional_profile import ProfessionalProfile
 from app.models.specialty import Specialty
 from app.models.user import User
-from app.schemas.appointments import AppointmentAdminRead
+from app.schemas.appointments import AppointmentAdminRead, AppointmentHistoryRead, AppointmentStatusUpdate
 from app.schemas.categories import CategoryAdminRead, CategoryCreate, CategoryUpdate
 from app.schemas.professionals import ProfessionalProfileRead
 from app.schemas.specialties import SpecialtyAdminRead, SpecialtyCreate, SpecialtyUpdate
 from app.schemas.users import UserRead, UserUpdate
 from app.services.catalog import CatalogService
+from app.services.appointments import AppointmentService
 
 router = APIRouter(dependencies=[Depends(require_admin)])
 
@@ -108,5 +109,52 @@ def patch_professional(professional_id: int, payload: dict, db: Session = Depend
 
 @router.get("/appointments", response_model=list[AppointmentAdminRead])
 def list_appointments(limit: int = Query(default=20, le=100), offset: int = Query(default=0), db: Session = Depends(get_db)) -> list[AppointmentAdminRead]:
+    service = AppointmentService(db)
     items = list(db.scalars(select(Appointment).offset(offset).limit(limit).order_by(Appointment.start_datetime.desc())))
-    return [AppointmentAdminRead.model_validate(item) for item in items]
+    return [_serialize_admin_appointment(item, service) for item in items]
+
+
+@router.get("/appointments/{appointment_id}", response_model=AppointmentAdminRead)
+def get_appointment(appointment_id: int, db: Session = Depends(get_db)) -> AppointmentAdminRead:
+    service = AppointmentService(db)
+    appointment = db.get(Appointment, appointment_id)
+    if not appointment:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+    return _serialize_admin_appointment(appointment, service)
+
+
+@router.patch("/appointments/{appointment_id}/status", response_model=AppointmentAdminRead)
+def update_appointment_status(
+    appointment_id: int,
+    new_status: AppointmentStatus,
+    payload: AppointmentStatusUpdate,
+    user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> AppointmentAdminRead:
+    service = AppointmentService(db)
+    appointment = db.get(Appointment, appointment_id)
+    if not appointment:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+    item = service.transition(appointment, user, new_status, payload)
+    return _serialize_admin_appointment(item, service)
+
+
+def _serialize_admin_appointment(appointment: Appointment, service: AppointmentService) -> AppointmentAdminRead:
+    return AppointmentAdminRead(
+        id=appointment.id,
+        professional_id=appointment.professional_id,
+        client_id=appointment.client_id,
+        category_id=appointment.category_id,
+        specialty_id=appointment.specialty_id,
+        start_datetime=appointment.start_datetime,
+        end_datetime=appointment.end_datetime,
+        status=appointment.status,
+        consultation_mode=appointment.consultation_mode,
+        meeting_provider=appointment.meeting_provider.value if appointment.meeting_provider else None,
+        meeting_url=appointment.meeting_url,
+        external_meeting_id=appointment.external_meeting_id,
+        calendar_event_id=appointment.calendar_event_id,
+        cancellation_reason=appointment.cancellation_reason,
+        client_notes=appointment.client_notes,
+        history=[AppointmentHistoryRead.model_validate(item) for item in service.list_history(appointment.id)],
+    )

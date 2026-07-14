@@ -8,7 +8,7 @@
 - Todo cambio de estado debe registrarse en historial.
 - No se deben eliminar fisicamente datos sensibles asociados a historial.
 
-Estado observado: `AppointmentService.create` valida solapamientos del profesional para estados `pending` y `confirmed`, y crea historial inicial. No se observo restriccion de base de datos para concurrencia ni validacion explicita de que el horario solicitado pertenezca a un slot disponible.
+Estado Modulo 5: `AppointmentService.create` valida cliente, profesional publico activo, horario futuro, solapamientos activos de profesional y cliente, y pertenencia exacta a un slot disponible calculado por el Modulo 4. La base de datos agrega indices unicos parciales para reservas activas `pending` y `confirmed`. Las transiciones permitidas son `pending -> confirmed`, `pending/confirmed -> cancelled`, `confirmed -> completed` y `confirmed -> no_show`; cada cambio registra historial.
 
 ## Disponibilidad
 
@@ -20,7 +20,7 @@ Estado Modulo 4: `AvailabilityService.list_slots` genera slots desde reglas acti
 
 Las notas privadas del profesional nunca deben ser visibles para el cliente.
 
-Estado observado tras `REM-P0-001`: los contratos de salida para cliente y administrador no declaran `professional_private_notes`; el contrato profesional conserva el campo solo para reservas autorizadas. Queda pendiente validacion runtime cuando el entorno lo permita.
+Estado Modulo 5: los contratos de salida para cliente y administrador no declaran `professional_private_notes`; el contrato profesional conserva el campo solo para reservas autorizadas. La UI de cliente usa el tipo `Appointment`, que no contiene notas privadas; la UI profesional usa `ProfessionalAppointment`.
 
 ## Seguridad
 

@@ -1,11 +1,24 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { fetchMyAppointments } from "../api/queries";
+import { normalizeApiError } from "../api/errors";
+import { cancelAppointment, fetchMyAppointments } from "../api/queries";
 import { Badge } from "../components/ui/Badge";
 import { Card } from "../components/ui/Card";
+import type { Appointment } from "../types";
+
+function canCancel(appointment: Appointment): boolean {
+  return ["pending", "confirmed"].includes(appointment.status) && new Date(appointment.start_datetime).getTime() > Date.now();
+}
 
 export function AppointmentsPage() {
+  const queryClient = useQueryClient();
   const { data, isLoading, isError } = useQuery({ queryKey: ["my-appointments"], queryFn: fetchMyAppointments });
+  const cancelMutation = useMutation({
+    mutationFn: (appointmentId: number) => cancelAppointment(appointmentId, { reason: "Cancelada por el usuario" }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["my-appointments"] });
+    },
+  });
 
   return (
     <div className="space-y-6">
@@ -30,11 +43,21 @@ export function AppointmentsPage() {
                     Abrir reunion
                   </a>
                 ) : null}
+                {canCancel(appointment) ? (
+                  <button
+                    className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50"
+                    disabled={cancelMutation.isPending}
+                    onClick={() => cancelMutation.mutate(appointment.id)}
+                  >
+                    Cancelar
+                  </button>
+                ) : null}
               </div>
             </div>
           ))}
           {!isLoading && data?.length === 0 ? <p className="text-slate-500">Todavia no hay reservas para este usuario.</p> : null}
         </div>
+        {cancelMutation.isError ? <p className="mt-4 text-sm text-red-600">{normalizeApiError(cancelMutation.error).message}</p> : null}
       </Card>
     </div>
   );

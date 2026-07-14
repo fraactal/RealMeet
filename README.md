@@ -10,7 +10,7 @@ RealMeet es un MVP SaaS para agendamiento de profesionales orientado inicialment
 - Catalogo de categorias y especialidades
 - Perfil profesional y especialidades asociadas
 - Reglas de disponibilidad semanal, bloqueos manuales y calculo publico de slots
-- Reserva de horas con validacion de solapamientos
+- Reserva de horas con validacion de disponibilidad, solapamientos, estados e historial
 - Meeting provider mock preparado para futuras integraciones
 - Servicio de correo por SMTP o salida a log en desarrollo
 - Metricas basicas para profesional y administrador
@@ -91,10 +91,14 @@ Base API: `http://localhost:18000/api/v1`
 - `DELETE /professionals/me/availability-blocks/{id}`
 - `POST /appointments`
 - `GET /appointments/me`
+- `GET /appointments/professional/me`
 - `GET /appointments/{id}`
 - `PATCH /appointments/{id}/cancel`
 - `PATCH /appointments/professional/{id}/confirm`
 - `PATCH /appointments/professional/{id}/complete`
+- `PATCH /appointments/professional/{id}/no-show`
+- `PATCH /appointments/professional/{id}/cancel`
+- `PATCH /appointments/professional/{id}/private-notes`
 - `GET /professional/metrics`
 - `GET /admin/metrics`
 - `GET /admin/users`
@@ -103,17 +107,19 @@ Base API: `http://localhost:18000/api/v1`
 - `GET /admin/professionals`
 - `PATCH /admin/professionals/{id}`
 - `GET /admin/appointments`
+- `GET /admin/appointments/{id}`
+- `PATCH /admin/appointments/{id}/status?new_status=confirmed`
 
 ## Flujo funcional principal
 
 1. El cliente inicia sesion.
 2. Consulta el listado publico de profesionales.
 3. Revisa disponibilidad del profesional.
-4. Reserva una hora cuando el modulo de reservas este habilitado.
-5. El backend valida solapamientos y crea la cita.
+4. Reserva una hora disponible.
+5. El backend revalida disponibilidad, solapamientos y crea la cita.
 6. Si corresponde, se genera un meeting mock.
-7. Se emite correo al cliente y profesional.
-8. La reserva queda disponible para dashboards y metricas.
+7. La reserva queda disponible para dashboards, metricas e historial.
+8. El profesional puede confirmar, cancelar, completar o marcar no show segun transicion valida.
 
 ## Variables de entorno
 
@@ -283,6 +289,8 @@ alembic upgrade head
 Migracion incluida:
 
 - `20260611_0001_initial`
+- `20260714_0002_catalog_constraints`
+- `20260714_0003_appointment_active_slot_constraints`
 
 ## Seed demo
 
@@ -379,4 +387,4 @@ El repositorio ya tiene commits incrementales hasta Modulo 2. No hacer push sin 
 - Frontend base funcional, pero todavia sin formularios completos de CRUD
 - Pruebas automatizadas actuales son minimas y enfocadas en configuracion, health y seguridad auth/perfiles
 - El backoffice es minimo y prioriza operacion inicial sobre cobertura total de UX
-- El Modulo 4 calcula slots y muestra horarios, pero no confirma reservas; ese flujo corresponde al modulo siguiente.
+- El flujo de reservas basicas ya esta habilitado; reprogramacion, recordatorios y correos avanzados quedan fuera del Modulo 5.
