@@ -8,6 +8,7 @@
 - Perfil profesional.
 - Categorias y especialidades.
 - Relacion profesional-especialidad.
+- Catalogo publico con filtros, paginacion y perfil profesional seguro.
 - Disponibilidad semanal.
 - Bloqueos manuales.
 - Busqueda publica de profesionales.

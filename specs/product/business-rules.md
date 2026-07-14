@@ -38,3 +38,12 @@ Estado inicial Modulo 2: login emite JWT con `sub` y `exp`, pero debe rechazar u
 - Un profesional solo puede consultar y actualizar su propio perfil.
 - Los perfiles propios no pueden modificar `role`, `is_active`, identificadores, hash ni estados administrativos.
 - El perfil profesional base del Modulo 2 no incluye categorias, especialidades, precios, publicacion, agenda ni disponibilidad.
+
+## Catalogo profesional
+
+- Las categorias y especialidades inactivas no aparecen en listados publicos.
+- Solo administradores pueden crear o modificar categorias y especialidades.
+- El profesional solo puede modificar sus propias especialidades.
+- Un perfil profesional aparece publicamente solo si el usuario esta activo, es `professional`, el perfil tiene `is_public=true`, categoria activa, titulo y al menos una especialidad activa.
+- Los contratos publicos no exponen email, telefono, `is_active`, timestamps, licencias, verificaciones, precios, hashes, tokens, notas ni datos clinicos.
+- La busqueda publica debe estar paginada y acotada.

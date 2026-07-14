@@ -39,6 +39,7 @@ Usar prefijos estables por dominio:
 - `AUTH`: autenticacion.
 - `ROLE`: autorizacion y permisos.
 - `PROFILE`: perfiles propios de usuario.
+- `CATALOG`: catalogo profesional publico y administrable.
 - `PROF`: profesionales y busqueda publica.
 - `CAT`: categorias.
 - `SPEC`: especialidades.
@@ -118,3 +119,4 @@ Gherkin no se utiliza en la etapa actual.
 - `modules/module-00-baseline`: baseline retrospectivo y remediaciones iniciales.
 - `modules/module-01-foundation`: fundacion tecnica verificada en runtime.
 - `modules/module-02-auth-profiles`: autenticacion, autorizacion y perfiles base. Estado inicial: en progreso.
+- `modules/module-03-professional-catalog`: catalogo profesional y busqueda publica. Estado inicial: en progreso.
