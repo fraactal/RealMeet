@@ -107,6 +107,14 @@ class ProfessionalPublicRead(BaseModel):
     specialties: list[ProfessionalSpecialtyRead] = []
 
 
+class ProfessionalPublicSearchResponse(BaseModel):
+    items: list[ProfessionalPublicRead]
+    page: int
+    page_size: int
+    total: int
+    total_pages: int
+
+
 class ProfessionalPublicProfileRead(BaseModel):
     id: int
     title: str | None

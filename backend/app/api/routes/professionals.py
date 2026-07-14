@@ -3,10 +3,12 @@ from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_user, require_professional
 from app.db.session import get_db
+from app.models.professional_profile import ConsultationMode
 from app.schemas.professionals import (
     ProfessionalPublicProfileRead,
     ProfessionalPublicProfileUpdate,
     ProfessionalPublicRead,
+    ProfessionalPublicSearchResponse,
     ProfessionalSpecialtyRead,
     ProfessionalSpecialtyUpdate,
     ProfessionalSelfProfileRead,
@@ -17,14 +19,24 @@ from app.services.professionals import ProfessionalService
 router = APIRouter()
 
 
-@router.get("", response_model=list[ProfessionalPublicRead])
+@router.get("", response_model=ProfessionalPublicSearchResponse)
 def list_professionals(
     search: str | None = Query(default=None),
     category_id: int | None = Query(default=None),
     specialty_id: int | None = Query(default=None),
+    consultation_mode: ConsultationMode | None = Query(default=None),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=50),
     db: Session = Depends(get_db),
-) -> list[ProfessionalPublicRead]:
-    return ProfessionalService(db).list_public(search=search, category_id=category_id, specialty_id=specialty_id)
+) -> ProfessionalPublicSearchResponse:
+    return ProfessionalService(db).search_public(
+        search=search,
+        category_id=category_id,
+        specialty_id=specialty_id,
+        consultation_mode=consultation_mode,
+        page=page,
+        page_size=page_size,
+    )
 
 
 @router.get("/{professional_id}", response_model=ProfessionalPublicRead)

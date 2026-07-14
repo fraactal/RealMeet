@@ -14,6 +14,7 @@ from app.schemas.professionals import (
     ProfessionalPublicCategoryRead,
     ProfessionalPublicProfileUpdate,
     ProfessionalPublicRead,
+    ProfessionalPublicSearchResponse,
     ProfessionalPublicUserRead,
     ProfessionalSelfProfileUpdate,
     ProfessionalSpecialtyRead,
@@ -224,3 +225,9 @@ def test_professional_public_profile_update_excludes_admin_fields() -> None:
     data = payload.model_dump(exclude_unset=True)
 
     assert data == {"category_id": 1, "is_public": True, "title": "Psicologa"}
+
+
+def test_professional_public_search_response_is_paginated() -> None:
+    response = ProfessionalPublicSearchResponse(items=[], page=1, page_size=20, total=0, total_pages=0)
+
+    assert response.model_dump() == {"items": [], "page": 1, "page_size": 20, "total": 0, "total_pages": 0}

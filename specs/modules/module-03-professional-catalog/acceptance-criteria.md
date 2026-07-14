@@ -20,18 +20,18 @@
 | AC-M3-016 | Perfil publico no expone datos privados. | fallido | aprobado backend | Tests verifican ausencia de email, phone, estado, precio, direccion y licencia. |
 | AC-M3-017 | Profesional edita solo campos publicos autorizados. | parcial | aprobado backend | `GET/PATCH /professionals/me/public-profile` con contrato propio. |
 | AC-M3-018 | Profesional no edita perfil de otro profesional. | implementado-parcial | aprobado backend | Endpoints `me/*` usan usuario autenticado y no reciben `professional_id`. |
-| AC-M3-019 | Busqueda por texto funciona. | parcial | pendiente | Existe sobre nombre y titulo. |
-| AC-M3-020 | Filtro por categoria funciona. | parcial | pendiente | Existe sin validacion de categoria activa. |
-| AC-M3-021 | Filtro por especialidad funciona. | parcial | pendiente | Existe sin filtrar especialidad activa. |
-| AC-M3-022 | Filtros pueden combinarse. | parcial | pendiente | Servicio combina algunos filtros. |
-| AC-M3-023 | Paginacion aplica limites validos. | no-implementado | pendiente |  |
-| AC-M3-024 | Busqueda sin resultados devuelve vacio coherente. | parcial | pendiente | Sin contrato paginado. |
+| AC-M3-019 | Busqueda por texto funciona. | parcial | aprobado backend | `search_public` filtra por nombre completo, titulo y bio. |
+| AC-M3-020 | Filtro por categoria funciona. | parcial | aprobado backend | `search_public` combina `category_id` con regla de publicacion. |
+| AC-M3-021 | Filtro por especialidad funciona. | parcial | aprobado backend | `search_public` combina `specialty_id` con especialidades activas. |
+| AC-M3-022 | Filtros pueden combinarse. | parcial | aprobado backend | Filtros se aplican sobre una query comun. |
+| AC-M3-023 | Paginacion aplica limites validos. | no-implementado | aprobado backend | `page>=1`, `1<=page_size<=50`, conteo distinct. |
+| AC-M3-024 | Busqueda sin resultados devuelve vacio coherente. | parcial | aprobado backend | `ProfessionalPublicSearchResponse` devuelve `items=[]`, `total=0`, `total_pages=0`. |
 | AC-M3-025 | Frontend muestra listado, filtros, detalle, loading, error y vacio. | parcial | pendiente | Solo listado/loading/error. |
 | AC-M3-026 | Profesional gestiona especialidades y publicacion en frontend. | no-implementado | pendiente |  |
 | AC-M3-027 | Admin gestiona categorias/especialidades en UI minima. | no-implementado | pendiente |  |
 | AC-M3-028 | `/health` y `/ready` siguen operativos. | verified M2 | pendiente |  |
 | AC-M3-029 | Logins demo siguen funcionando. | verified M2 | pendiente |  |
-| AC-M3-030 | Pruebas minimas relacionadas pasan. | parcial | aprobado parcial | 22 tests backend pasan. |
+| AC-M3-030 | Pruebas minimas relacionadas pasan. | parcial | aprobado parcial | 23 tests backend pasan. |
 | AC-M3-031 | Frontend compila. | verified M2 | pendiente |  |
 | AC-M3-032 | Cada fase completada tiene commit independiente. | pendiente | pendiente |  |
 | AC-M3-033 | Matriz de trazabilidad actualizada. | pendiente | pendiente |  |

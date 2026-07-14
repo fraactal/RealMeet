@@ -3,7 +3,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.models.category import Category
-from app.models.professional_profile import ProfessionalProfile, ProfessionalSpecialty
+from app.models.professional_profile import ConsultationMode, ProfessionalProfile, ProfessionalSpecialty
 from app.models.specialty import Specialty
 from app.models.user import User, UserRole
 from app.schemas.professionals import (
@@ -11,6 +11,7 @@ from app.schemas.professionals import (
     ProfessionalPublicProfileRead,
     ProfessionalPublicProfileUpdate,
     ProfessionalPublicRead,
+    ProfessionalPublicSearchResponse,
     ProfessionalPublicUserRead,
     ProfessionalProfileCreate,
     ProfessionalProfileUpdate,
@@ -106,8 +107,74 @@ class ProfessionalService:
         self.db.refresh(profile)
         return self._serialize_public_profile_owner(profile)
 
-    def list_public(self, search: str | None = None, category_id: int | None = None, specialty_id: int | None = None) -> list[ProfessionalPublicRead]:
-        query = self._public_query()
+    def search_public(
+        self,
+        search: str | None = None,
+        category_id: int | None = None,
+        specialty_id: int | None = None,
+        consultation_mode: ConsultationMode | None = None,
+        page: int = 1,
+        page_size: int = 20,
+    ) -> ProfessionalPublicSearchResponse:
+        page = max(page, 1)
+        page_size = min(max(page_size, 1), 50)
+        id_query = self._public_query(include_options=False).with_only_columns(ProfessionalProfile.id)
+        id_query = self._apply_public_filters(
+            id_query,
+            search=search,
+            category_id=category_id,
+            specialty_id=specialty_id,
+            consultation_mode=consultation_mode,
+        )
+        total = self.db.scalar(
+            id_query.with_only_columns(func.count(func.distinct(ProfessionalProfile.id))).order_by(None)
+        ) or 0
+        total_pages = (total + page_size - 1) // page_size if total else 0
+        page_ids = (
+            id_query.distinct()
+            .order_by(User.last_name.asc(), User.first_name.asc(), ProfessionalProfile.id.asc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+            .subquery()
+        )
+        query = (
+            select(ProfessionalProfile)
+            .join(page_ids, ProfessionalProfile.id == page_ids.c.id)
+            .join(User, ProfessionalProfile.user_id == User.id)
+            .options(self._public_profile_options())
+            .order_by(User.last_name.asc(), User.first_name.asc(), ProfessionalProfile.id.asc())
+        )
+        items = [self._serialize_public_profile(profile) for profile in self.db.scalars(query).unique()]
+        return ProfessionalPublicSearchResponse(
+            items=items,
+            page=page,
+            page_size=page_size,
+            total=total,
+            total_pages=total_pages,
+        )
+
+    def list_public(
+        self,
+        search: str | None = None,
+        category_id: int | None = None,
+        specialty_id: int | None = None,
+        consultation_mode: ConsultationMode | None = None,
+    ) -> list[ProfessionalPublicRead]:
+        return self.search_public(
+            search=search,
+            category_id=category_id,
+            specialty_id=specialty_id,
+            consultation_mode=consultation_mode,
+        ).items
+
+    def _apply_public_filters(
+        self,
+        query,
+        search: str | None = None,
+        category_id: int | None = None,
+        specialty_id: int | None = None,
+        consultation_mode: ConsultationMode | None = None,
+    ):
         if search:
             like = f"%{search.lower()}%"
             query = query.where(
@@ -119,8 +186,9 @@ class ProfessionalService:
             query = query.where(ProfessionalProfile.category_id == category_id)
         if specialty_id:
             query = query.where(Specialty.id == specialty_id)
-        query = query.order_by(User.last_name.asc(), User.first_name.asc(), ProfessionalProfile.id.asc())
-        return [self._serialize_public_profile(profile) for profile in self.db.scalars(query).unique()]
+        if consultation_mode:
+            query = query.where(ProfessionalProfile.consultation_mode == consultation_mode)
+        return query
 
     def get_public(self, professional_id: int) -> ProfessionalPublicRead:
         profile = self.db.scalar(self._public_query().where(ProfessionalProfile.id == professional_id))
@@ -205,20 +273,22 @@ class ProfessionalService:
             )
         return items
 
-    def _public_query(self):
+    def _public_profile_options(self):
         return (
+            selectinload(ProfessionalProfile.user),
+            selectinload(ProfessionalProfile.category),
+            selectinload(ProfessionalProfile.specialties)
+            .selectinload(ProfessionalSpecialty.specialty)
+            .selectinload(Specialty.category),
+        )
+
+    def _public_query(self, include_options: bool = True):
+        query = (
             select(ProfessionalProfile)
             .join(User, ProfessionalProfile.user_id == User.id)
             .join(Category, ProfessionalProfile.category_id == Category.id)
             .join(ProfessionalSpecialty, ProfessionalSpecialty.professional_id == ProfessionalProfile.id)
             .join(Specialty, ProfessionalSpecialty.specialty_id == Specialty.id)
-            .options(
-                selectinload(ProfessionalProfile.user),
-                selectinload(ProfessionalProfile.category),
-                selectinload(ProfessionalProfile.specialties)
-                .selectinload(ProfessionalSpecialty.specialty)
-                .selectinload(Specialty.category),
-            )
             .where(
                 User.role == UserRole.professional,
                 User.is_active.is_(True),
@@ -229,6 +299,9 @@ class ProfessionalService:
                 Specialty.is_active.is_(True),
             )
         )
+        if include_options:
+            query = query.options(*self._public_profile_options())
+        return query
 
     def _serialize_public_profile(self, profile: ProfessionalProfile) -> ProfessionalPublicRead:
         return ProfessionalPublicRead(
