@@ -29,3 +29,12 @@ Estado observado tras `REM-P0-001`: los contratos de salida para cliente y admin
 - Configurar CORS por variables.
 - No registrar passwords, tokens ni credenciales.
 - Validar permisos por rol.
+
+Estado inicial Modulo 2: login emite JWT con `sub` y `exp`, pero debe rechazar usuarios inactivos; `/users/me` no debe permitir modificar `is_active`; el frontend debe restaurar sesion contra backend y limpiar estado ante `401`.
+
+## Perfiles propios
+
+- Un cliente solo puede consultar y actualizar su propio perfil.
+- Un profesional solo puede consultar y actualizar su propio perfil.
+- Los perfiles propios no pueden modificar `role`, `is_active`, identificadores, hash ni estados administrativos.
+- El perfil profesional base del Modulo 2 no incluye categorias, especialidades, precios, publicacion, agenda ni disponibilidad.

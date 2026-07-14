@@ -6,17 +6,23 @@ Puede ver informacion global, gestionar usuarios, profesionales, categorias, esp
 
 Estado observado en Modulo 0: existen dependencias de rol admin en rutas `/admin`, creacion y edicion de categorias/especialidades, y metricas admin. Requiere validacion manual de todos los flujos y endurecimiento de payloads administrativos.
 
+Decision Modulo 2: no se implementa backoffice nuevo. Las rutas administrativas existentes deben conservar `require_roles(admin)` y no recibir permisos nuevos fuera de alcance.
+
 ## Professional
 
 Puede editar su perfil, gestionar especialidades propias, gestionar disponibilidad, bloquear horarios, ver sus reservas, confirmar, cancelar y completar reservas, ver metricas propias y agregar notas privadas.
 
 Estado observado en Modulo 0: existen endpoints de perfil, disponibilidad, metricas y transiciones profesionales. La exposicion de notas privadas detectada en `AppointmentRead` fue remediada en `REM-P0-001` mediante contratos de salida por contexto.
 
+Decision Modulo 2: el perfil propio profesional se limita a campos base existentes. No debe permitir modificar categorias, especialidades, precio, publicacion, verificaciones, agenda ni disponibilidad desde el contrato base.
+
 ## Client
 
 Puede buscar profesionales, ver perfiles publicos, consultar disponibilidad, reservar, cancelar reservas futuras cuando aplique y ver su historial.
 
 Estado observado en Modulo 0: existe registro cliente, login, busqueda publica, disponibilidad y creacion de reservas por rol client. No se observo restriccion temporal para cancelar solo reservas futuras.
+
+Decision Modulo 2: el cliente debe contar con perfil propio seguro y no puede modificar rol, `is_active`, identificadores, hash ni campos administrativos.
 
 ## Regla base
 

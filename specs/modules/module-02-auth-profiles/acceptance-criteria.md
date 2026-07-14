@@ -1,0 +1,33 @@
+# Criterios de aceptacion del Modulo 2
+
+| ID | Criterio | Estado inicial | Estado final | Evidencia |
+| --- | --- | --- | --- | --- |
+| AC-M2-001 | Usuario activo con credenciales validas puede iniciar sesion. | implementado | pendiente | Login demo validado en M1; se revalidara en M2. |
+| AC-M2-002 | Credenciales incorrectas reciben error controlado sin revelar campo incorrecto. | implementado-parcial | pendiente | `AuthService.login` usa mensaje generico para email/password. |
+| AC-M2-003 | Usuario inactivo no puede iniciar sesion. | fallido | pendiente | `AuthService.login` no valida `is_active`. |
+| AC-M2-004 | Usuario inactivo no puede seguir accediendo con token anterior. | implementado-parcial | pendiente | `get_current_user` revisa `is_active`; falta prueba. |
+| AC-M2-005 | Ruta protegida sin token responde `401`. | implementado-parcial | pendiente | `OAuth2PasswordBearer`; falta validacion M2. |
+| AC-M2-006 | Token invalido responde `401`. | implementado-parcial | pendiente | `decode_token` captura `PyJWTError`; falta `sub` malformado. |
+| AC-M2-007 | Token vencido responde `401`. | implementado-parcial | pendiente | `PyJWTError`; falta prueba explicita. |
+| AC-M2-008 | `GET /auth/me` devuelve solo datos seguros. | implementado-parcial | pendiente | `UserRead` no expone hash ni password; revisar contrato. |
+| AC-M2-009 | Rutas administrativas requieren `admin`. | implementado-parcial | pendiente | Router `/admin` protegido; se revisara. |
+| AC-M2-010 | Rutas profesionales requieren `professional` cuando corresponde. | implementado-parcial | pendiente | Profesionales, disponibilidad y metricas usan `require_roles`. |
+| AC-M2-011 | Rutas de cliente requieren `client` cuando corresponde. | implementado-parcial | pendiente | Creacion de reservas usa `client`; perfil cliente falta. |
+| AC-M2-012 | Cliente no accede a funciones admin o professional. | implementado-parcial | pendiente | Backend parcial; frontend no restringe rutas por rol. |
+| AC-M2-013 | Profesional no modifica perfiles ajenos. | implementado-parcial | pendiente | Perfil propio filtra por `user.id`; falta contrato seguro. |
+| AC-M2-014 | Cliente consulta y actualiza unicamente su perfil. | no-implementado | pendiente | No existe perfil cliente dedicado. |
+| AC-M2-015 | Profesional consulta y actualiza unicamente su perfil. | implementado-parcial | pendiente | Existe `/professionals/me/profile`; contrato amplio. |
+| AC-M2-016 | Payloads propios no permiten modificar rol, `is_active` ni campos administrativos. | fallido | pendiente | `/users/me` acepta `is_active`. |
+| AC-M2-017 | Perfil profesional base no permite modificar categorias, especialidades, precio ni publicacion. | fallido | pendiente | `ProfessionalProfileUpdate` permite esos campos. |
+| AC-M2-018 | Logout elimina token y estado local. | implementado | pendiente | Store y navbar lo hacen; se revalidara. |
+| AC-M2-019 | Ante `401`, frontend limpia sesion. | no-implementado | pendiente | Falta interceptor de respuesta. |
+| AC-M2-020 | Frontend restringe rutas segun rol. | parcial | pendiente | Links por rol existen; rutas no. |
+| AC-M2-021 | Seguridad continua aplicada en backend. | parcial | pendiente | Backend debe seguir siendo autoridad. |
+| AC-M2-022 | No se exponen hashes, secretos ni informacion interna. | parcial | pendiente | Revisar schemas, logs y busquedas estaticas. |
+| AC-M2-023 | Backend, frontend y PostgreSQL continuan funcionando. | verificado M1 | pendiente | Validacion integrada M2. |
+| AC-M2-024 | `/health` y `/ready` continuan operativos. | verificado M1 | pendiente | Validacion integrada M2. |
+| AC-M2-025 | Frontend compila. | verificado M1 | pendiente | Build M2. |
+| AC-M2-026 | Pruebas minimas relacionadas pasan. | parcial | pendiente | Agregar/ejecutar pruebas pequenas. |
+| AC-M2-027 | Cada fase tiene commit independiente. | pendiente | pendiente | Git. |
+| AC-M2-028 | Matriz de trazabilidad actualizada. | pendiente | pendiente | `requirements-matrix.md`. |
+| AC-M2-029 | No se implementaron funciones del Modulo 3. | pendiente | pendiente | Revision de cambios. |

@@ -38,6 +38,7 @@ Usar prefijos estables por dominio:
 - `READY`: readiness.
 - `AUTH`: autenticacion.
 - `ROLE`: autorizacion y permisos.
+- `PROFILE`: perfiles propios de usuario.
 - `PROF`: profesionales y busqueda publica.
 - `CAT`: categorias.
 - `SPEC`: especialidades.
@@ -111,3 +112,9 @@ En el Modulo 0 no se crean pruebas automatizadas nuevas. La validacion se basa e
 En modulos futuros se podran agregar pruebas pequenas y rapidas para health, readiness, autenticacion, permisos, persistencia o integraciones criticas cuando reduzcan riesgo real de regresion.
 
 Gherkin no se utiliza en la etapa actual.
+
+## Modulos activos
+
+- `modules/module-00-baseline`: baseline retrospectivo y remediaciones iniciales.
+- `modules/module-01-foundation`: fundacion tecnica verificada en runtime.
+- `modules/module-02-auth-profiles`: autenticacion, autorizacion y perfiles base. Estado inicial: en progreso.
