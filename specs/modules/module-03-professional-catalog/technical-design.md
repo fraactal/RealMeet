@@ -33,9 +33,10 @@ Profesional:
 
 - `ProfessionalSpecialtyRead`.
 - `ProfessionalSpecialtyUpdate`.
-- `ProfessionalPublicName`.
-- `ProfessionalPublicListItem`.
-- `ProfessionalPublicDetail`.
+- `ProfessionalPublicUserRead`.
+- `ProfessionalPublicCategoryRead`.
+- `ProfessionalPublicRead`.
+- `ProfessionalPublicProfileRead`.
 - `ProfessionalPublicProfileUpdate`.
 - `PaginatedProfessionalPublicResponse`.
 

@@ -1,17 +1,17 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_user, require_professional
 from app.db.session import get_db
-from app.models.professional_profile import ProfessionalProfile, ProfessionalSpecialty
 from app.schemas.professionals import (
+    ProfessionalPublicProfileRead,
+    ProfessionalPublicProfileUpdate,
     ProfessionalPublicRead,
     ProfessionalSpecialtyRead,
     ProfessionalSpecialtyUpdate,
     ProfessionalSelfProfileRead,
     ProfessionalSelfProfileUpdate,
 )
-from app.schemas.users import UserRead
 from app.services.professionals import ProfessionalService
 
 router = APIRouter()
@@ -24,43 +24,12 @@ def list_professionals(
     specialty_id: int | None = Query(default=None),
     db: Session = Depends(get_db),
 ) -> list[ProfessionalPublicRead]:
-    items = ProfessionalService(db).list_public(search=search, category_id=category_id, specialty_id=specialty_id)
-    return [
-        ProfessionalPublicRead(
-            id=item.id,
-            title=item.title,
-            bio=item.bio,
-            consultation_mode=item.consultation_mode,
-            session_duration_minutes=item.session_duration_minutes,
-            price=item.price,
-            city=item.city,
-            country=item.country,
-            user=UserRead.model_validate(item.user),
-            category_name=item.category.name if item.category else None,
-            specialties=[link.specialty.name for link in item.specialties],
-        )
-        for item in items
-    ]
+    return ProfessionalService(db).list_public(search=search, category_id=category_id, specialty_id=specialty_id)
 
 
 @router.get("/{professional_id}", response_model=ProfessionalPublicRead)
 def get_professional(professional_id: int, db: Session = Depends(get_db)) -> ProfessionalPublicRead:
-    item = db.get(ProfessionalProfile, professional_id)
-    if not item or not item.user.is_active:
-        raise HTTPException(status_code=404, detail="Professional not found")
-    return ProfessionalPublicRead(
-        id=item.id,
-        title=item.title,
-        bio=item.bio,
-        consultation_mode=item.consultation_mode,
-        session_duration_minutes=item.session_duration_minutes,
-        price=item.price,
-        city=item.city,
-        country=item.country,
-        user=UserRead.model_validate(item.user),
-        category_name=item.category.name if item.category else None,
-        specialties=[link.specialty.name for link in item.specialties],
-    )
+    return ProfessionalService(db).get_public(professional_id)
 
 
 @router.post("/profile", response_model=ProfessionalSelfProfileRead, dependencies=[Depends(require_professional)])
@@ -98,3 +67,17 @@ def update_my_specialties(
     db: Session = Depends(get_db),
 ) -> list[ProfessionalSpecialtyRead]:
     return ProfessionalService(db).update_self_specialties(user, payload)
+
+
+@router.get("/me/public-profile", response_model=ProfessionalPublicProfileRead, dependencies=[Depends(require_professional)])
+def get_my_public_profile(user=Depends(get_current_user), db: Session = Depends(get_db)) -> ProfessionalPublicProfileRead:
+    return ProfessionalService(db).get_self_public_profile(user)
+
+
+@router.patch("/me/public-profile", response_model=ProfessionalPublicProfileRead, dependencies=[Depends(require_professional)])
+def update_my_public_profile(
+    payload: ProfessionalPublicProfileUpdate,
+    user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> ProfessionalPublicProfileRead:
+    return ProfessionalService(db).update_self_public_profile(user, payload)

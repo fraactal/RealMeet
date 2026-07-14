@@ -81,15 +81,52 @@ class ProfessionalSpecialtyUpdate(BaseModel):
     specialty_ids: list[int]
 
 
+class ProfessionalPublicUserRead(BaseModel):
+    id: int
+    first_name: str
+    last_name: str
+
+
+class ProfessionalPublicCategoryRead(BaseModel):
+    id: int
+    name: str
+    slug: str
+
+
 class ProfessionalPublicRead(BaseModel):
     id: int
     title: str | None
     bio: str | None
+    years_experience: int | None
     consultation_mode: ConsultationMode
     session_duration_minutes: int
-    price: Decimal | None
     city: str | None
     country: str | None
-    user: UserRead
-    category_name: str | None = None
-    specialties: list[str] = []
+    user: ProfessionalPublicUserRead
+    category: ProfessionalPublicCategoryRead
+    specialties: list[ProfessionalSpecialtyRead] = []
+
+
+class ProfessionalPublicProfileRead(BaseModel):
+    id: int
+    title: str | None
+    bio: str | None
+    years_experience: int | None
+    consultation_mode: ConsultationMode
+    session_duration_minutes: int
+    city: str | None
+    country: str | None
+    category_id: int | None
+    is_public: bool
+
+
+class ProfessionalPublicProfileUpdate(BaseModel):
+    category_id: int | None = None
+    title: str | None = None
+    bio: str | None = None
+    years_experience: int | None = None
+    consultation_mode: ConsultationMode | None = None
+    session_duration_minutes: int | None = None
+    city: str | None = None
+    country: str | None = None
+    is_public: bool | None = None

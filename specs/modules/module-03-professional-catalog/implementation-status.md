@@ -29,8 +29,8 @@ Fecha de inicio: 2026-07-14.
 | --- | --- | --- | --- |
 | 3.1 Baseline y diseno | completada | `602b701 docs(catalog): define module 3 professional catalog baseline` | Documentacion inicial. |
 | 3.2 Categorias y especialidades backend | completada | `0059642 feat(catalog): add category and specialty management` | Commit DB `568b4b5`. |
-| 3.3 Especialidades propias profesional | en progreso | `feat(professional): manage own specialties` | Backend aplicado; pendiente commit. |
-| 3.4 Perfil publico profesional backend | pendiente | `feat(professional): add safe public professional profiles` |  |
+| 3.3 Especialidades propias profesional | completada | `6feb711 feat(professional): manage own specialties` | Endpoints propios y constraint DB vigentes. |
+| 3.4 Perfil publico profesional backend | en progreso | `feat(professional): add safe public professional profiles` | Contratos publicos seguros aplicados; pendiente commit. |
 | 3.5 Busqueda/filtros/paginacion | pendiente | `feat(search): add professional catalog filters and pagination` |  |
 | 3.6 Frontend publico catalogo | pendiente | `feat(frontend-catalog): add public professional search` |  |
 | 3.7 UI profesional/admin | pendiente | `feat(catalog-ui): add professional and admin catalog management` | Puede dividirse. |

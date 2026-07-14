@@ -10,7 +10,15 @@ from app.core.deps import get_current_user, require_admin, require_client, requi
 from app.core.security import ALGORITHM, create_access_token, decode_token, hash_password
 from app.models.user import UserRole
 from app.schemas.categories import CategoryAdminRead, CategoryPublicRead
-from app.schemas.professionals import ProfessionalSelfProfileUpdate, ProfessionalSpecialtyUpdate
+from app.schemas.professionals import (
+    ProfessionalPublicCategoryRead,
+    ProfessionalPublicProfileUpdate,
+    ProfessionalPublicRead,
+    ProfessionalPublicUserRead,
+    ProfessionalSelfProfileUpdate,
+    ProfessionalSpecialtyRead,
+    ProfessionalSpecialtyUpdate,
+)
 from app.schemas.specialties import SpecialtyAdminRead, SpecialtyPublicRead
 from app.schemas.users import ClientSelfProfileUpdate, UserSelfUpdate
 from app.services.auth import AuthService
@@ -163,3 +171,56 @@ def test_professional_specialty_update_keeps_requested_ids() -> None:
     payload = ProfessionalSpecialtyUpdate.model_validate({"specialty_ids": [1, 2, 2]})
 
     assert payload.specialty_ids == [1, 2, 2]
+
+
+def test_professional_public_contract_excludes_sensitive_fields() -> None:
+    payload = ProfessionalPublicRead(
+        id=1,
+        title="Psicologa clinica",
+        bio="Atencion adultos",
+        years_experience=8,
+        consultation_mode="online",
+        session_duration_minutes=50,
+        city="Santiago",
+        country="Chile",
+        user=ProfessionalPublicUserRead(id=2, first_name="Ana", last_name="Lopez"),
+        category=ProfessionalPublicCategoryRead(id=1, name="Salud", slug="salud"),
+        specialties=[
+            ProfessionalSpecialtyRead(
+                id=1,
+                name="Psicologia",
+                slug="psicologia",
+                category_id=1,
+                category_name="Salud",
+            )
+        ],
+    )
+
+    data = payload.model_dump()
+
+    assert "email" not in data["user"]
+    assert "phone" not in data["user"]
+    assert "is_active" not in data["user"]
+    assert "price" not in data
+    assert "address" not in data
+    assert "professional_license" not in data
+    assert "is_verified" not in data
+
+
+def test_professional_public_profile_update_excludes_admin_fields() -> None:
+    payload = ProfessionalPublicProfileUpdate.model_validate(
+        {
+            "category_id": 1,
+            "is_public": True,
+            "title": "Psicologa",
+            "professional_license": "ABC",
+            "is_verified": True,
+            "price": "45000",
+            "address": "Private",
+            "user_id": 99,
+        }
+    )
+
+    data = payload.model_dump(exclude_unset=True)
+
+    assert data == {"category_id": 1, "is_public": True, "title": "Psicologa"}

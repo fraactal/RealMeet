@@ -2,10 +2,16 @@ from fastapi import HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
+from app.models.category import Category
 from app.models.professional_profile import ProfessionalProfile, ProfessionalSpecialty
 from app.models.specialty import Specialty
 from app.models.user import User, UserRole
 from app.schemas.professionals import (
+    ProfessionalPublicCategoryRead,
+    ProfessionalPublicProfileRead,
+    ProfessionalPublicProfileUpdate,
+    ProfessionalPublicRead,
+    ProfessionalPublicUserRead,
     ProfessionalProfileCreate,
     ProfessionalProfileUpdate,
     ProfessionalSpecialtyRead,
@@ -85,6 +91,43 @@ class ProfessionalService:
         profile = self._get_profile_with_specialties(profile.id)
         return self._serialize_specialties(profile)
 
+    def get_self_public_profile(self, user: User) -> ProfessionalPublicProfileRead:
+        profile = self._get_or_create_profile(user)
+        return self._serialize_public_profile_owner(profile)
+
+    def update_self_public_profile(self, user: User, payload: ProfessionalPublicProfileUpdate) -> ProfessionalPublicProfileRead:
+        profile = self._get_or_create_profile(user)
+        data = payload.model_dump(exclude_unset=True)
+        if "category_id" in data and data["category_id"] is not None:
+            self._get_active_category_or_400(data["category_id"])
+        for key, value in data.items():
+            setattr(profile, key, value)
+        self.db.commit()
+        self.db.refresh(profile)
+        return self._serialize_public_profile_owner(profile)
+
+    def list_public(self, search: str | None = None, category_id: int | None = None, specialty_id: int | None = None) -> list[ProfessionalPublicRead]:
+        query = self._public_query()
+        if search:
+            like = f"%{search.lower()}%"
+            query = query.where(
+                func.lower(func.concat(User.first_name, " ", User.last_name)).ilike(like)
+                | ProfessionalProfile.title.ilike(like)
+                | ProfessionalProfile.bio.ilike(like)
+            )
+        if category_id:
+            query = query.where(ProfessionalProfile.category_id == category_id)
+        if specialty_id:
+            query = query.where(Specialty.id == specialty_id)
+        query = query.order_by(User.last_name.asc(), User.first_name.asc(), ProfessionalProfile.id.asc())
+        return [self._serialize_public_profile(profile) for profile in self.db.scalars(query).unique()]
+
+    def get_public(self, professional_id: int) -> ProfessionalPublicRead:
+        profile = self.db.scalar(self._public_query().where(ProfessionalProfile.id == professional_id))
+        if not profile:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Professional not found")
+        return self._serialize_public_profile(profile)
+
     def _get_or_create_profile(self, user: User) -> ProfessionalProfile:
         profile = self.db.scalar(select(ProfessionalProfile).where(ProfessionalProfile.user_id == user.id))
         if profile:
@@ -138,6 +181,12 @@ class ProfessionalService:
         by_id = {specialty.id: specialty for specialty in specialties}
         return [by_id[specialty_id] for specialty_id in specialty_ids]
 
+    def _get_active_category_or_400(self, category_id: int) -> Category:
+        category = self.db.scalar(select(Category).where(Category.id == category_id, Category.is_active.is_(True)))
+        if not category:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Category not found or inactive")
+        return category
+
     @staticmethod
     def _serialize_specialties(profile: ProfessionalProfile) -> list[ProfessionalSpecialtyRead]:
         items = []
@@ -156,25 +205,65 @@ class ProfessionalService:
             )
         return items
 
-    def list_public(self, search: str | None = None, category_id: int | None = None, specialty_id: int | None = None) -> list[ProfessionalProfile]:
-        query = (
+    def _public_query(self):
+        return (
             select(ProfessionalProfile)
+            .join(User, ProfessionalProfile.user_id == User.id)
+            .join(Category, ProfessionalProfile.category_id == Category.id)
+            .join(ProfessionalSpecialty, ProfessionalSpecialty.professional_id == ProfessionalProfile.id)
+            .join(Specialty, ProfessionalSpecialty.specialty_id == Specialty.id)
             .options(
                 selectinload(ProfessionalProfile.user),
                 selectinload(ProfessionalProfile.category),
-                selectinload(ProfessionalProfile.specialties).selectinload(ProfessionalSpecialty.specialty),
+                selectinload(ProfessionalProfile.specialties)
+                .selectinload(ProfessionalSpecialty.specialty)
+                .selectinload(Specialty.category),
             )
-            .join(User, ProfessionalProfile.user_id == User.id)
-            .where(User.role == UserRole.professional, ProfessionalProfile.is_public.is_(True), User.is_active.is_(True))
+            .where(
+                User.role == UserRole.professional,
+                User.is_active.is_(True),
+                ProfessionalProfile.is_public.is_(True),
+                ProfessionalProfile.title.is_not(None),
+                func.length(func.trim(ProfessionalProfile.title)) > 0,
+                Category.is_active.is_(True),
+                Specialty.is_active.is_(True),
+            )
         )
-        if search:
-            like = f"%{search.lower()}%"
-            query = query.where(
-                func.lower(func.concat(User.first_name, " ", User.last_name)).ilike(like)
-                | ProfessionalProfile.title.ilike(like)
-            )
-        if category_id:
-            query = query.where(ProfessionalProfile.category_id == category_id)
-        if specialty_id:
-            query = query.join(ProfessionalSpecialty).where(ProfessionalSpecialty.specialty_id == specialty_id)
-        return list(self.db.scalars(query).unique())
+
+    def _serialize_public_profile(self, profile: ProfessionalProfile) -> ProfessionalPublicRead:
+        return ProfessionalPublicRead(
+            id=profile.id,
+            title=profile.title,
+            bio=profile.bio,
+            years_experience=profile.years_experience,
+            consultation_mode=profile.consultation_mode,
+            session_duration_minutes=profile.session_duration_minutes,
+            city=profile.city,
+            country=profile.country,
+            user=ProfessionalPublicUserRead(
+                id=profile.user.id,
+                first_name=profile.user.first_name,
+                last_name=profile.user.last_name,
+            ),
+            category=ProfessionalPublicCategoryRead(
+                id=profile.category.id,
+                name=profile.category.name,
+                slug=profile.category.slug,
+            ),
+            specialties=self._serialize_specialties(profile),
+        )
+
+    @staticmethod
+    def _serialize_public_profile_owner(profile: ProfessionalProfile) -> ProfessionalPublicProfileRead:
+        return ProfessionalPublicProfileRead(
+            id=profile.id,
+            title=profile.title,
+            bio=profile.bio,
+            years_experience=profile.years_experience,
+            consultation_mode=profile.consultation_mode,
+            session_duration_minutes=profile.session_duration_minutes,
+            city=profile.city,
+            country=profile.country,
+            category_id=profile.category_id,
+            is_public=profile.is_public,
+        )
