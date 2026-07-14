@@ -33,9 +33,19 @@ Fecha de inicio: 2026-07-14.
 | 3.4 Perfil publico profesional backend | completada | `016c19d feat(professional): add safe public professional profiles` | Contratos publicos seguros aplicados. |
 | 3.5 Busqueda/filtros/paginacion | completada | `31496ec feat(search): add professional catalog filters and pagination` | Backend paginado aplicado. |
 | 3.6 Frontend publico catalogo | completada | `158a1ee feat(frontend-catalog): add public professional search` | Frontend publico aplicado. |
-| 3.7 UI profesional/admin | en progreso | `feat(catalog-ui): add professional and admin catalog management` | UI minima aplicada; pendiente commit. |
-| 3.8 Validacion y cierre | pendiente | `docs(module-03): close professional catalog validation` |  |
+| 3.7 UI profesional/admin | completada | `f823704 feat(catalog-ui): add professional and admin catalog management` | UI minima aplicada. |
+| 3.8 Validacion y cierre | en progreso | `docs(module-03): close professional catalog validation` | Validacion integrada ejecutada; bug runtime de paginacion corregido. |
 
 ## Estado final
 
-Pendiente.
+Modulo 3 implementado y validado en alcance MVP:
+
+- Catalogo publico con categorias/especialidades activas.
+- Contrato publico seguro de profesionales sin datos privados.
+- Busqueda publica paginada con filtros combinables.
+- Gestion propia de especialidades y publicacion profesional.
+- UI publica de busqueda/detalle.
+- UI minima profesional y admin para catalogo.
+- Migracion de constraint unica en `professional_specialties`.
+
+No se implementaron disponibilidad, slots, reservas ni Modulo 4.

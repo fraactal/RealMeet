@@ -29,10 +29,10 @@
 | AC-M3-025 | Frontend muestra listado, filtros, detalle, loading, error y vacio. | parcial | aprobado frontend | `ProfessionalsPage` consume respuesta paginada, categorias, especialidades y detalle. |
 | AC-M3-026 | Profesional gestiona especialidades y publicacion en frontend. | no-implementado | aprobado frontend | `ProfessionalCatalogPage` consume `me/public-profile` y `me/specialties`. |
 | AC-M3-027 | Admin gestiona categorias/especialidades en UI minima. | no-implementado | aprobado frontend | `AdminCatalogPage` crea y activa/desactiva categorias/especialidades. |
-| AC-M3-028 | `/health` y `/ready` siguen operativos. | verified M2 | pendiente |  |
-| AC-M3-029 | Logins demo siguen funcionando. | verified M2 | pendiente |  |
-| AC-M3-030 | Pruebas minimas relacionadas pasan. | parcial | aprobado parcial | 23 tests backend pasan. |
-| AC-M3-031 | Frontend compila. | verified M2 | aprobado parcial | `docker-compose exec -T frontend npm run build` OK en fases 3.6 y 3.7. |
-| AC-M3-032 | Cada fase completada tiene commit independiente. | pendiente | pendiente |  |
-| AC-M3-033 | Matriz de trazabilidad actualizada. | pendiente | pendiente |  |
-| AC-M3-034 | No se implementaron disponibilidad, slots ni reservas. | pendiente | pendiente |  |
+| AC-M3-028 | `/health` y `/ready` siguen operativos. | verified M2 | aprobado runtime | `GET /health` y `GET /ready` OK en Compose. |
+| AC-M3-029 | Logins demo siguen funcionando. | verified M2 | aprobado runtime | Login admin/professional/client OK; cliente recibe 403 en endpoint profesional. |
+| AC-M3-030 | Pruebas minimas relacionadas pasan. | parcial | aprobado | 23 tests backend pasan. |
+| AC-M3-031 | Frontend compila. | verified M2 | aprobado | `docker-compose exec -T frontend npm run build` OK en cierre. |
+| AC-M3-032 | Cada fase completada tiene commit independiente. | pendiente | aprobado | Commits `602b701`, `568b4b5`, `0059642`, `6feb711`, `016c19d`, `31496ec`, `158a1ee`, `f823704`; cierre pendiente de commit final. |
+| AC-M3-033 | Matriz de trazabilidad actualizada. | pendiente | aprobado | `specs/traceability/requirements-matrix.md` actualizado. |
+| AC-M3-034 | No se implementaron disponibilidad, slots ni reservas. | pendiente | aprobado | No se modificaron rutas/modelos/servicios de disponibilidad ni reservas. |

@@ -132,6 +132,7 @@ class ProfessionalService:
         total_pages = (total + page_size - 1) // page_size if total else 0
         page_ids = (
             id_query.distinct()
+            .with_only_columns(ProfessionalProfile.id, User.last_name, User.first_name)
             .order_by(User.last_name.asc(), User.first_name.asc(), ProfessionalProfile.id.asc())
             .offset((page - 1) * page_size)
             .limit(page_size)
@@ -141,7 +142,7 @@ class ProfessionalService:
             select(ProfessionalProfile)
             .join(page_ids, ProfessionalProfile.id == page_ids.c.id)
             .join(User, ProfessionalProfile.user_id == User.id)
-            .options(self._public_profile_options())
+            .options(*self._public_profile_options())
             .order_by(User.last_name.asc(), User.first_name.asc(), ProfessionalProfile.id.asc())
         )
         items = [self._serialize_public_profile(profile) for profile in self.db.scalars(query).unique()]
