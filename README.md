@@ -14,6 +14,7 @@ RealMeet es un MVP SaaS para agendamiento de profesionales orientado inicialment
 - Meeting provider mock preparado para futuras integraciones
 - Servicio de correo por SMTP o salida a log en desarrollo
 - Notificaciones basicas para reserva creada, confirmada y cancelada
+- Dashboards por rol y backoffice administrativo minimo
 - Metricas basicas para profesional y administrador
 - Backoffice minimo para usuarios, profesionales y reservas
 
@@ -100,12 +101,14 @@ Base API: `http://localhost:18000/api/v1`
 - `PATCH /appointments/professional/{id}/no-show`
 - `PATCH /appointments/professional/{id}/cancel`
 - `PATCH /appointments/professional/{id}/private-notes`
+- `GET /client/metrics`
 - `GET /professional/metrics`
 - `GET /admin/metrics`
 - `GET /admin/users`
 - `GET /admin/users/{id}`
 - `PATCH /admin/users/{id}`
 - `GET /admin/professionals`
+- `GET /admin/professionals/{id}`
 - `PATCH /admin/professionals/{id}`
 - `GET /admin/appointments`
 - `GET /admin/appointments/{id}`

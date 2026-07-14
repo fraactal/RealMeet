@@ -1,6 +1,11 @@
 import api from "./client";
 import type {
   AdminMetrics,
+  AdminAppointmentListResponse,
+  AdminProfessionalListResponse,
+  AdminProfessionalUpdate,
+  AdminUserListResponse,
+  AdminUserUpdate,
   Appointment,
   AppointmentCreate,
   AppointmentPrivateNotesUpdate,
@@ -16,6 +21,7 @@ import type {
   CategoryWrite,
   ClientSelfProfile,
   ClientSelfProfileUpdate,
+  ClientDashboard,
   ProfessionalMetrics,
   ProfessionalAppointment,
   ProfessionalPublicProfile,
@@ -251,7 +257,54 @@ export async function fetchProfessionalMetrics(): Promise<ProfessionalMetrics> {
   return data;
 }
 
+export async function fetchClientDashboard(): Promise<ClientDashboard> {
+  const { data } = await api.get("/client/metrics");
+  return data;
+}
+
 export async function fetchAdminMetrics(): Promise<AdminMetrics> {
   const { data } = await api.get("/admin/metrics");
+  return data;
+}
+
+export async function fetchAdminUsers(params: {
+  search?: string;
+  role?: string;
+  is_active?: boolean;
+  page?: number;
+  page_size?: number;
+} = {}): Promise<AdminUserListResponse> {
+  const { data } = await api.get("/admin/users", { params });
+  return data;
+}
+
+export async function updateAdminUser(userId: number, payload: AdminUserUpdate) {
+  const { data } = await api.patch(`/admin/users/${userId}`, payload);
+  return data;
+}
+
+export async function fetchAdminProfessionals(params: {
+  search?: string;
+  is_active?: boolean;
+  is_public?: boolean;
+  page?: number;
+  page_size?: number;
+} = {}): Promise<AdminProfessionalListResponse> {
+  const { data } = await api.get("/admin/professionals", { params });
+  return data;
+}
+
+export async function updateAdminProfessional(professionalId: number, payload: AdminProfessionalUpdate) {
+  const { data } = await api.patch(`/admin/professionals/${professionalId}`, payload);
+  return data;
+}
+
+export async function fetchAdminAppointments(params: {
+  search?: string;
+  status?: string;
+  page?: number;
+  page_size?: number;
+} = {}): Promise<AdminAppointmentListResponse> {
+  const { data } = await api.get("/admin/appointments", { params });
   return data;
 }

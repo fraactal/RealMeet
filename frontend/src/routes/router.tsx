@@ -3,6 +3,7 @@ import { createBrowserRouter } from "react-router-dom";
 import { DashboardLayout } from "../layouts/DashboardLayout";
 import { PublicLayout } from "../layouts/PublicLayout";
 import { AdminCatalogPage } from "../pages/AdminCatalogPage";
+import { AdminManagementPage } from "../pages/AdminManagementPage";
 import { AdminMetricsPage } from "../pages/AdminMetricsPage";
 import { AppointmentsPage } from "../pages/AppointmentsPage";
 import { DashboardHomePage } from "../pages/DashboardHomePage";
@@ -72,6 +73,14 @@ export const router = createBrowserRouter([
             element: (
               <RequireAuth allowedRoles={["admin"]}>
                 <AdminMetricsPage />
+              </RequireAuth>
+            ),
+          },
+          {
+            path: "admin/manage",
+            element: (
+              <RequireAuth allowedRoles={["admin"]}>
+                <AdminManagementPage />
               </RequireAuth>
             ),
           },

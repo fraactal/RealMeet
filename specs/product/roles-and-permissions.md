@@ -10,6 +10,8 @@ Decision Modulo 2: no se implementa backoffice nuevo. Las rutas administrativas 
 
 Decision Modulo 3: el administrador puede crear, actualizar, activar y desactivar categorias y especialidades desde un backoffice minimo. No se implementa eliminacion destructiva ni backoffice completo.
 
+Decision Modulo 7: el administrador puede listar y filtrar usuarios, profesionales y reservas; activar/desactivar usuarios; actualizar profesionales solo con `AdminProfessionalUpdate`; y consultar metricas globales. Se corrige mass assignment en `PATCH /admin/professionals/{id}`.
+
 ## Professional
 
 Puede editar su perfil, gestionar especialidades propias, gestionar disponibilidad, bloquear horarios, ver sus reservas, confirmar, cancelar, completar y marcar `no_show` segun transiciones validas, ver metricas propias y agregar notas privadas.
@@ -22,6 +24,8 @@ Decision Modulo 3: el profesional puede gestionar especialidades activas propias
 
 Decision Modulo 5: el profesional solo lista y gestiona reservas asociadas a su propio perfil. Las notas privadas solo aparecen en `AppointmentProfessionalRead`; clientes y administradores no las reciben por contrato.
 
+Decision Modulo 7: las metricas profesionales se derivan del usuario autenticado y no aceptan `professional_id` desde frontend.
+
 ## Client
 
 Puede buscar profesionales, ver perfiles publicos, consultar disponibilidad, reservar, cancelar reservas futuras cuando aplique y ver su historial.
@@ -33,6 +37,8 @@ Decision Modulo 2: el cliente debe contar con perfil propio seguro y no puede mo
 Decision Modulo 3: el cliente consume el catalogo publico con los mismos contratos que un usuario anonimo; no obtiene datos privados adicionales de profesionales.
 
 Decision Modulo 5: el cliente puede crear reservas solo desde slots disponibles recalculados por backend, listar reservas propias y cancelar reservas futuras `pending` o `confirmed`. No puede confirmar, completar, marcar `no_show` ni recibir notas privadas del profesional.
+
+Decision Modulo 7: el dashboard cliente solo muestra reservas y conteos propios. El cliente no puede acceder a endpoints administrativos ni metricas profesionales.
 
 ## Regla base
 

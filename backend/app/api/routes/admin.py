@@ -1,55 +1,132 @@
+from datetime import UTC, datetime
+
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.core.deps import require_admin
 from app.db.session import get_db
+from app.models.audit_log import AuditLog
 from app.models.appointment import Appointment, AppointmentStatus
 from app.models.category import Category
-from app.models.professional_profile import ProfessionalProfile
+from app.models.professional_profile import ProfessionalProfile, ProfessionalSpecialty
 from app.models.specialty import Specialty
-from app.models.user import User
+from app.models.user import User, UserRole
+from app.schemas.admin import (
+    AdminAppointmentListResponse,
+    AdminAppointmentStatusUpdate,
+    AdminProfessionalDetail,
+    AdminProfessionalListItem,
+    AdminProfessionalListResponse,
+    AdminProfessionalUpdate,
+    AdminUserDetail,
+    AdminUserListItem,
+    AdminUserListResponse,
+    AdminUserUpdate,
+    PageMeta,
+)
 from app.schemas.appointments import AppointmentAdminRead, AppointmentHistoryRead, AppointmentMeetingRead, AppointmentStatusUpdate
 from app.schemas.categories import CategoryAdminRead, CategoryCreate, CategoryUpdate
-from app.schemas.professionals import ProfessionalProfileRead
 from app.schemas.specialties import SpecialtyAdminRead, SpecialtyCreate, SpecialtyUpdate
-from app.schemas.users import UserRead, UserUpdate
 from app.services.catalog import CatalogService
 from app.services.appointments import AppointmentService
 
 router = APIRouter(dependencies=[Depends(require_admin)])
 
 
-@router.get("/users", response_model=list[UserRead])
-def list_users(limit: int = Query(default=20, le=100), offset: int = Query(default=0), db: Session = Depends(get_db)) -> list[UserRead]:
-    items = list(db.scalars(select(User).offset(offset).limit(limit).order_by(User.created_at.desc())))
-    return [UserRead.model_validate(item) for item in items]
+@router.get("/users", response_model=AdminUserListResponse)
+def list_users(
+    search: str | None = Query(default=None),
+    role: UserRole | None = Query(default=None),
+    is_active: bool | None = Query(default=None),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    db: Session = Depends(get_db),
+) -> AdminUserListResponse:
+    query = select(User)
+    count_query = select(func.count(User.id))
+    conditions = []
+    if search:
+        term = f"%{search.strip()}%"
+        conditions.append(or_(User.email.ilike(term), User.first_name.ilike(term), User.last_name.ilike(term)))
+    if role:
+        conditions.append(User.role == role)
+    if is_active is not None:
+        conditions.append(User.is_active == is_active)
+    if conditions:
+        query = query.where(*conditions)
+        count_query = count_query.where(*conditions)
+    total = db.scalar(count_query) or 0
+    items = list(db.scalars(query.offset((page - 1) * page_size).limit(page_size).order_by(User.created_at.desc(), User.id.desc())))
+    return AdminUserListResponse(
+        items=[_serialize_user_item(item) for item in items],
+        meta=_page_meta(page, page_size, total),
+    )
 
 
-@router.get("/users/{user_id}", response_model=UserRead)
-def get_user(user_id: int, db: Session = Depends(get_db)) -> UserRead:
+@router.get("/users/{user_id}", response_model=AdminUserDetail)
+def get_user(user_id: int, db: Session = Depends(get_db)) -> AdminUserDetail:
     user = db.get(User, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    return UserRead.model_validate(user)
+    return _serialize_user_detail(user)
 
 
-@router.patch("/users/{user_id}", response_model=UserRead)
-def update_user(user_id: int, payload: UserUpdate, db: Session = Depends(get_db)) -> UserRead:
+@router.patch("/users/{user_id}", response_model=AdminUserDetail)
+def update_user(
+    user_id: int,
+    payload: AdminUserUpdate,
+    admin_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> AdminUserDetail:
     user = db.get(User, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    for key, value in payload.model_dump(exclude_unset=True).items():
+    changes = payload.model_dump(exclude_unset=True)
+    for key, value in changes.items():
         setattr(user, key, value)
+    _audit(db, admin_user.id, "admin_user_updated", "User", str(user.id), {"fields": sorted(changes.keys())})
     db.commit()
     db.refresh(user)
-    return UserRead.model_validate(user)
+    return _serialize_user_detail(user)
 
 
-@router.get("/professionals", response_model=list[ProfessionalProfileRead])
-def list_professionals(limit: int = Query(default=20, le=100), offset: int = Query(default=0), db: Session = Depends(get_db)) -> list[ProfessionalProfileRead]:
-    items = list(db.scalars(select(ProfessionalProfile).offset(offset).limit(limit).order_by(ProfessionalProfile.created_at.desc())))
-    return [ProfessionalProfileRead.model_validate(item) for item in items]
+@router.get("/professionals", response_model=AdminProfessionalListResponse)
+def list_professionals(
+    search: str | None = Query(default=None),
+    is_active: bool | None = Query(default=None),
+    is_public: bool | None = Query(default=None),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    db: Session = Depends(get_db),
+) -> AdminProfessionalListResponse:
+    query = select(ProfessionalProfile).join(User, ProfessionalProfile.user_id == User.id)
+    count_query = select(func.count(ProfessionalProfile.id)).join(User, ProfessionalProfile.user_id == User.id)
+    conditions = []
+    if search:
+        term = f"%{search.strip()}%"
+        conditions.append(or_(User.email.ilike(term), User.first_name.ilike(term), User.last_name.ilike(term), ProfessionalProfile.title.ilike(term)))
+    if is_active is not None:
+        conditions.append(User.is_active == is_active)
+    if is_public is not None:
+        conditions.append(ProfessionalProfile.is_public == is_public)
+    if conditions:
+        query = query.where(*conditions)
+        count_query = count_query.where(*conditions)
+    total = db.scalar(count_query) or 0
+    items = list(db.scalars(query.offset((page - 1) * page_size).limit(page_size).order_by(ProfessionalProfile.created_at.desc())))
+    return AdminProfessionalListResponse(
+        items=[_serialize_professional_item(item) for item in items],
+        meta=_page_meta(page, page_size, total),
+    )
+
+
+@router.get("/professionals/{professional_id}", response_model=AdminProfessionalDetail)
+def get_professional(professional_id: int, db: Session = Depends(get_db)) -> AdminProfessionalDetail:
+    professional = db.get(ProfessionalProfile, professional_id)
+    if not professional:
+        raise HTTPException(status_code=404, detail="Professional not found")
+    return _serialize_professional_detail(db, professional)
 
 
 @router.get("/categories", response_model=list[CategoryAdminRead])
@@ -94,24 +171,63 @@ def update_specialty(specialty_id: int, payload: SpecialtyUpdate, db: Session = 
     return SpecialtyAdminRead.model_validate(item)
 
 
-@router.patch("/professionals/{professional_id}", response_model=ProfessionalProfileRead)
-def patch_professional(professional_id: int, payload: dict, db: Session = Depends(get_db)) -> ProfessionalProfileRead:
+@router.patch("/professionals/{professional_id}", response_model=AdminProfessionalDetail)
+def patch_professional(
+    professional_id: int,
+    payload: AdminProfessionalUpdate,
+    admin_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> AdminProfessionalDetail:
     professional = db.get(ProfessionalProfile, professional_id)
     if not professional:
         raise HTTPException(status_code=404, detail="Professional not found")
-    for key, value in payload.items():
-        if hasattr(professional, key):
-            setattr(professional, key, value)
+    changes = payload.model_dump(exclude_unset=True)
+    user_is_active = changes.pop("user_is_active", None)
+    for key, value in changes.items():
+        setattr(professional, key, value)
+    if user_is_active is not None:
+        professional.user.is_active = user_is_active
+    _audit(
+        db,
+        admin_user.id,
+        "admin_professional_updated",
+        "ProfessionalProfile",
+        str(professional.id),
+        {"fields": sorted([*changes.keys(), *([] if user_is_active is None else ["user_is_active"])])},
+    )
     db.commit()
     db.refresh(professional)
-    return ProfessionalProfileRead.model_validate(professional)
+    return _serialize_professional_detail(db, professional)
 
 
-@router.get("/appointments", response_model=list[AppointmentAdminRead])
-def list_appointments(limit: int = Query(default=20, le=100), offset: int = Query(default=0), db: Session = Depends(get_db)) -> list[AppointmentAdminRead]:
+@router.get("/appointments", response_model=AdminAppointmentListResponse)
+def list_appointments(
+    status: AppointmentStatus | None = Query(default=None),
+    search: str | None = Query(default=None),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    db: Session = Depends(get_db),
+) -> AdminAppointmentListResponse:
     service = AppointmentService(db)
-    items = list(db.scalars(select(Appointment).offset(offset).limit(limit).order_by(Appointment.start_datetime.desc())))
-    return [_serialize_admin_appointment(item, service) for item in items]
+    query = select(Appointment)
+    count_query = select(func.count(Appointment.id))
+    conditions = []
+    if status:
+        conditions.append(Appointment.status == status)
+    if search:
+        term = f"%{search.strip()}%"
+        query = query.join(ProfessionalProfile, Appointment.professional_id == ProfessionalProfile.id).join(User, ProfessionalProfile.user_id == User.id)
+        count_query = count_query.join(ProfessionalProfile, Appointment.professional_id == ProfessionalProfile.id).join(User, ProfessionalProfile.user_id == User.id)
+        conditions.append(or_(User.email.ilike(term), User.first_name.ilike(term), User.last_name.ilike(term)))
+    if conditions:
+        query = query.where(*conditions)
+        count_query = count_query.where(*conditions)
+    total = db.scalar(count_query) or 0
+    items = list(db.scalars(query.offset((page - 1) * page_size).limit(page_size).order_by(Appointment.start_datetime.desc())))
+    return AdminAppointmentListResponse(
+        items=[_serialize_admin_appointment(item, service) for item in items],
+        meta=_page_meta(page, page_size, total),
+    )
 
 
 @router.get("/appointments/{appointment_id}", response_model=AppointmentAdminRead)
@@ -126,8 +242,7 @@ def get_appointment(appointment_id: int, db: Session = Depends(get_db)) -> Appoi
 @router.patch("/appointments/{appointment_id}/status", response_model=AppointmentAdminRead)
 def update_appointment_status(
     appointment_id: int,
-    new_status: AppointmentStatus,
-    payload: AppointmentStatusUpdate,
+    payload: AdminAppointmentStatusUpdate,
     user: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ) -> AppointmentAdminRead:
@@ -135,8 +250,82 @@ def update_appointment_status(
     appointment = db.get(Appointment, appointment_id)
     if not appointment:
         raise HTTPException(status_code=404, detail="Appointment not found")
-    item = service.transition(appointment, user, new_status, payload)
+    item = service.transition(appointment, user, payload.status, AppointmentStatusUpdate(reason=payload.reason))
+    _audit(db, user.id, "admin_appointment_status_updated", "Appointment", str(appointment.id), {"status": payload.status.value})
+    db.commit()
+    db.refresh(item)
     return _serialize_admin_appointment(item, service)
+
+
+def _serialize_user_item(user: User) -> AdminUserListItem:
+    return AdminUserListItem(
+        id=user.id,
+        email=user.email,
+        first_name=user.first_name,
+        last_name=user.last_name,
+        role=user.role,
+        is_active=user.is_active,
+        created_at=user.created_at,
+    )
+
+
+def _serialize_user_detail(user: User) -> AdminUserDetail:
+    return AdminUserDetail(**_serialize_user_item(user).model_dump(), phone=user.phone, updated_at=user.updated_at)
+
+
+def _serialize_professional_item(professional: ProfessionalProfile) -> AdminProfessionalListItem:
+    return AdminProfessionalListItem(
+        id=professional.id,
+        user_id=professional.user_id,
+        email=professional.user.email,
+        full_name=f"{professional.user.first_name} {professional.user.last_name}",
+        title=professional.title,
+        category_id=professional.category_id,
+        consultation_mode=professional.consultation_mode,
+        is_public=professional.is_public,
+        is_verified=professional.is_verified,
+        user_is_active=professional.user.is_active,
+        created_at=professional.created_at,
+    )
+
+
+def _serialize_professional_detail(db: Session, professional: ProfessionalProfile) -> AdminProfessionalDetail:
+    specialties = list(
+        db.scalars(
+            select(Specialty.name)
+            .join(ProfessionalSpecialty, ProfessionalSpecialty.specialty_id == Specialty.id)
+            .where(ProfessionalSpecialty.professional_id == professional.id)
+            .order_by(Specialty.name.asc())
+        )
+    )
+    return AdminProfessionalDetail(
+        **_serialize_professional_item(professional).model_dump(),
+        bio=professional.bio,
+        years_experience=professional.years_experience,
+        session_duration_minutes=professional.session_duration_minutes,
+        price=professional.price,
+        city=professional.city,
+        country=professional.country,
+        specialties=specialties,
+    )
+
+
+def _page_meta(page: int, page_size: int, total: int) -> PageMeta:
+    total_pages = max((total + page_size - 1) // page_size, 1)
+    return PageMeta(page=page, page_size=page_size, total=total, total_pages=total_pages)
+
+
+def _audit(db: Session, user_id: int, action: str, entity_name: str, entity_id: str, metadata: dict) -> None:
+    db.add(
+        AuditLog(
+            user_id=user_id,
+            action=action,
+            entity_name=entity_name,
+            entity_id=entity_id,
+            metadata_json=metadata,
+            created_at=datetime.now(UTC),
+        )
+    )
 
 
 def _serialize_admin_appointment(appointment: Appointment, service: AppointmentService) -> AppointmentAdminRead:

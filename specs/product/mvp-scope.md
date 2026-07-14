@@ -17,6 +17,8 @@
 - Creacion y consulta de reservas.
 - Historial de cambios de reservas.
 - Estados `pending`, `confirmed`, `cancelled`, `completed`, `no_show`.
+- Dashboards basicos por rol.
+- Backoffice administrativo minimo de usuarios, profesionales y reservas.
 - Metricas basicas.
 - Backoffice administrativo minimo.
 - Servicio de correo desacoplado.

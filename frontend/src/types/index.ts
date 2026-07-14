@@ -276,17 +276,142 @@ export interface AppointmentPrivateNotesUpdate {
 export interface ProfessionalMetrics {
   today_reservations: number;
   upcoming_reservations: number;
+  pending_reservations: number;
+  confirmed_reservations: number;
   monthly_completed: number;
   lifetime_completed: number;
   unique_clients: number;
   cancelled_reservations: number;
+  no_show_reservations: number;
   cancellation_rate: number;
   estimated_month_income: number;
+  status_counts: StatusCounts;
+  recent_appointments: DashboardAppointment[];
+  next_appointments: DashboardAppointment[];
+  is_public: boolean;
+  availability_rules_count: number;
 }
 
 export interface AdminMetrics {
   total_users: number;
+  active_clients: number;
+  active_professionals: number;
   total_professionals: number;
   total_clients: number;
+  public_professionals: number;
   total_appointments: number;
+  pending_appointments: number;
+  confirmed_appointments: number;
+  completed_appointments: number;
+  cancelled_appointments: number;
+  no_show_appointments: number;
+  active_categories: number;
+  active_specialties: number;
+  recent_appointments: DashboardAppointment[];
+}
+
+export interface StatusCounts {
+  pending: number;
+  confirmed: number;
+  cancelled: number;
+  completed: number;
+  no_show: number;
+}
+
+export interface DashboardAppointment {
+  id: number;
+  start_datetime: string;
+  end_datetime: string;
+  status: AppointmentStatus;
+  consultation_mode: ConsultationMode;
+}
+
+export interface ClientDashboard {
+  upcoming_reservations: number;
+  status_counts: StatusCounts;
+  recent_appointments: DashboardAppointment[];
+  next_appointments: DashboardAppointment[];
+}
+
+export interface PageMeta {
+  page: number;
+  page_size: number;
+  total: number;
+  total_pages: number;
+}
+
+export interface AdminUserListItem {
+  id: number;
+  email: string;
+  first_name: string;
+  last_name: string;
+  role: UserRole;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface AdminUserDetail extends AdminUserListItem {
+  phone?: string | null;
+  updated_at: string;
+}
+
+export interface AdminUserUpdate {
+  first_name?: string | null;
+  last_name?: string | null;
+  phone?: string | null;
+  is_active?: boolean | null;
+}
+
+export interface AdminUserListResponse {
+  items: AdminUserListItem[];
+  meta: PageMeta;
+}
+
+export interface AdminProfessionalListItem {
+  id: number;
+  user_id: number;
+  email: string;
+  full_name: string;
+  title?: string | null;
+  category_id?: number | null;
+  consultation_mode: ConsultationMode;
+  is_public: boolean;
+  is_verified: boolean;
+  user_is_active: boolean;
+  created_at: string;
+}
+
+export interface AdminProfessionalDetail extends AdminProfessionalListItem {
+  bio?: string | null;
+  years_experience?: number | null;
+  session_duration_minutes: number;
+  price?: string | null;
+  city?: string | null;
+  country?: string | null;
+  specialties: string[];
+}
+
+export interface AdminProfessionalUpdate {
+  category_id?: number | null;
+  title?: string | null;
+  bio?: string | null;
+  years_experience?: number | null;
+  consultation_mode?: ConsultationMode | null;
+  session_duration_minutes?: number | null;
+  price?: string | null;
+  city?: string | null;
+  country?: string | null;
+  is_verified?: boolean | null;
+  is_public?: boolean | null;
+  user_is_active?: boolean | null;
+}
+
+export interface AdminProfessionalListResponse {
+  items: AdminProfessionalListItem[];
+  meta: PageMeta;
+}
+
+export interface AdminAppointmentListResponse {
+  items: Appointment[];
+  meta: PageMeta;
 }

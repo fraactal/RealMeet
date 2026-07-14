@@ -42,6 +42,16 @@ Estado Modulo 5: los contratos de salida para cliente y administrador no declara
 
 Estado inicial Modulo 2: login emite JWT con `sub` y `exp`, pero debe rechazar usuarios inactivos; `/users/me` no debe permitir modificar `is_active`; el frontend debe restaurar sesion contra backend y limpiar estado ante `401`.
 
+## Dashboards y administracion
+
+- Las metricas propias se calculan desde el usuario autenticado.
+- Las metricas profesionales no aceptan `professional_id` externo.
+- Las metricas administrativas son globales y requieren rol admin.
+- Las listas administrativas usan paginacion y filtros simples.
+- La actualizacion administrativa de profesionales usa una lista cerrada de campos permitidos.
+- Desactivar usuarios no elimina reservas ni datos historicos.
+- Los endpoints admin no exponen notas privadas profesionales.
+
 ## Perfiles propios
 
 - Un cliente solo puede consultar y actualizar su propio perfil.

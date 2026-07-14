@@ -24,6 +24,7 @@ export function DashboardLayout() {
             {user?.role === "professional" ? <Link to="/dashboard/professional/catalog">Catalogo profesional</Link> : null}
             {user?.role === "professional" ? <Link to="/dashboard/professional/availability">Disponibilidad</Link> : null}
             {user?.role === "admin" ? <Link to="/dashboard/admin">Metricas admin</Link> : null}
+            {user?.role === "admin" ? <Link to="/dashboard/admin/manage">Backoffice admin</Link> : null}
             {user?.role === "admin" ? <Link to="/dashboard/admin/catalog">Catalogo admin</Link> : null}
           </nav>
         </aside>

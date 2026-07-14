@@ -1,12 +1,17 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.core.deps import get_current_user, require_admin, require_professional
+from app.core.deps import get_current_user, require_admin, require_client, require_professional
 from app.db.session import get_db
-from app.schemas.metrics import AdminMetrics, ProfessionalMetrics
+from app.schemas.metrics import AdminMetrics, ClientDashboard, ProfessionalMetrics
 from app.services.metrics import MetricsService
 
 router = APIRouter()
+
+
+@router.get("/client/metrics", response_model=ClientDashboard, dependencies=[Depends(require_client)])
+def client_metrics(user=Depends(get_current_user), db: Session = Depends(get_db)) -> ClientDashboard:
+    return ClientDashboard(**MetricsService(db).client_dashboard(user))
 
 
 @router.get("/professional/metrics", response_model=ProfessionalMetrics, dependencies=[Depends(require_professional)])
