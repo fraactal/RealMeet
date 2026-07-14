@@ -12,6 +12,8 @@ Decision Modulo 3: el administrador puede crear, actualizar, activar y desactiva
 
 Decision Modulo 7: el administrador puede listar y filtrar usuarios, profesionales y reservas; activar/desactivar usuarios; actualizar profesionales solo con `AdminProfessionalUpdate`; y consultar metricas globales. Se corrige mass assignment en `PATCH /admin/professionals/{id}`.
 
+Decision Modulo 8: el administrador mantiene acceso global operativo, pero no recibe notas privadas del profesional en contratos de reservas porque no existe politica explicita para exponerlas. No se agregan permisos nuevos.
+
 ## Professional
 
 Puede editar su perfil, gestionar especialidades propias, gestionar disponibilidad, bloquear horarios, ver sus reservas, confirmar, cancelar, completar y marcar `no_show` segun transiciones validas, ver metricas propias y agregar notas privadas.
@@ -26,6 +28,8 @@ Decision Modulo 5: el profesional solo lista y gestiona reservas asociadas a su 
 
 Decision Modulo 7: las metricas profesionales se derivan del usuario autenticado y no aceptan `professional_id` desde frontend.
 
+Decision Modulo 8: el profesional conserva acceso a notas privadas solo en reservas propias y a traves de `AppointmentProfessionalRead`. El acceso cruzado continua bloqueado por servicio y dependencias de rol.
+
 ## Client
 
 Puede buscar profesionales, ver perfiles publicos, consultar disponibilidad, reservar, cancelar reservas futuras cuando aplique y ver su historial.
@@ -39,6 +43,8 @@ Decision Modulo 3: el cliente consume el catalogo publico con los mismos contrat
 Decision Modulo 5: el cliente puede crear reservas solo desde slots disponibles recalculados por backend, listar reservas propias y cancelar reservas futuras `pending` o `confirmed`. No puede confirmar, completar, marcar `no_show` ni recibir notas privadas del profesional.
 
 Decision Modulo 7: el dashboard cliente solo muestra reservas y conteos propios. El cliente no puede acceder a endpoints administrativos ni metricas profesionales.
+
+Decision Modulo 8: el cliente conserva contratos sin `professional_private_notes` y no recibe datos privados de otros usuarios desde endpoints de reservas o dashboards.
 
 ## Regla base
 

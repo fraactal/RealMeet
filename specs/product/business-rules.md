@@ -52,6 +52,8 @@ Estado inicial Modulo 2: login emite JWT con `sub` y `exp`, pero debe rechazar u
 - Desactivar usuarios no elimina reservas ni datos historicos.
 - Los endpoints admin no exponen notas privadas profesionales.
 
+Estado Modulo 8: dashboards, metricas y backoffice minimo se consideran parte del MVP funcional para desarrollo local/demo. El cierre valida que las metricas propias deriven del token y que admin use contratos cerrados.
+
 ## Perfiles propios
 
 - Un cliente solo puede consultar y actualizar su propio perfil.
@@ -67,3 +69,9 @@ Estado inicial Modulo 2: login emite JWT con `sub` y `exp`, pero debe rechazar u
 - Un perfil profesional aparece publicamente solo si el usuario esta activo, es `professional`, el perfil tiene `is_public=true`, categoria activa, titulo y al menos una especialidad activa.
 - Los contratos publicos no exponen email, telefono, `is_active`, timestamps, licencias, verificaciones, precios, hashes, tokens, notas ni datos clinicos.
 - La busqueda publica debe estar paginada y acotada.
+
+## Cierre MVP
+
+- El MVP se considera cerrado para desarrollo local y demo controlada solo si pasan pruebas backend, build frontend, health/readiness y validaciones acotadas por rol.
+- Staging requiere checklist previo, secretos reales, CORS restringido y credenciales demo gestionadas.
+- Produccion y uso clinico real quedan fuera de alcance hasta completar hardening, cumplimiento y operacion.

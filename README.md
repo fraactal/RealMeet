@@ -112,7 +112,7 @@ Base API: `http://localhost:18000/api/v1`
 - `PATCH /admin/professionals/{id}`
 - `GET /admin/appointments`
 - `GET /admin/appointments/{id}`
-- `PATCH /admin/appointments/{id}/status?new_status=confirmed`
+- `PATCH /admin/appointments/{id}/status`
 
 ## Flujo funcional principal
 
@@ -387,14 +387,32 @@ Principales dependencias documentadas:
 
 - PostgreSQL - PostgreSQL License
 
+## Contratos administrativos
+
+`PATCH /admin/appointments/{id}/status` recibe un body con `new_status` y `reason`, usando el contrato `AppointmentStatusUpdate`. No se aceptan campos de notas privadas del profesional en contratos administrativos de reservas.
+
+## Estado MVP integrado
+
+El cierre del Modulo 8 consolida el MVP para desarrollo local y demo controlada: autenticacion, roles, perfiles, catalogo, disponibilidad, reservas, historial, reuniones mock, notificaciones, dashboards, metricas, backoffice minimo y auditoria administrativa basica.
+
+Readiness:
+
+- Desarrollo local: listo si pasan las validaciones finales documentadas en `specs/modules/module-08-mvp-closure/validation-report.md`.
+- Demo: apto para demo controlada con datos no reales.
+- Staging: preparado con checklist previo en `specs/modules/module-08-mvp-closure/staging-checklist.md`.
+- Produccion: no listo; requiere hardening, secretos reales, HTTPS, backups, monitoreo, SAST/SCA, rate limiting y operacion.
+- Uso clinico real: no listo; requiere privacidad clinica, consentimiento, retencion, auditoria regulatoria y cumplimiento legal.
+
 ## Plan sugerido de commits
 
-El repositorio ya tiene commits incrementales hasta Modulo 2. No hacer push sin instruccion explicita.
+El repositorio tiene commits incrementales por modulo. El Modulo 8 debe cerrarse con un unico commit y sin push salvo instruccion explicita.
 
 ## Limitaciones actuales del MVP
 
-- Integraciones reales con Google Meet y Zoom no implementadas
-- Frontend base funcional, pero todavia sin formularios completos de CRUD
-- Pruebas automatizadas actuales son minimas y enfocadas en configuracion, health y seguridad auth/perfiles
-- El backoffice es minimo y prioriza operacion inicial sobre cobertura total de UX
-- El flujo de reservas basicas ya esta habilitado; reprogramacion, recordatorios y correos avanzados quedan fuera del Modulo 5.
+- Integraciones reales con Google Meet y Zoom no implementadas.
+- WhatsApp, pagos, suscripciones y facturacion quedan diferidos.
+- Recuperacion de contrasena, MFA y roles configurables quedan diferidos.
+- Pruebas frontend automaticas y E2E completas quedan diferidas.
+- El backoffice es minimo y prioriza operacion inicial sobre cobertura total de UX.
+- Reprogramacion, recordatorios avanzados y correos transaccionales completos quedan fuera del MVP.
+- Produccion y uso clinico real requieren hardening y cumplimiento adicional.

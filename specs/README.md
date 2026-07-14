@@ -53,6 +53,7 @@ Usar prefijos estables por dominio:
 - `INFRA`: Docker e infraestructura local.
 - `MIG`: migraciones.
 - `SEED`: datos iniciales.
+- `MVP`: cierre integrado y readiness.
 
 Formato recomendado: `PREFIX-001`.
 
@@ -121,3 +122,7 @@ Gherkin no se utiliza en la etapa actual.
 - `modules/module-02-auth-profiles`: autenticacion, autorizacion y perfiles base. Estado inicial: en progreso.
 - `modules/module-03-professional-catalog`: catalogo profesional y busqueda publica. Estado inicial: en progreso.
 - `modules/module-04-availability`: disponibilidad semanal, bloqueos y calculo de slots. Estado inicial: en progreso.
+- `modules/module-05-appointments`: reservas, estados e historial.
+- `modules/module-06-notifications-meetings`: notificaciones y reuniones mock.
+- `modules/module-07-dashboards-admin`: dashboards, metricas y backoffice minimo.
+- `modules/module-08-mvp-closure`: cierre integrado del MVP y preparacion para staging.

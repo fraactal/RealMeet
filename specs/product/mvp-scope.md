@@ -20,10 +20,12 @@
 - Dashboards basicos por rol.
 - Backoffice administrativo minimo de usuarios, profesionales y reservas.
 - Metricas basicas.
-- Backoffice administrativo minimo.
+- Backoffice administrativo minimo de catalogo.
 - Servicio de correo desacoplado.
 - `MockMeetingProvider` con URL local de desarrollo.
 - Notificaciones basicas de reserva creada, confirmada y cancelada.
+- Auditoria administrativa basica para cambios administrativos relevantes.
+- Cierre integrado con checklist de staging y reporte de readiness.
 
 ## Excluido por ahora
 
@@ -40,5 +42,7 @@
 - Telemedicina certificada.
 - Integraciones con FONASA, aseguradoras o interoperabilidad clinica.
 - Auditorias regulatorias avanzadas.
+- Produccion clinica.
+- Pentesting, pruebas de carga, SAST/SCA completo, backups y observabilidad productiva.
 
 Estas capacidades requieren specs futuras.
