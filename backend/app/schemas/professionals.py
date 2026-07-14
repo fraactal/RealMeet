@@ -69,6 +69,18 @@ class ProfessionalSelfProfileUpdate(UserSelfUpdate):
     country: str | None = None
 
 
+class ProfessionalSpecialtyRead(BaseModel):
+    id: int
+    name: str
+    slug: str
+    category_id: int
+    category_name: str
+
+
+class ProfessionalSpecialtyUpdate(BaseModel):
+    specialty_ids: list[int]
+
+
 class ProfessionalPublicRead(BaseModel):
     id: int
     title: str | None

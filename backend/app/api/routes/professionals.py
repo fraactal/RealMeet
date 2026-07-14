@@ -6,6 +6,8 @@ from app.db.session import get_db
 from app.models.professional_profile import ProfessionalProfile, ProfessionalSpecialty
 from app.schemas.professionals import (
     ProfessionalPublicRead,
+    ProfessionalSpecialtyRead,
+    ProfessionalSpecialtyUpdate,
     ProfessionalSelfProfileRead,
     ProfessionalSelfProfileUpdate,
 )
@@ -82,3 +84,17 @@ def update_profile(
     db: Session = Depends(get_db),
 ) -> ProfessionalSelfProfileRead:
     return ProfessionalService(db).upsert_self_profile(user, payload)
+
+
+@router.get("/me/specialties", response_model=list[ProfessionalSpecialtyRead], dependencies=[Depends(require_professional)])
+def list_my_specialties(user=Depends(get_current_user), db: Session = Depends(get_db)) -> list[ProfessionalSpecialtyRead]:
+    return ProfessionalService(db).list_self_specialties(user)
+
+
+@router.patch("/me/specialties", response_model=list[ProfessionalSpecialtyRead], dependencies=[Depends(require_professional)])
+def update_my_specialties(
+    payload: ProfessionalSpecialtyUpdate,
+    user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[ProfessionalSpecialtyRead]:
+    return ProfessionalService(db).update_self_specialties(user, payload)

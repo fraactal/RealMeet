@@ -10,7 +10,7 @@ from app.core.deps import get_current_user, require_admin, require_client, requi
 from app.core.security import ALGORITHM, create_access_token, decode_token, hash_password
 from app.models.user import UserRole
 from app.schemas.categories import CategoryAdminRead, CategoryPublicRead
-from app.schemas.professionals import ProfessionalSelfProfileUpdate
+from app.schemas.professionals import ProfessionalSelfProfileUpdate, ProfessionalSpecialtyUpdate
 from app.schemas.specialties import SpecialtyAdminRead, SpecialtyPublicRead
 from app.schemas.users import ClientSelfProfileUpdate, UserSelfUpdate
 from app.services.auth import AuthService
@@ -157,3 +157,9 @@ def test_admin_catalog_contracts_include_admin_state() -> None:
 
     assert category.is_active is True
     assert specialty.is_active is True
+
+
+def test_professional_specialty_update_keeps_requested_ids() -> None:
+    payload = ProfessionalSpecialtyUpdate.model_validate({"specialty_ids": [1, 2, 2]})
+
+    assert payload.specialty_ids == [1, 2, 2]
