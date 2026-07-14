@@ -28,8 +28,8 @@ Fecha de inicio: 2026-07-14.
 | 2.2 JWT, usuario activo y errores | completada | `dfa4606 fix(auth): harden jwt validation and authentication errors` | 14 tests backend pasan tras Fase 2.3. |
 | 2.3 Autorizacion por rol | completada | `c45aa4e feat(authz): enforce role-based access control` | Helpers de rol aplicados. |
 | 2.4 Perfil base de cliente | completada | `f195f93 feat(client): add secure self-service profile` | Contratos y servicio aplicados. |
-| 2.5 Perfil base de profesional | en progreso | `feat(professional): add secure self-service profile` | Contratos propios restringidos aplicados; pendiente commit. |
-| 2.6 Sesion y proteccion frontend | pendiente | `feat(frontend-auth): protect sessions and role routes` |  |
+| 2.5 Perfil base de profesional | completada | `898ebda feat(professional): add secure self-service profile` | Contratos propios restringidos aplicados. |
+| 2.6 Sesion y proteccion frontend | en progreso | `feat(frontend-auth): protect sessions and role routes` | Build frontend OK; pendiente commit. |
 | 2.7 Validacion integrada y cierre | pendiente | `docs(module-02): close auth and profiles validation` |  |
 
 ## Seguridad y riesgos
@@ -39,7 +39,7 @@ Fecha de inicio: 2026-07-14.
 - Riesgo reducido en Fase 2.3: permisos por rol ahora tienen helpers explicitos para admin, professional y client.
 - Riesgo corregido parcialmente en Fase 2.4: `/users/me` ya no acepta `is_active` y el cliente tiene contrato propio seguro.
 - Riesgo corregido en Fase 2.5: perfil profesional propio ya no permite `category_id`, `specialty_ids`, `price`, `is_public`, verificaciones ni licencia.
-- Riesgo confirmado: frontend puede mostrar rutas no autorizadas si existe token local.
+- Riesgo reducido en Fase 2.6: frontend restaura sesion contra backend, limpia ante `401` y aplica guardas por rol.
 - Riesgo aceptado temporalmente: token en `localStorage`.
 
 ## Estado final

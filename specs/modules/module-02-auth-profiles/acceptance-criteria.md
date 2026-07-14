@@ -19,14 +19,14 @@
 | AC-M2-015 | Profesional consulta y actualiza unicamente su perfil. | implementado-parcial | aprobado backend | `ProfessionalSelfProfileRead/Update` en endpoints propios. |
 | AC-M2-016 | Payloads propios no permiten modificar rol, `is_active` ni campos administrativos. | fallido | aprobado backend | Contratos self-service de usuario, cliente y profesional no declaran campos admin. |
 | AC-M2-017 | Perfil profesional base no permite modificar categorias, especialidades, precio ni publicacion. | fallido | aprobado backend | `ProfessionalSelfProfileUpdate` excluye esos campos; test de contrato agregado. |
-| AC-M2-018 | Logout elimina token y estado local. | implementado | pendiente | Store y navbar lo hacen; se revalidara. |
-| AC-M2-019 | Ante `401`, frontend limpia sesion. | no-implementado | pendiente | Falta interceptor de respuesta. |
-| AC-M2-020 | Frontend restringe rutas segun rol. | parcial | pendiente | Links por rol existen; rutas no. |
+| AC-M2-018 | Logout elimina token y estado local. | implementado | aprobado frontend | Store limpia token/user/restoring y Navbar redirige a login. |
+| AC-M2-019 | Ante `401`, frontend limpia sesion. | no-implementado | aprobado frontend | Interceptor Axios ejecuta `logout()` ante `401`. |
+| AC-M2-020 | Frontend restringe rutas segun rol. | parcial | aprobado frontend | `RequireAuth` acepta `allowedRoles` y protege metricas admin/professional. |
 | AC-M2-021 | Seguridad continua aplicada en backend. | parcial | pendiente | Backend debe seguir siendo autoridad. |
 | AC-M2-022 | No se exponen hashes, secretos ni informacion interna. | parcial | pendiente | Revisar schemas, logs y busquedas estaticas. |
 | AC-M2-023 | Backend, frontend y PostgreSQL continuan funcionando. | verificado M1 | pendiente | Validacion integrada M2. |
 | AC-M2-024 | `/health` y `/ready` continuan operativos. | verificado M1 | aprobado parcial | Runtime `GET /health` y `GET /ready` OK tras Fase 2.2. |
-| AC-M2-025 | Frontend compila. | verificado M1 | pendiente | Build M2. |
+| AC-M2-025 | Frontend compila. | verificado M1 | aprobado | `docker-compose exec -T frontend npm run build` OK. |
 | AC-M2-026 | Pruebas minimas relacionadas pasan. | parcial | aprobado parcial | `docker-compose exec -T backend pytest`: 17 passed. |
 | AC-M2-027 | Cada fase tiene commit independiente. | pendiente | pendiente | Git. |
 | AC-M2-028 | Matriz de trazabilidad actualizada. | pendiente | pendiente | `requirements-matrix.md`. |

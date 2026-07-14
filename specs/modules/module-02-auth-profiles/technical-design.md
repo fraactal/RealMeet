@@ -82,11 +82,12 @@ Los endpoints propios `POST /professionals/profile`, `GET /professionals/me/prof
 
 El token permanece en `localStorage` por compatibilidad con la base actual. Controles M2:
 
-- Restaurar sesion consultando `/auth/me` cuando exista token local y no haya usuario cargado.
-- Limpiar sesion ante `401`.
+- Restaurar sesion consultando `/auth/me` cuando exista token local y no haya usuario cargado mediante `RequireAuth`.
+- Limpiar sesion ante `401` mediante interceptor Axios.
 - Mostrar estado de carga inicial sin loop.
-- Aplicar guardas de rol en rutas.
-- Mantener logout limpiando token y usuario.
+- Aplicar guardas de rol en rutas de metricas profesional y admin.
+- Mantener logout limpiando token y usuario y redirigiendo a login.
+- Mantener tipos TypeScript para usuario actual, perfil cliente propio y perfil profesional propio alineados con contratos backend.
 
 Riesgo aceptado temporalmente: `localStorage` es vulnerable a XSS; migracion futura a cookies HttpOnly/SameSite queda como deuda de hardening.
 

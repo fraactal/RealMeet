@@ -29,8 +29,22 @@ export const router = createBrowserRouter([
         children: [
           { index: true, element: <DashboardHomePage /> },
           { path: "appointments", element: <AppointmentsPage /> },
-          { path: "professional", element: <ProfessionalMetricsPage /> },
-          { path: "admin", element: <AdminMetricsPage /> },
+          {
+            path: "professional",
+            element: (
+              <RequireAuth allowedRoles={["professional"]}>
+                <ProfessionalMetricsPage />
+              </RequireAuth>
+            ),
+          },
+          {
+            path: "admin",
+            element: (
+              <RequireAuth allowedRoles={["admin"]}>
+                <AdminMetricsPage />
+              </RequireAuth>
+            ),
+          },
         ],
       },
     ],

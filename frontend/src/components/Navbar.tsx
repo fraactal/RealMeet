@@ -1,9 +1,15 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 import { useAuthStore } from "../store/auth";
 
 export function Navbar() {
   const { user, logout } = useAuthStore();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    navigate("/login", { replace: true });
+  };
 
   return (
     <header className="border-b border-slate-200 bg-white/80 backdrop-blur">
@@ -16,7 +22,7 @@ export function Navbar() {
           {user ? (
             <>
               <Link to="/dashboard">Dashboard</Link>
-              <button className="rounded-full bg-ink px-4 py-2 text-white" onClick={logout}>
+              <button className="rounded-full bg-ink px-4 py-2 text-white" onClick={handleLogout}>
                 Salir
               </button>
             </>

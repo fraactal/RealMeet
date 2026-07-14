@@ -10,6 +10,47 @@ export interface User {
   is_active: boolean;
 }
 
+export interface UserSelfUpdate {
+  first_name?: string | null;
+  last_name?: string | null;
+  phone?: string | null;
+}
+
+export interface ClientSelfProfile {
+  user: User;
+  birth_date?: string | null;
+  notes?: string | null;
+}
+
+export interface ClientSelfProfileUpdate extends UserSelfUpdate {
+  birth_date?: string | null;
+  notes?: string | null;
+}
+
+export interface ProfessionalSelfProfile {
+  id: number;
+  user: User;
+  title?: string | null;
+  bio?: string | null;
+  years_experience?: number | null;
+  consultation_mode: "online" | "presencial" | "hybrid";
+  session_duration_minutes: number;
+  address?: string | null;
+  city?: string | null;
+  country?: string | null;
+}
+
+export interface ProfessionalSelfProfileUpdate extends UserSelfUpdate {
+  title?: string | null;
+  bio?: string | null;
+  years_experience?: number | null;
+  consultation_mode?: "online" | "presencial" | "hybrid" | null;
+  session_duration_minutes?: number | null;
+  address?: string | null;
+  city?: string | null;
+  country?: string | null;
+}
+
 export interface ProfessionalPublic {
   id: number;
   title?: string | null;

@@ -9,7 +9,7 @@
 | M2-VAL-003 | Inspeccion frontend auth | `rg` y lectura de store/API/rutas/layouts | Riesgos documentados | Riesgos confirmados | aprobado | Fase 2.1. |
 | M2-VAL-004 | `git diff --check` fase 2.1 | `git diff --check` | Sin whitespace errors | Sin errores; advertencias CRLF en Windows | aprobado | Fase 2.1 commit `cff0979`. |
 | M2-VAL-005 | Tests backend | `docker-compose exec -T backend pytest` | Tests pasan | 17 passed, 1 warning | aprobado | Fase 2.5. |
-| M2-VAL-006 | Build frontend | `docker-compose exec -T frontend npm run build` | Build pasa | pendiente | pendiente |  |
+| M2-VAL-006 | Build frontend | `docker-compose exec -T frontend npm run build` | Build pasa | Build exitoso | aprobado | Fase 2.6. |
 | M2-VAL-007 | Health | `GET /health` | 200 | 200 `status=ok` | aprobado | Fase 2.2. |
 | M2-VAL-008 | Ready | `GET /ready` | 200 | 200 `status=ready` | aprobado | Fase 2.2. |
 | M2-VAL-009 | Login activo | Login demo admin/professional/client | 200/token | pendiente | pendiente |  |
