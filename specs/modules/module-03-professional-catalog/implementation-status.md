@@ -32,8 +32,8 @@ Fecha de inicio: 2026-07-14.
 | 3.3 Especialidades propias profesional | completada | `6feb711 feat(professional): manage own specialties` | Endpoints propios y constraint DB vigentes. |
 | 3.4 Perfil publico profesional backend | completada | `016c19d feat(professional): add safe public professional profiles` | Contratos publicos seguros aplicados. |
 | 3.5 Busqueda/filtros/paginacion | completada | `31496ec feat(search): add professional catalog filters and pagination` | Backend paginado aplicado. |
-| 3.6 Frontend publico catalogo | en progreso | `feat(frontend-catalog): add public professional search` | Frontend aplicado; pendiente commit. |
-| 3.7 UI profesional/admin | pendiente | `feat(catalog-ui): add professional and admin catalog management` | Puede dividirse. |
+| 3.6 Frontend publico catalogo | completada | `158a1ee feat(frontend-catalog): add public professional search` | Frontend publico aplicado. |
+| 3.7 UI profesional/admin | en progreso | `feat(catalog-ui): add professional and admin catalog management` | UI minima aplicada; pendiente commit. |
 | 3.8 Validacion y cierre | pendiente | `docs(module-03): close professional catalog validation` |  |
 
 ## Estado final

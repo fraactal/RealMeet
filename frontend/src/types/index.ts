@@ -86,6 +86,35 @@ export interface ProfessionalSpecialty {
   category_name: string;
 }
 
+export interface ProfessionalSpecialtyUpdate {
+  specialty_ids: number[];
+}
+
+export interface ProfessionalPublicProfile {
+  id: number;
+  title?: string | null;
+  bio?: string | null;
+  years_experience?: number | null;
+  consultation_mode: ConsultationMode;
+  session_duration_minutes: number;
+  city?: string | null;
+  country?: string | null;
+  category_id?: number | null;
+  is_public: boolean;
+}
+
+export interface ProfessionalPublicProfileUpdate {
+  category_id?: number | null;
+  title?: string | null;
+  bio?: string | null;
+  years_experience?: number | null;
+  consultation_mode?: ConsultationMode | null;
+  session_duration_minutes?: number | null;
+  city?: string | null;
+  country?: string | null;
+  is_public?: boolean | null;
+}
+
 export interface ProfessionalSearchParams {
   search?: string;
   category_id?: number;
@@ -110,12 +139,33 @@ export interface CategoryPublic {
   description?: string | null;
 }
 
+export interface CategoryAdmin extends CategoryPublic {
+  is_active: boolean;
+}
+
+export interface CategoryWrite {
+  name?: string;
+  description?: string | null;
+  is_active?: boolean;
+}
+
 export interface SpecialtyPublic {
   id: number;
   category_id: number;
   name: string;
   slug: string;
   description?: string | null;
+}
+
+export interface SpecialtyAdmin extends SpecialtyPublic {
+  is_active: boolean;
+}
+
+export interface SpecialtyWrite {
+  category_id?: number;
+  name?: string;
+  description?: string | null;
+  is_active?: boolean;
 }
 
 export interface Appointment {

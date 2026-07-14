@@ -20,7 +20,9 @@ export function DashboardLayout() {
             <Link to="/dashboard">Resumen</Link>
             <Link to="/dashboard/appointments">Reservas</Link>
             {user?.role === "professional" ? <Link to="/dashboard/professional">Metricas profesional</Link> : null}
+            {user?.role === "professional" ? <Link to="/dashboard/professional/catalog">Catalogo profesional</Link> : null}
             {user?.role === "admin" ? <Link to="/dashboard/admin">Metricas admin</Link> : null}
+            {user?.role === "admin" ? <Link to="/dashboard/admin/catalog">Catalogo admin</Link> : null}
           </nav>
         </aside>
         <section>

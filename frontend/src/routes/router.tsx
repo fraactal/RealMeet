@@ -2,11 +2,13 @@ import { createBrowserRouter } from "react-router-dom";
 
 import { DashboardLayout } from "../layouts/DashboardLayout";
 import { PublicLayout } from "../layouts/PublicLayout";
+import { AdminCatalogPage } from "../pages/AdminCatalogPage";
 import { AdminMetricsPage } from "../pages/AdminMetricsPage";
 import { AppointmentsPage } from "../pages/AppointmentsPage";
 import { DashboardHomePage } from "../pages/DashboardHomePage";
 import { HomePage } from "../pages/HomePage";
 import { LoginPage } from "../pages/LoginPage";
+import { ProfessionalCatalogPage } from "../pages/ProfessionalCatalogPage";
 import { ProfessionalMetricsPage } from "../pages/ProfessionalMetricsPage";
 import { ProfessionalsPage } from "../pages/ProfessionalsPage";
 import { RequireAuth } from "./RequireAuth";
@@ -38,10 +40,26 @@ export const router = createBrowserRouter([
             ),
           },
           {
+            path: "professional/catalog",
+            element: (
+              <RequireAuth allowedRoles={["professional"]}>
+                <ProfessionalCatalogPage />
+              </RequireAuth>
+            ),
+          },
+          {
             path: "admin",
             element: (
               <RequireAuth allowedRoles={["admin"]}>
                 <AdminMetricsPage />
+              </RequireAuth>
+            ),
+          },
+          {
+            path: "admin/catalog",
+            element: (
+              <RequireAuth allowedRoles={["admin"]}>
+                <AdminCatalogPage />
               </RequireAuth>
             ),
           },

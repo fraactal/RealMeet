@@ -27,12 +27,12 @@
 | AC-M3-023 | Paginacion aplica limites validos. | no-implementado | aprobado backend | `page>=1`, `1<=page_size<=50`, conteo distinct. |
 | AC-M3-024 | Busqueda sin resultados devuelve vacio coherente. | parcial | aprobado backend | `ProfessionalPublicSearchResponse` devuelve `items=[]`, `total=0`, `total_pages=0`. |
 | AC-M3-025 | Frontend muestra listado, filtros, detalle, loading, error y vacio. | parcial | aprobado frontend | `ProfessionalsPage` consume respuesta paginada, categorias, especialidades y detalle. |
-| AC-M3-026 | Profesional gestiona especialidades y publicacion en frontend. | no-implementado | pendiente |  |
-| AC-M3-027 | Admin gestiona categorias/especialidades en UI minima. | no-implementado | pendiente |  |
+| AC-M3-026 | Profesional gestiona especialidades y publicacion en frontend. | no-implementado | aprobado frontend | `ProfessionalCatalogPage` consume `me/public-profile` y `me/specialties`. |
+| AC-M3-027 | Admin gestiona categorias/especialidades en UI minima. | no-implementado | aprobado frontend | `AdminCatalogPage` crea y activa/desactiva categorias/especialidades. |
 | AC-M3-028 | `/health` y `/ready` siguen operativos. | verified M2 | pendiente |  |
 | AC-M3-029 | Logins demo siguen funcionando. | verified M2 | pendiente |  |
 | AC-M3-030 | Pruebas minimas relacionadas pasan. | parcial | aprobado parcial | 23 tests backend pasan. |
-| AC-M3-031 | Frontend compila. | verified M2 | aprobado parcial | `docker-compose exec -T frontend npm run build` OK en fase 3.6. |
+| AC-M3-031 | Frontend compila. | verified M2 | aprobado parcial | `docker-compose exec -T frontend npm run build` OK en fases 3.6 y 3.7. |
 | AC-M3-032 | Cada fase completada tiene commit independiente. | pendiente | pendiente |  |
 | AC-M3-033 | Matriz de trazabilidad actualizada. | pendiente | pendiente |  |
 | AC-M3-034 | No se implementaron disponibilidad, slots ni reservas. | pendiente | pendiente |  |
