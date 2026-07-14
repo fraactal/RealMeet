@@ -9,7 +9,7 @@ RealMeet es un MVP SaaS para agendamiento de profesionales orientado inicialment
 - Registro base y acceso por roles
 - Catalogo de categorias y especialidades
 - Perfil profesional y especialidades asociadas
-- Reglas de disponibilidad semanal y bloqueos manuales
+- Reglas de disponibilidad semanal, bloqueos manuales y calculo publico de slots
 - Reserva de horas con validacion de solapamientos
 - Meeting provider mock preparado para futuras integraciones
 - Servicio de correo por SMTP o salida a log en desarrollo
@@ -80,11 +80,14 @@ Base API: `http://localhost:18000/api/v1`
 - `POST /professionals/profile`
 - `GET /professionals/me/profile`
 - `PATCH /professionals/me/profile`
-- `GET /professionals/{id}/availability`
+- `GET /professionals/{id}/availability?date=YYYY-MM-DD`
+- `GET /professionals/me/availability-rules`
 - `POST /professionals/me/availability-rules`
 - `PATCH /professionals/me/availability-rules/{id}`
 - `DELETE /professionals/me/availability-rules/{id}`
+- `GET /professionals/me/availability-blocks`
 - `POST /professionals/me/availability-blocks`
+- `PATCH /professionals/me/availability-blocks/{id}`
 - `DELETE /professionals/me/availability-blocks/{id}`
 - `POST /appointments`
 - `GET /appointments/me`
@@ -106,7 +109,7 @@ Base API: `http://localhost:18000/api/v1`
 1. El cliente inicia sesion.
 2. Consulta el listado publico de profesionales.
 3. Revisa disponibilidad del profesional.
-4. Reserva una hora.
+4. Reserva una hora cuando el modulo de reservas este habilitado.
 5. El backend valida solapamientos y crea la cita.
 6. Si corresponde, se genera un meeting mock.
 7. Se emite correo al cliente y profesional.
@@ -376,3 +379,4 @@ El repositorio ya tiene commits incrementales hasta Modulo 2. No hacer push sin 
 - Frontend base funcional, pero todavia sin formularios completos de CRUD
 - Pruebas automatizadas actuales son minimas y enfocadas en configuracion, health y seguridad auth/perfiles
 - El backoffice es minimo y prioriza operacion inicial sobre cobertura total de UX
+- El Modulo 4 calcula slots y muestra horarios, pero no confirma reservas; ese flujo corresponde al modulo siguiente.

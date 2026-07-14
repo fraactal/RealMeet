@@ -168,6 +168,52 @@ export interface SpecialtyWrite {
   is_active?: boolean;
 }
 
+export type AvailabilityBlockType = "blocked" | "extra_available";
+
+export interface AvailabilityRule {
+  id: number;
+  professional_id: number;
+  weekday: number;
+  start_time: string;
+  end_time: string;
+  is_active: boolean;
+}
+
+export interface AvailabilityRuleWrite {
+  weekday?: number;
+  start_time?: string;
+  end_time?: string;
+  is_active?: boolean;
+}
+
+export interface AvailabilityBlock {
+  id: number;
+  professional_id: number;
+  start_datetime: string;
+  end_datetime: string;
+  reason?: string | null;
+  type: AvailabilityBlockType;
+}
+
+export interface AvailabilityBlockWrite {
+  start_datetime?: string;
+  end_datetime?: string;
+  reason?: string | null;
+  type?: AvailabilityBlockType;
+}
+
+export interface AvailableSlot {
+  start_datetime: string;
+  end_datetime: string;
+}
+
+export interface AvailabilityResponse {
+  professional_id: number;
+  start_datetime: string;
+  end_datetime: string;
+  slots: AvailableSlot[];
+}
+
 export interface Appointment {
   id: number;
   professional_id: number;

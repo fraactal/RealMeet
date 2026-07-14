@@ -11,6 +11,7 @@
 - Catalogo publico con filtros, paginacion y perfil profesional seguro.
 - Disponibilidad semanal.
 - Bloqueos manuales.
+- Calculo publico de slots disponibles por fecha o rango corto.
 - Busqueda publica de profesionales.
 - Consulta de disponibilidad.
 - Creacion y consulta de reservas.

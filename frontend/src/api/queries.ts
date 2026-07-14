@@ -2,6 +2,11 @@ import api from "./client";
 import type {
   AdminMetrics,
   Appointment,
+  AvailabilityBlock,
+  AvailabilityBlockWrite,
+  AvailabilityResponse,
+  AvailabilityRule,
+  AvailabilityRuleWrite,
   CategoryAdmin,
   CategoryPublic,
   CategoryWrite,
@@ -130,6 +135,49 @@ export async function fetchProfessionalSpecialties(): Promise<ProfessionalSpecia
 
 export async function updateProfessionalSpecialties(payload: ProfessionalSpecialtyUpdate): Promise<ProfessionalSpecialty[]> {
   const { data } = await api.patch("/professionals/me/specialties", payload);
+  return data;
+}
+
+export async function fetchAvailabilityRules(): Promise<AvailabilityRule[]> {
+  const { data } = await api.get("/professionals/me/availability-rules");
+  return data;
+}
+
+export async function createAvailabilityRule(payload: AvailabilityRuleWrite): Promise<AvailabilityRule> {
+  const { data } = await api.post("/professionals/me/availability-rules", payload);
+  return data;
+}
+
+export async function updateAvailabilityRule(ruleId: number, payload: AvailabilityRuleWrite): Promise<AvailabilityRule> {
+  const { data } = await api.patch(`/professionals/me/availability-rules/${ruleId}`, payload);
+  return data;
+}
+
+export async function deleteAvailabilityRule(ruleId: number): Promise<void> {
+  await api.delete(`/professionals/me/availability-rules/${ruleId}`);
+}
+
+export async function fetchAvailabilityBlocks(): Promise<AvailabilityBlock[]> {
+  const { data } = await api.get("/professionals/me/availability-blocks");
+  return data;
+}
+
+export async function createAvailabilityBlock(payload: AvailabilityBlockWrite): Promise<AvailabilityBlock> {
+  const { data } = await api.post("/professionals/me/availability-blocks", payload);
+  return data;
+}
+
+export async function updateAvailabilityBlock(blockId: number, payload: AvailabilityBlockWrite): Promise<AvailabilityBlock> {
+  const { data } = await api.patch(`/professionals/me/availability-blocks/${blockId}`, payload);
+  return data;
+}
+
+export async function deleteAvailabilityBlock(blockId: number): Promise<void> {
+  await api.delete(`/professionals/me/availability-blocks/${blockId}`);
+}
+
+export async function fetchProfessionalAvailability(professionalId: number, date: string): Promise<AvailabilityResponse> {
+  const { data } = await api.get(`/professionals/${professionalId}/availability`, { params: { date } });
   return data;
 }
 

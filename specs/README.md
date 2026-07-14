@@ -120,3 +120,4 @@ Gherkin no se utiliza en la etapa actual.
 - `modules/module-01-foundation`: fundacion tecnica verificada en runtime.
 - `modules/module-02-auth-profiles`: autenticacion, autorizacion y perfiles base. Estado inicial: en progreso.
 - `modules/module-03-professional-catalog`: catalogo profesional y busqueda publica. Estado inicial: en progreso.
+- `modules/module-04-availability`: disponibilidad semanal, bloqueos y calculo de slots. Estado inicial: en progreso.

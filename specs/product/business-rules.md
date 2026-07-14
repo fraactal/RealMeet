@@ -14,7 +14,7 @@ Estado observado: `AppointmentService.create` valida solapamientos del profesion
 
 La disponibilidad se calcula usando reglas semanales, duracion de sesion, bloqueos manuales y reservas existentes.
 
-Estado observado: `AvailabilityService.list_slots` genera slots desde reglas, excluye bloques y reservas. No se validaron casos borde de zona horaria, rangos largos, extra availability ni reservas canceladas.
+Estado Modulo 4: `AvailabilityService.list_slots` genera slots desde reglas activas, excluye bloqueos `blocked`, reservas `pending`/`confirmed` y slots pasados. Las reglas activas de un mismo profesional no pueden solaparse dentro del mismo dia. La consulta publica queda limitada a 14 dias. Las fechas publicas se interpretan en UTC para el MVP; zonas horarias avanzadas quedan diferidas.
 
 ## Privacidad
 

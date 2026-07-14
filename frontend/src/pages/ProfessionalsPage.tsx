@@ -2,12 +2,13 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { normalizeApiError } from "../api/errors";
-import { fetchCategories, fetchProfessional, fetchProfessionals, fetchSpecialties } from "../api/queries";
+import { fetchCategories, fetchProfessional, fetchProfessionalAvailability, fetchProfessionals, fetchSpecialties } from "../api/queries";
 import { Badge } from "../components/ui/Badge";
 import { Card } from "../components/ui/Card";
 import type { ConsultationMode, ProfessionalSearchParams } from "../types";
 
 const PAGE_SIZE = 6;
+const today = new Date().toISOString().slice(0, 10);
 
 export function ProfessionalsPage() {
   const [search, setSearch] = useState("");
@@ -16,6 +17,7 @@ export function ProfessionalsPage() {
   const [consultationMode, setConsultationMode] = useState("");
   const [page, setPage] = useState(1);
   const [selectedProfessionalId, setSelectedProfessionalId] = useState<number | null>(null);
+  const [availabilityDate, setAvailabilityDate] = useState(today);
 
   const filters = useMemo<ProfessionalSearchParams>(
     () => ({
@@ -47,6 +49,12 @@ export function ProfessionalsPage() {
   const detailQuery = useQuery({
     queryKey: ["professional", selectedProfessionalId],
     queryFn: () => fetchProfessional(selectedProfessionalId ?? 0),
+    enabled: selectedProfessionalId !== null,
+    retry: false,
+  });
+  const availabilityQuery = useQuery({
+    queryKey: ["professional-availability", selectedProfessionalId, availabilityDate],
+    queryFn: () => fetchProfessionalAvailability(selectedProfessionalId ?? 0, availabilityDate),
     enabled: selectedProfessionalId !== null,
     retry: false,
   });
@@ -199,7 +207,10 @@ export function ProfessionalsPage() {
             </div>
             <button
               className="mt-4 rounded-xl bg-ink px-4 py-2 text-sm font-semibold text-white"
-              onClick={() => setSelectedProfessionalId(professional.id)}
+              onClick={() => {
+                setSelectedProfessionalId(professional.id);
+                setAvailabilityDate(today);
+              }}
             >
               Ver detalle
             </button>
@@ -265,6 +276,37 @@ export function ProfessionalsPage() {
                   <dd className="text-slate-600">{detailQuery.data.years_experience ?? "No publicada"}</dd>
                 </div>
               </dl>
+              <div className="border-t border-slate-100 pt-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                  <label className="space-y-1 text-sm font-medium text-slate-700">
+                    Fecha
+                    <input
+                      type="date"
+                      min={today}
+                      value={availabilityDate}
+                      onChange={(event) => setAvailabilityDate(event.target.value)}
+                      className="block rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-brand"
+                    />
+                  </label>
+                  <p className="text-sm text-slate-500">La reserva de un horario se habilitara en el siguiente modulo.</p>
+                </div>
+                {availabilityQuery.isPending ? <p className="mt-4 text-sm text-slate-500">Cargando horarios...</p> : null}
+                {availabilityQuery.isError ? <p className="mt-4 text-sm text-red-600">{normalizeApiError(availabilityQuery.error).message}</p> : null}
+                {availabilityQuery.data && availabilityQuery.data.slots.length === 0 ? (
+                  <p className="mt-4 text-sm text-slate-500">No hay horarios disponibles para esta fecha.</p>
+                ) : null}
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {availabilityQuery.data?.slots.map((slot) => (
+                    <button
+                      key={slot.start_datetime}
+                      className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700"
+                      disabled
+                    >
+                      {new Date(slot.start_datetime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
           ) : null}
         </Card>

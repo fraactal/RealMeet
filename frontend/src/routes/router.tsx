@@ -8,6 +8,7 @@ import { AppointmentsPage } from "../pages/AppointmentsPage";
 import { DashboardHomePage } from "../pages/DashboardHomePage";
 import { HomePage } from "../pages/HomePage";
 import { LoginPage } from "../pages/LoginPage";
+import { ProfessionalAvailabilityPage } from "../pages/ProfessionalAvailabilityPage";
 import { ProfessionalCatalogPage } from "../pages/ProfessionalCatalogPage";
 import { ProfessionalMetricsPage } from "../pages/ProfessionalMetricsPage";
 import { ProfessionalsPage } from "../pages/ProfessionalsPage";
@@ -44,6 +45,14 @@ export const router = createBrowserRouter([
             element: (
               <RequireAuth allowedRoles={["professional"]}>
                 <ProfessionalCatalogPage />
+              </RequireAuth>
+            ),
+          },
+          {
+            path: "professional/availability",
+            element: (
+              <RequireAuth allowedRoles={["professional"]}>
+                <ProfessionalAvailabilityPage />
               </RequireAuth>
             ),
           },
