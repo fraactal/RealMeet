@@ -2,12 +2,16 @@ import api from "./client";
 import type {
   AdminMetrics,
   Appointment,
+  CategoryPublic,
   ClientSelfProfile,
   ClientSelfProfileUpdate,
   ProfessionalMetrics,
   ProfessionalPublic,
+  ProfessionalSearchParams,
+  ProfessionalSearchResponse,
   ProfessionalSelfProfile,
   ProfessionalSelfProfileUpdate,
+  SpecialtyPublic,
   User,
   UserSelfUpdate,
 } from "../types";
@@ -49,8 +53,23 @@ export async function updateProfessionalSelfProfile(
   return data;
 }
 
-export async function fetchProfessionals(): Promise<ProfessionalPublic[]> {
-  const { data } = await api.get("/professionals");
+export async function fetchCategories(): Promise<CategoryPublic[]> {
+  const { data } = await api.get("/categories");
+  return data;
+}
+
+export async function fetchSpecialties(categoryId?: number): Promise<SpecialtyPublic[]> {
+  const { data } = await api.get("/specialties", { params: categoryId ? { category_id: categoryId } : undefined });
+  return data;
+}
+
+export async function fetchProfessionals(params: ProfessionalSearchParams = {}): Promise<ProfessionalSearchResponse> {
+  const { data } = await api.get("/professionals", { params });
+  return data;
+}
+
+export async function fetchProfessional(professionalId: number): Promise<ProfessionalPublic> {
+  const { data } = await api.get(`/professionals/${professionalId}`);
   return data;
 }
 

@@ -1,4 +1,5 @@
 export type UserRole = "admin" | "professional" | "client";
+export type ConsultationMode = "online" | "presencial" | "hybrid";
 
 export interface User {
   id: number;
@@ -33,7 +34,7 @@ export interface ProfessionalSelfProfile {
   title?: string | null;
   bio?: string | null;
   years_experience?: number | null;
-  consultation_mode: "online" | "presencial" | "hybrid";
+  consultation_mode: ConsultationMode;
   session_duration_minutes: number;
   address?: string | null;
   city?: string | null;
@@ -44,7 +45,7 @@ export interface ProfessionalSelfProfileUpdate extends UserSelfUpdate {
   title?: string | null;
   bio?: string | null;
   years_experience?: number | null;
-  consultation_mode?: "online" | "presencial" | "hybrid" | null;
+  consultation_mode?: ConsultationMode | null;
   session_duration_minutes?: number | null;
   address?: string | null;
   city?: string | null;
@@ -55,14 +56,66 @@ export interface ProfessionalPublic {
   id: number;
   title?: string | null;
   bio?: string | null;
-  consultation_mode: "online" | "presencial" | "hybrid";
+  years_experience?: number | null;
+  consultation_mode: ConsultationMode;
   session_duration_minutes: number;
-  price?: number | null;
   city?: string | null;
   country?: string | null;
-  category_name?: string | null;
-  specialties: string[];
-  user: User;
+  category: ProfessionalPublicCategory;
+  specialties: ProfessionalSpecialty[];
+  user: ProfessionalPublicUser;
+}
+
+export interface ProfessionalPublicUser {
+  id: number;
+  first_name: string;
+  last_name: string;
+}
+
+export interface ProfessionalPublicCategory {
+  id: number;
+  name: string;
+  slug: string;
+}
+
+export interface ProfessionalSpecialty {
+  id: number;
+  name: string;
+  slug: string;
+  category_id: number;
+  category_name: string;
+}
+
+export interface ProfessionalSearchParams {
+  search?: string;
+  category_id?: number;
+  specialty_id?: number;
+  consultation_mode?: ConsultationMode;
+  page?: number;
+  page_size?: number;
+}
+
+export interface ProfessionalSearchResponse {
+  items: ProfessionalPublic[];
+  page: number;
+  page_size: number;
+  total: number;
+  total_pages: number;
+}
+
+export interface CategoryPublic {
+  id: number;
+  name: string;
+  slug: string;
+  description?: string | null;
+}
+
+export interface SpecialtyPublic {
+  id: number;
+  category_id: number;
+  name: string;
+  slug: string;
+  description?: string | null;
 }
 
 export interface Appointment {

@@ -9,7 +9,7 @@
 | M3-VAL-003 | Inspeccion frontend catalogo | Lectura pagina profesionales, tipos, queries y dashboard | Estado real documentado | Confirmado | aprobado | Fase 3.1. |
 | M3-VAL-004 | `git diff --check` fase 3.1 | `git diff --check` | Sin errores | pendiente | pendiente |  |
 | M3-VAL-005 | Backend tests | `docker-compose exec -T backend pytest` | Tests pasan | 23 passed, 1 warning | aprobado parcial | Fase 3.5. |
-| M3-VAL-006 | Frontend build | `docker-compose exec -T frontend npm run build` | Build pasa | pendiente | pendiente |  |
+| M3-VAL-006 | Frontend build | `docker-compose exec -T frontend npm run build` | Build pasa | OK | aprobado parcial | Fase 3.6. |
 | M3-VAL-007 | Docker stack | `docker-compose up --build -d`, `docker-compose ps` | Servicios healthy | pendiente | pendiente |  |
 | M3-VAL-008 | Health/ready | `GET /health`, `GET /ready` | 200 | pendiente | pendiente |  |
 | M3-VAL-009 | Catalogo publico | Categorias/especialidades/profesionales | Solo activos/publicos | pendiente | pendiente |  |
