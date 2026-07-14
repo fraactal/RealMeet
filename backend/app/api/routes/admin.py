@@ -2,16 +2,16 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core.deps import require_roles
+from app.core.deps import require_admin
 from app.db.session import get_db
 from app.models.appointment import Appointment
 from app.models.professional_profile import ProfessionalProfile
-from app.models.user import User, UserRole
+from app.models.user import User
 from app.schemas.appointments import AppointmentAdminRead
 from app.schemas.professionals import ProfessionalProfileRead
 from app.schemas.users import UserRead, UserUpdate
 
-router = APIRouter(dependencies=[Depends(require_roles(UserRole.admin))])
+router = APIRouter(dependencies=[Depends(require_admin)])
 
 
 @router.get("/users", response_model=list[UserRead])

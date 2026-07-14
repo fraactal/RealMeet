@@ -6,7 +6,7 @@ import pytest
 from fastapi import HTTPException
 
 from app.core.config import settings
-from app.core.deps import get_current_user
+from app.core.deps import get_current_user, require_admin, require_client, require_professional
 from app.core.security import ALGORITHM, create_access_token, decode_token, hash_password
 from app.models.user import UserRole
 from app.services.auth import AuthService
@@ -74,3 +74,20 @@ def test_login_rejects_inactive_user() -> None:
         service.login("client@realmeet.local", "Client123!")
 
     assert exc_info.value.status_code == 401
+
+
+def test_role_helpers_allow_matching_roles() -> None:
+    admin = SimpleNamespace(role=UserRole.admin)
+    professional = SimpleNamespace(role=UserRole.professional)
+    client = SimpleNamespace(role=UserRole.client)
+
+    assert require_admin(admin) is admin
+    assert require_professional(professional) is professional
+    assert require_client(client) is client
+
+
+def test_role_helpers_reject_wrong_role() -> None:
+    with pytest.raises(HTTPException) as exc_info:
+        require_admin(SimpleNamespace(role=UserRole.client))
+
+    assert exc_info.value.status_code == 403

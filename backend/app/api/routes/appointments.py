@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.core.deps import get_current_user, require_roles
+from app.core.deps import get_current_user, require_client, require_professional
 from app.db.session import get_db
 from app.models.appointment import AppointmentStatus
 from app.models.user import UserRole
@@ -29,7 +29,7 @@ def serialize_appointment_for_user(appointment, user) -> AppointmentActorRead:
     return AppointmentClientRead.model_validate(appointment)
 
 
-@router.post("", response_model=AppointmentClientRead, dependencies=[Depends(require_roles(UserRole.client))])
+@router.post("", response_model=AppointmentClientRead, dependencies=[Depends(require_client)])
 def create_appointment(payload: AppointmentCreate, user=Depends(get_current_user), db: Session = Depends(get_db)) -> AppointmentClientRead:
     appointment = AppointmentService(db).create(user, payload)
     return AppointmentClientRead.model_validate(appointment)
@@ -60,7 +60,7 @@ def cancel_appointment(
     return serialize_appointment_for_user(item, user)
 
 
-@router.patch("/professional/{appointment_id}/confirm", response_model=AppointmentProfessionalRead, dependencies=[Depends(require_roles(UserRole.professional))])
+@router.patch("/professional/{appointment_id}/confirm", response_model=AppointmentProfessionalRead, dependencies=[Depends(require_professional)])
 def confirm_appointment(
     appointment_id: int,
     payload: AppointmentProfessionalStatusUpdate,
@@ -73,7 +73,7 @@ def confirm_appointment(
     return AppointmentProfessionalRead.model_validate(item)
 
 
-@router.patch("/professional/{appointment_id}/complete", response_model=AppointmentProfessionalRead, dependencies=[Depends(require_roles(UserRole.professional))])
+@router.patch("/professional/{appointment_id}/complete", response_model=AppointmentProfessionalRead, dependencies=[Depends(require_professional)])
 def complete_appointment(
     appointment_id: int,
     payload: AppointmentProfessionalStatusUpdate,

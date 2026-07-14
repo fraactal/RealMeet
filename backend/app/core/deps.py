@@ -28,8 +28,24 @@ def get_current_user(db: Session = Depends(get_db), token: str = Depends(oauth2_
 
 def require_roles(*allowed_roles: UserRole) -> Callable[[User], User]:
     def dependency(user: User = Depends(get_current_user)) -> User:
-        if user.role not in allowed_roles:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
-        return user
+        return _require_user_role(user, *allowed_roles)
 
     return dependency
+
+
+def _require_user_role(user: User, *allowed_roles: UserRole) -> User:
+    if user.role not in allowed_roles:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
+    return user
+
+
+def require_admin(user: User = Depends(get_current_user)) -> User:
+    return _require_user_role(user, UserRole.admin)
+
+
+def require_professional(user: User = Depends(get_current_user)) -> User:
+    return _require_user_role(user, UserRole.professional)
+
+
+def require_client(user: User = Depends(get_current_user)) -> User:
+    return _require_user_role(user, UserRole.client)

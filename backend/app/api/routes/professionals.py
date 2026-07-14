@@ -2,10 +2,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core.deps import get_current_user, require_roles
+from app.core.deps import get_current_user, require_professional
 from app.db.session import get_db
 from app.models.professional_profile import ProfessionalProfile, ProfessionalSpecialty
-from app.models.user import UserRole
 from app.schemas.professionals import ProfessionalProfileCreate, ProfessionalProfileRead, ProfessionalProfileUpdate, ProfessionalPublicRead
 from app.schemas.users import UserRead
 from app.services.professionals import ProfessionalService
@@ -59,13 +58,13 @@ def get_professional(professional_id: int, db: Session = Depends(get_db)) -> Pro
     )
 
 
-@router.post("/profile", response_model=ProfessionalProfileRead, dependencies=[Depends(require_roles(UserRole.professional))])
+@router.post("/profile", response_model=ProfessionalProfileRead, dependencies=[Depends(require_professional)])
 def create_profile(payload: ProfessionalProfileCreate, user=Depends(get_current_user), db: Session = Depends(get_db)) -> ProfessionalProfileRead:
     profile = ProfessionalService(db).upsert_profile(user, payload)
     return ProfessionalProfileRead.model_validate(profile)
 
 
-@router.get("/me/profile", response_model=ProfessionalProfileRead, dependencies=[Depends(require_roles(UserRole.professional))])
+@router.get("/me/profile", response_model=ProfessionalProfileRead, dependencies=[Depends(require_professional)])
 def get_my_profile(user=Depends(get_current_user), db: Session = Depends(get_db)) -> ProfessionalProfileRead:
     profile = db.scalar(select(ProfessionalProfile).where(ProfessionalProfile.user_id == user.id))
     if not profile:
@@ -73,7 +72,7 @@ def get_my_profile(user=Depends(get_current_user), db: Session = Depends(get_db)
     return ProfessionalProfileRead.model_validate(profile)
 
 
-@router.patch("/me/profile", response_model=ProfessionalProfileRead, dependencies=[Depends(require_roles(UserRole.professional))])
+@router.patch("/me/profile", response_model=ProfessionalProfileRead, dependencies=[Depends(require_professional)])
 def update_profile(payload: ProfessionalProfileUpdate, user=Depends(get_current_user), db: Session = Depends(get_db)) -> ProfessionalProfileRead:
     profile = ProfessionalService(db).upsert_profile(user, payload)
     return ProfessionalProfileRead.model_validate(profile)

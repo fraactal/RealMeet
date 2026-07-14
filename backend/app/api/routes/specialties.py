@@ -1,10 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
-from app.core.deps import require_roles
+from app.core.deps import require_admin
 from app.db.session import get_db
 from app.models.specialty import Specialty
-from app.models.user import UserRole
 from app.schemas.specialties import SpecialtyCreate, SpecialtyRead, SpecialtyUpdate
 from app.services.catalog import CatalogService
 
@@ -17,13 +16,13 @@ def list_specialties(category_id: int | None = Query(default=None), db: Session 
     return [SpecialtyRead.model_validate(item) for item in items]
 
 
-@router.post("", response_model=SpecialtyRead, dependencies=[Depends(require_roles(UserRole.admin))])
+@router.post("", response_model=SpecialtyRead, dependencies=[Depends(require_admin)])
 def create_specialty(payload: SpecialtyCreate, db: Session = Depends(get_db)) -> SpecialtyRead:
     item = CatalogService(db).create_specialty(payload)
     return SpecialtyRead.model_validate(item)
 
 
-@router.patch("/{specialty_id}", response_model=SpecialtyRead, dependencies=[Depends(require_roles(UserRole.admin))])
+@router.patch("/{specialty_id}", response_model=SpecialtyRead, dependencies=[Depends(require_admin)])
 def update_specialty(specialty_id: int, payload: SpecialtyUpdate, db: Session = Depends(get_db)) -> SpecialtyRead:
     specialty = db.get(Specialty, specialty_id)
     if not specialty:

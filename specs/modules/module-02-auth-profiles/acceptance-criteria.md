@@ -10,10 +10,10 @@
 | AC-M2-006 | Token invalido responde `401`. | implementado-parcial | aprobado | `test_decode_token_rejects_invalid_token`; runtime `/auth/me` con token invalido `401`. |
 | AC-M2-007 | Token vencido responde `401`. | implementado-parcial | aprobado | `test_decode_token_rejects_expired_token`. |
 | AC-M2-008 | `GET /auth/me` devuelve solo datos seguros. | implementado-parcial | pendiente | `UserRead` no expone hash ni password; revisar contrato. |
-| AC-M2-009 | Rutas administrativas requieren `admin`. | implementado-parcial | pendiente | Router `/admin` protegido; se revisara. |
-| AC-M2-010 | Rutas profesionales requieren `professional` cuando corresponde. | implementado-parcial | pendiente | Profesionales, disponibilidad y metricas usan `require_roles`. |
-| AC-M2-011 | Rutas de cliente requieren `client` cuando corresponde. | implementado-parcial | pendiente | Creacion de reservas usa `client`; perfil cliente falta. |
-| AC-M2-012 | Cliente no accede a funciones admin o professional. | implementado-parcial | pendiente | Backend parcial; frontend no restringe rutas por rol. |
+| AC-M2-009 | Rutas administrativas requieren `admin`. | implementado-parcial | aprobado backend | Helpers `require_admin`; rutas admin/catalogo/metricas admin revisadas. |
+| AC-M2-010 | Rutas profesionales requieren `professional` cuando corresponde. | implementado-parcial | aprobado backend | Helpers `require_professional`; rutas perfil, disponibilidad y metricas revisadas. |
+| AC-M2-011 | Rutas de cliente requieren `client` cuando corresponde. | implementado-parcial | aprobado parcial | Helper `require_client` en creacion de reservas; perfil cliente se completa en Fase 2.4. |
+| AC-M2-012 | Cliente no accede a funciones admin o professional. | implementado-parcial | aprobado backend | `test_role_helpers_reject_wrong_role`; frontend pendiente Fase 2.6. |
 | AC-M2-013 | Profesional no modifica perfiles ajenos. | implementado-parcial | pendiente | Perfil propio filtra por `user.id`; falta contrato seguro. |
 | AC-M2-014 | Cliente consulta y actualiza unicamente su perfil. | no-implementado | pendiente | No existe perfil cliente dedicado. |
 | AC-M2-015 | Profesional consulta y actualiza unicamente su perfil. | implementado-parcial | pendiente | Existe `/professionals/me/profile`; contrato amplio. |
@@ -27,7 +27,7 @@
 | AC-M2-023 | Backend, frontend y PostgreSQL continuan funcionando. | verificado M1 | pendiente | Validacion integrada M2. |
 | AC-M2-024 | `/health` y `/ready` continuan operativos. | verificado M1 | aprobado parcial | Runtime `GET /health` y `GET /ready` OK tras Fase 2.2. |
 | AC-M2-025 | Frontend compila. | verificado M1 | pendiente | Build M2. |
-| AC-M2-026 | Pruebas minimas relacionadas pasan. | parcial | aprobado parcial | `docker-compose exec -T backend pytest`: 12 passed. |
+| AC-M2-026 | Pruebas minimas relacionadas pasan. | parcial | aprobado parcial | `docker-compose exec -T backend pytest`: 14 passed. |
 | AC-M2-027 | Cada fase tiene commit independiente. | pendiente | pendiente | Git. |
 | AC-M2-028 | Matriz de trazabilidad actualizada. | pendiente | pendiente | `requirements-matrix.md`. |
 | AC-M2-029 | No se implementaron funciones del Modulo 3. | pendiente | pendiente | Revision de cambios. |

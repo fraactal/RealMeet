@@ -1,10 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from app.core.deps import get_current_user, require_roles
+from app.core.deps import get_current_user, require_admin
 from app.db.session import get_db
 from app.models.category import Category
-from app.models.user import UserRole
 from app.schemas.categories import CategoryCreate, CategoryRead, CategoryUpdate
 from app.services.catalog import CatalogService
 
@@ -17,13 +16,13 @@ def list_categories(db: Session = Depends(get_db)) -> list[CategoryRead]:
     return [CategoryRead.model_validate(item) for item in items]
 
 
-@router.post("", response_model=CategoryRead, dependencies=[Depends(require_roles(UserRole.admin))])
+@router.post("", response_model=CategoryRead, dependencies=[Depends(require_admin)])
 def create_category(payload: CategoryCreate, db: Session = Depends(get_db)) -> CategoryRead:
     item = CatalogService(db).create_category(payload)
     return CategoryRead.model_validate(item)
 
 
-@router.patch("/{category_id}", response_model=CategoryRead, dependencies=[Depends(require_roles(UserRole.admin))])
+@router.patch("/{category_id}", response_model=CategoryRead, dependencies=[Depends(require_admin)])
 def update_category(category_id: int, payload: CategoryUpdate, db: Session = Depends(get_db)) -> CategoryRead:
     category = db.get(Category, category_id)
     if not category:
