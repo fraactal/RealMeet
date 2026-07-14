@@ -29,8 +29,8 @@ Fecha de inicio: 2026-07-14.
 | 2.3 Autorizacion por rol | completada | `c45aa4e feat(authz): enforce role-based access control` | Helpers de rol aplicados. |
 | 2.4 Perfil base de cliente | completada | `f195f93 feat(client): add secure self-service profile` | Contratos y servicio aplicados. |
 | 2.5 Perfil base de profesional | completada | `898ebda feat(professional): add secure self-service profile` | Contratos propios restringidos aplicados. |
-| 2.6 Sesion y proteccion frontend | en progreso | `feat(frontend-auth): protect sessions and role routes` | Build frontend OK; pendiente commit. |
-| 2.7 Validacion integrada y cierre | pendiente | `docs(module-02): close auth and profiles validation` |  |
+| 2.6 Sesion y proteccion frontend | completada | `c2058ed feat(frontend-auth): protect sessions and role routes` | Build frontend OK. |
+| 2.7 Validacion integrada y cierre | completada | `docs(module-02): close auth and profiles validation` | Validacion integrada OK. |
 
 ## Seguridad y riesgos
 
@@ -44,4 +44,28 @@ Fecha de inicio: 2026-07-14.
 
 ## Estado final
 
-Pendiente. Este archivo se actualizara al cerrar el modulo.
+`verified` para el alcance del Modulo 2.
+
+## Resultado final
+
+- Backend tests: 17 passed, 1 warning de `passlib/crypt`.
+- Frontend build: exitoso.
+- Docker Compose v1: db/backend/frontend healthy.
+- `/health`: 200.
+- `/ready`: 200.
+- Login admin/client/professional: OK.
+- Login invalido: 401.
+- `/auth/me` sin token o token invalido: 401.
+- Cliente contra admin/professional metrics: 403.
+- Perfil cliente propio: responde solo `user`, `birth_date`, `notes`.
+- Perfil profesional propio: no contiene `price`, `category_id`, `specialty_ids`, `is_public`, `is_verified` ni `professional_license`.
+- Logs backend: sin errores de serializacion ni exposicion de tokens.
+- No se hicieron migraciones ni cambios de base de datos.
+- No se hizo push.
+- No se avanzo al Modulo 3.
+
+## Deuda tecnica
+
+- Validar manualmente en navegador el flujo visual completo de restauracion de sesion/logout.
+- Migrar token desde `localStorage` a cookies seguras en hardening posterior.
+- Resolver vulnerabilidades npm reportadas por `npm audit` en una tarea de dependencias separada.

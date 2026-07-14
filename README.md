@@ -5,6 +5,7 @@ RealMeet es un MVP SaaS para agendamiento de profesionales orientado inicialment
 ## Alcance MVP
 
 - Autenticacion JWT con roles `admin`, `professional`, `client`
+- Autorizacion backend por rol y restauracion de sesion frontend contra `/auth/me`
 - Registro base y acceso por roles
 - Catalogo de categorias y especialidades
 - Perfil profesional y especialidades asociadas
@@ -66,6 +67,8 @@ Base API: `http://localhost:18000/api/v1`
 - `GET /auth/me`
 - `GET /users/me`
 - `PATCH /users/me`
+- `GET /users/me/profile`
+- `PATCH /users/me/profile`
 - `GET /categories`
 - `POST /categories`
 - `PATCH /categories/{id}`
@@ -306,6 +309,23 @@ El seed es idempotente: reutiliza usuarios, categorias, especialidades, perfil p
 - Variables faltantes: backend falla temprano si faltan `SECRET_KEY`, `DATABASE_URL` o CORS queda vacio.
 - Compose v1 vs v2: `docker compose` es recomendado; `docker-compose` funciona como alternativa cuando v2 no esta disponible.
 
+## Seguridad implementada hasta Modulo 2
+
+- Login rechaza usuarios inactivos.
+- JWT valida firma, expiracion y `sub` numerico.
+- Token ausente, invalido, vencido o asociado a usuario inactivo responde `401`.
+- Usuario autenticado sin rol permitido responde `403`.
+- `/auth/me` no expone password, hash ni token.
+- `/users/me` usa contrato propio y no permite modificar `role` ni `is_active`.
+- Perfil cliente propio: `GET/PATCH /users/me/profile`, solo para `client`.
+- Perfil profesional propio: `POST /professionals/profile`, `GET/PATCH /professionals/me/profile`, solo para `professional`, sin `category_id`, `specialty_ids`, `price`, `is_public`, verificaciones ni licencia.
+- Frontend limpia sesion ante `401`, restaura sesion con `/auth/me`, restringe rutas por rol y logout limpia token/usuario.
+
+Deuda tecnica aceptada:
+
+- El token sigue en `localStorage`; migrar a cookies `HttpOnly`/`SameSite` queda para hardening posterior.
+- `npm audit` informa 5 vulnerabilidades: `axios` high, `react-router/react-router-dom` high, `vite` high y `postcss` moderate. No se ejecuto `npm audit fix --force` porque requiere cambios fuera de rango y fuera de alcance del modulo.
+
 ## Dependencias y licencias
 
 Politica del proyecto:
@@ -348,15 +368,11 @@ Principales dependencias documentadas:
 
 ## Plan sugerido de commits
 
-1. `chore: bootstrap docker, env files and repository structure`
-2. `feat: add fastapi domain models auth and scheduling flows`
-3. `feat: add alembic initial migration and demo seed`
-4. `feat: add react dashboard and public marketplace views`
-5. `docs: document setup, credentials and dependency licenses`
+El repositorio ya tiene commits incrementales hasta Modulo 2. No hacer push sin instruccion explicita.
 
 ## Limitaciones actuales del MVP
 
 - Integraciones reales con Google Meet y Zoom no implementadas
 - Frontend base funcional, pero todavia sin formularios completos de CRUD
-- No hay suite de tests automatizados incluida en esta primera entrega
+- Pruebas automatizadas actuales son minimas y enfocadas en configuracion, health y seguridad auth/perfiles
 - El backoffice es minimo y prioriza operacion inicial sobre cobertura total de UX
