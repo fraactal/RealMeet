@@ -11,6 +11,7 @@ from app.schemas.appointments import (
     AppointmentProfessionalRead,
     AppointmentCreate,
     AppointmentHistoryRead,
+    AppointmentMeetingRead,
     AppointmentPrivateNotesUpdate,
     AppointmentProfessionalStatusUpdate,
     AppointmentStatusUpdate,
@@ -25,6 +26,7 @@ AppointmentActorRead = AppointmentClientRead | AppointmentProfessionalRead | App
 
 def serialize_appointment_for_user(appointment, user, service: AppointmentService) -> AppointmentActorRead:
     history = [AppointmentHistoryRead.model_validate(item) for item in service.list_history(appointment.id)]
+    meeting = serialize_meeting(appointment)
     data = {
         "id": appointment.id,
         "professional_id": appointment.professional_id,
@@ -36,9 +38,8 @@ def serialize_appointment_for_user(appointment, user, service: AppointmentServic
         "status": appointment.status,
         "consultation_mode": appointment.consultation_mode,
         "meeting_provider": appointment.meeting_provider.value if appointment.meeting_provider else None,
-        "meeting_url": appointment.meeting_url,
-        "external_meeting_id": appointment.external_meeting_id,
-        "calendar_event_id": appointment.calendar_event_id,
+        "meeting_url": meeting.join_url if meeting else None,
+        "meeting": meeting,
         "cancellation_reason": appointment.cancellation_reason,
         "client_notes": appointment.client_notes,
         "history": history,
@@ -48,6 +49,17 @@ def serialize_appointment_for_user(appointment, user, service: AppointmentServic
     if user.role == UserRole.admin:
         return AppointmentAdminRead(**data)
     return AppointmentClientRead(**data)
+
+
+def serialize_meeting(appointment) -> AppointmentMeetingRead | None:
+    if not appointment.meeting_provider:
+        return None
+    is_cancelled = appointment.status == AppointmentStatus.cancelled
+    return AppointmentMeetingRead(
+        provider=appointment.meeting_provider.value,
+        join_url=None if is_cancelled else appointment.meeting_url,
+        status="inactive" if is_cancelled else "active",
+    )
 
 
 @router.post("", response_model=AppointmentClientRead, dependencies=[Depends(require_client)])

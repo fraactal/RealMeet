@@ -9,7 +9,7 @@ from app.models.category import Category
 from app.models.professional_profile import ProfessionalProfile
 from app.models.specialty import Specialty
 from app.models.user import User
-from app.schemas.appointments import AppointmentAdminRead, AppointmentHistoryRead, AppointmentStatusUpdate
+from app.schemas.appointments import AppointmentAdminRead, AppointmentHistoryRead, AppointmentMeetingRead, AppointmentStatusUpdate
 from app.schemas.categories import CategoryAdminRead, CategoryCreate, CategoryUpdate
 from app.schemas.professionals import ProfessionalProfileRead
 from app.schemas.specialties import SpecialtyAdminRead, SpecialtyCreate, SpecialtyUpdate
@@ -140,6 +140,7 @@ def update_appointment_status(
 
 
 def _serialize_admin_appointment(appointment: Appointment, service: AppointmentService) -> AppointmentAdminRead:
+    meeting = _serialize_meeting(appointment)
     return AppointmentAdminRead(
         id=appointment.id,
         professional_id=appointment.professional_id,
@@ -151,10 +152,20 @@ def _serialize_admin_appointment(appointment: Appointment, service: AppointmentS
         status=appointment.status,
         consultation_mode=appointment.consultation_mode,
         meeting_provider=appointment.meeting_provider.value if appointment.meeting_provider else None,
-        meeting_url=appointment.meeting_url,
-        external_meeting_id=appointment.external_meeting_id,
-        calendar_event_id=appointment.calendar_event_id,
+        meeting_url=meeting.join_url if meeting else None,
+        meeting=meeting,
         cancellation_reason=appointment.cancellation_reason,
         client_notes=appointment.client_notes,
         history=[AppointmentHistoryRead.model_validate(item) for item in service.list_history(appointment.id)],
+    )
+
+
+def _serialize_meeting(appointment: Appointment) -> AppointmentMeetingRead | None:
+    if not appointment.meeting_provider:
+        return None
+    is_cancelled = appointment.status == AppointmentStatus.cancelled
+    return AppointmentMeetingRead(
+        provider=appointment.meeting_provider.value,
+        join_url=None if is_cancelled else appointment.meeting_url,
+        status="inactive" if is_cancelled else "active",
     )

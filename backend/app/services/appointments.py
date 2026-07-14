@@ -6,11 +6,13 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from app.models.user import UserRole
+from app.meetings.base import MeetingPayload
 from app.meetings.factory import get_meeting_provider
 from app.models.appointment import Appointment, AppointmentHistory, AppointmentStatus
 from app.models.client_profile import ClientProfile
 from app.models.professional_profile import ProfessionalProfile
 from app.models.user import User
+from app.notifications.service import AppointmentNotificationService
 from app.schemas.appointments import AppointmentCreate, AppointmentPrivateNotesUpdate, AppointmentProfessionalStatusUpdate, AppointmentStatusUpdate
 from app.services.availability import AvailabilityService
 
@@ -54,12 +56,7 @@ class AppointmentService:
         self._ensure_no_active_overlap(professional.id, client_profile.id, start_datetime, end_datetime)
         self._ensure_available_slot(professional, start_datetime, end_datetime)
 
-        meeting_payload = None
-        if professional.consultation_mode.value in {"online", "hybrid"}:
-            meeting_payload = get_meeting_provider().create_meeting(
-                professional_name=f"{professional.user.first_name} {professional.user.last_name}",
-                starts_at=start_datetime,
-            )
+        meeting_payload = self._create_meeting_payload(professional, start_datetime)
 
         appointment = Appointment(
             professional_id=professional.id,
@@ -84,6 +81,7 @@ class AppointmentService:
             self.db.rollback()
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Selected slot is already booked") from exc
         self.db.refresh(appointment)
+        AppointmentNotificationService(self.db).notify_created(appointment)
         return appointment
 
     def list_for_user(self, user: User) -> list[Appointment]:
@@ -169,6 +167,10 @@ class AppointmentService:
         self._add_history(appointment.id, user.id, old_status, new_status.value, reason or f"Status changed to {new_status.value}")
         self.db.commit()
         self.db.refresh(appointment)
+        if new_status == AppointmentStatus.confirmed:
+            AppointmentNotificationService(self.db).notify_confirmed(appointment)
+        if new_status == AppointmentStatus.cancelled:
+            AppointmentNotificationService(self.db).notify_cancelled(appointment)
         return appointment
 
     def _add_history(self, appointment_id: int, changed_by_user_id: int, old_status: str | None, new_status: str, comment: str) -> None:
@@ -209,6 +211,21 @@ class AppointmentService:
         slots = AvailabilityService(self.db).list_slots(professional, start_datetime, end_datetime)
         if not any(slot["start_datetime"] == start_datetime and slot["end_datetime"] == end_datetime for slot in slots):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Selected slot is not available")
+
+    @staticmethod
+    def _create_meeting_payload(professional: ProfessionalProfile, start_datetime: datetime) -> MeetingPayload | None:
+        if professional.consultation_mode.value not in {"online", "hybrid"}:
+            return None
+        try:
+            return get_meeting_provider().create_meeting(
+                professional_name=f"{professional.user.first_name} {professional.user.last_name}",
+                starts_at=start_datetime,
+            )
+        except NotImplementedError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Configured meeting provider is not available",
+            ) from exc
 
     @staticmethod
     def _ensure_client_can_cancel(appointment: Appointment) -> None:

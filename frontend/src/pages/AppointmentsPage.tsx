@@ -10,6 +10,16 @@ function canCancel(appointment: Appointment): boolean {
   return ["pending", "confirmed"].includes(appointment.status) && new Date(appointment.start_datetime).getTime() > Date.now();
 }
 
+function meetingLabel(appointment: Appointment): string {
+  if (!appointment.meeting) {
+    return appointment.consultation_mode === "presencial" ? "Atencion presencial" : "Reunion pendiente";
+  }
+  if (appointment.meeting.status !== "active") {
+    return "Reunion inactiva";
+  }
+  return `Reunion ${appointment.meeting.provider}`;
+}
+
 export function AppointmentsPage() {
   const queryClient = useQueryClient();
   const { data, isLoading, isError } = useQuery({ queryKey: ["my-appointments"], queryFn: fetchMyAppointments });
@@ -34,12 +44,15 @@ export function AppointmentsPage() {
             <div key={appointment.id} className="flex flex-col gap-3 rounded-2xl border border-slate-200 p-4 md:flex-row md:items-center md:justify-between">
               <div>
                 <p className="font-semibold text-ink">{new Date(appointment.start_datetime).toLocaleString()}</p>
-                <p className="text-sm text-slate-500">Reserva #{appointment.id}</p>
+                <p className="text-sm text-slate-500">
+                  Reserva #{appointment.id} - {appointment.consultation_mode ?? "modalidad no informada"}
+                </p>
+                <p className="text-sm text-slate-500">{meetingLabel(appointment)}</p>
               </div>
               <div className="flex items-center gap-3">
                 <Badge label={appointment.status} />
-                {appointment.meeting_url ? (
-                  <a className="text-sm font-medium text-brand" href={appointment.meeting_url} target="_blank" rel="noreferrer">
+                {appointment.meeting?.status === "active" && appointment.meeting.join_url ? (
+                  <a className="text-sm font-medium text-brand" href={appointment.meeting.join_url} target="_blank" rel="noreferrer">
                     Abrir reunion
                   </a>
                 ) : null}

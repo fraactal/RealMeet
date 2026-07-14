@@ -26,6 +26,13 @@ function availableActions(appointment: ProfessionalAppointment): StatusAction[] 
   return [];
 }
 
+function meetingLabel(appointment: ProfessionalAppointment): string {
+  if (!appointment.meeting) {
+    return appointment.consultation_mode === "presencial" ? "Atencion presencial" : "Reunion pendiente";
+  }
+  return appointment.meeting.status === "active" ? `Reunion ${appointment.meeting.provider}` : "Reunion inactiva";
+}
+
 export function ProfessionalAppointmentsPage() {
   const queryClient = useQueryClient();
   const [notesDrafts, setNotesDrafts] = useState<Record<number, string>>({});
@@ -77,10 +84,21 @@ export function ProfessionalAppointmentsPage() {
                 <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                   <div>
                     <p className="font-semibold text-ink">{new Date(appointment.start_datetime).toLocaleString()}</p>
-                    <p className="text-sm text-slate-500">Reserva #{appointment.id} - Cliente #{appointment.client_id}</p>
+                    <p className="text-sm text-slate-500">
+                      Reserva #{appointment.id} - Cliente #{appointment.client_id} - {appointment.consultation_mode ?? "modalidad no informada"}
+                    </p>
+                    <p className="text-sm text-slate-500">{meetingLabel(appointment)}</p>
                   </div>
                   <div className="flex flex-wrap items-center gap-3">
                     <Badge label={appointment.status} />
+                    {appointment.meeting?.status === "active" && appointment.meeting.join_url ? (
+                      <button
+                        className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700"
+                        onClick={() => void navigator.clipboard.writeText(appointment.meeting?.join_url ?? "")}
+                      >
+                        Copiar reunion
+                      </button>
+                    ) : null}
                     {availableActions(appointment).map((action) => (
                       <button
                         key={action}

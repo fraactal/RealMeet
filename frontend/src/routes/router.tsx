@@ -8,6 +8,7 @@ import { AppointmentsPage } from "../pages/AppointmentsPage";
 import { DashboardHomePage } from "../pages/DashboardHomePage";
 import { HomePage } from "../pages/HomePage";
 import { LoginPage } from "../pages/LoginPage";
+import { MockMeetingPage } from "../pages/MockMeetingPage";
 import { ProfessionalAvailabilityPage } from "../pages/ProfessionalAvailabilityPage";
 import { ProfessionalAppointmentsPage } from "../pages/ProfessionalAppointmentsPage";
 import { ProfessionalCatalogPage } from "../pages/ProfessionalCatalogPage";
@@ -21,6 +22,7 @@ export const router = createBrowserRouter([
     children: [
       { path: "/", element: <HomePage /> },
       { path: "/professionals", element: <ProfessionalsPage /> },
+      { path: "/mock-meeting/:meetingId", element: <MockMeetingPage /> },
       { path: "/login", element: <LoginPage /> },
     ],
   },

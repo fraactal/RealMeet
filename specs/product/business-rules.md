@@ -22,6 +22,16 @@ Las notas privadas del profesional nunca deben ser visibles para el cliente.
 
 Estado Modulo 5: los contratos de salida para cliente y administrador no declaran `professional_private_notes`; el contrato profesional conserva el campo solo para reservas autorizadas. La UI de cliente usa el tipo `Appointment`, que no contiene notas privadas; la UI profesional usa `ProfessionalAppointment`.
 
+## Reuniones y notificaciones
+
+- Las reservas `online` y `hybrid` generan reunion mock.
+- Las reservas `presencial` no generan enlace remoto.
+- La reunion mock se crea al crear la reserva por coherencia con la implementacion existente.
+- Una reserva cancelada conserva datos historicos, pero el contrato marca la reunion como `inactive` y no entrega `join_url`.
+- Las notificaciones basicas se registran o envian para creacion, confirmacion y cancelacion.
+- Fallos de notificacion no revierten la operacion principal.
+- Las notificaciones no incluyen notas privadas ni credenciales.
+
 ## Seguridad
 
 - No hardcodear secretos reales.

@@ -13,6 +13,7 @@ RealMeet es un MVP SaaS para agendamiento de profesionales orientado inicialment
 - Reserva de horas con validacion de disponibilidad, solapamientos, estados e historial
 - Meeting provider mock preparado para futuras integraciones
 - Servicio de correo por SMTP o salida a log en desarrollo
+- Notificaciones basicas para reserva creada, confirmada y cancelada
 - Metricas basicas para profesional y administrador
 - Backoffice minimo para usuarios, profesionales y reservas
 
@@ -118,8 +119,9 @@ Base API: `http://localhost:18000/api/v1`
 4. Reserva una hora disponible.
 5. El backend revalida disponibilidad, solapamientos y crea la cita.
 6. Si corresponde, se genera un meeting mock.
-7. La reserva queda disponible para dashboards, metricas e historial.
-8. El profesional puede confirmar, cancelar, completar o marcar no show segun transicion valida.
+7. Se registra o envia una notificacion basica.
+8. La reserva queda disponible para dashboards, metricas e historial.
+9. El profesional puede confirmar, cancelar, completar o marcar no show segun transicion valida.
 
 ## Variables de entorno
 
@@ -147,7 +149,11 @@ Variables backend relevantes:
 - `SMTP_PASSWORD`
 - `SMTP_FROM_EMAIL`
 - `SMTP_FROM_NAME`
+- `SMTP_USE_TLS`
+- `SMTP_TIMEOUT_SECONDS`
+- `EMAIL_MODE`
 - `DEFAULT_MEETING_PROVIDER`
+- `MOCK_MEETING_BASE_URL`
 - `BACKEND_HOST`
 - `BACKEND_PORT`
 
@@ -200,6 +206,7 @@ Servicios:
 - Health: `http://localhost:18000/health`
 - Ready: `http://localhost:18000/ready`
 - Frontend: `http://localhost:15173`
+- Mock meeting: `http://localhost:15173/mock-meeting/{meetingId}`
 - PostgreSQL: `localhost:25432`
 
 Puertos publicados por defecto:

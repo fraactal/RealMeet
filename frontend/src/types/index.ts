@@ -233,6 +233,12 @@ export interface AppointmentCreate {
   client_notes?: string | null;
 }
 
+export interface AppointmentMeeting {
+  provider: string;
+  join_url?: string | null;
+  status: "active" | "inactive" | "unknown";
+}
+
 export interface Appointment {
   id: number;
   professional_id: number;
@@ -245,8 +251,7 @@ export interface Appointment {
   consultation_mode?: ConsultationMode;
   meeting_provider?: string | null;
   meeting_url?: string | null;
-  external_meeting_id?: string | null;
-  calendar_event_id?: string | null;
+  meeting?: AppointmentMeeting | null;
   cancellation_reason?: string | null;
   client_notes?: string | null;
   history?: AppointmentHistory[];

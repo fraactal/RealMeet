@@ -23,7 +23,11 @@ class Settings(BaseSettings):
     smtp_password: str | None = Field(default=None, alias="SMTP_PASSWORD")
     smtp_from_email: str = Field(default="noreply@realmeet.local", alias="SMTP_FROM_EMAIL")
     smtp_from_name: str = Field(default="RealMeet", alias="SMTP_FROM_NAME")
+    smtp_use_tls: bool = Field(default=True, alias="SMTP_USE_TLS")
+    smtp_timeout_seconds: int = Field(default=10, alias="SMTP_TIMEOUT_SECONDS")
+    email_mode: str = Field(default="log", alias="EMAIL_MODE")
     default_meeting_provider: str = Field(default="mock", alias="DEFAULT_MEETING_PROVIDER")
+    mock_meeting_base_url: str = Field(default="http://localhost:15173/mock-meeting", alias="MOCK_MEETING_BASE_URL")
     backend_host: str = Field(default="0.0.0.0", alias="BACKEND_HOST")
     backend_port: int = Field(default=8000, alias="BACKEND_PORT")
 
@@ -56,6 +60,15 @@ class Settings(BaseSettings):
         if value not in allowed:
             raise ValueError(f"DEFAULT_MEETING_PROVIDER must be one of: {', '.join(sorted(allowed))}")
         return value
+
+    @field_validator("email_mode")
+    @classmethod
+    def validate_email_mode(cls, value: str) -> str:
+        allowed = {"log", "smtp"}
+        normalized = value.lower().strip()
+        if normalized not in allowed:
+            raise ValueError(f"EMAIL_MODE must be one of: {', '.join(sorted(allowed))}")
+        return normalized
 
     @model_validator(mode="after")
     def validate_production_safety(self) -> "Settings":

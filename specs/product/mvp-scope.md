@@ -20,7 +20,8 @@
 - Metricas basicas.
 - Backoffice administrativo minimo.
 - Servicio de correo desacoplado.
-- `MockMeetingProvider`.
+- `MockMeetingProvider` con URL local de desarrollo.
+- Notificaciones basicas de reserva creada, confirmada y cancelada.
 
 ## Excluido por ahora
 

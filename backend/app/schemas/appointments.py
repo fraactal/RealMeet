@@ -36,6 +36,12 @@ class AppointmentHistoryRead(ORMModel):
     created_at: datetime
 
 
+class AppointmentMeetingRead(BaseModel):
+    provider: str
+    join_url: str | None
+    status: str
+
+
 class AppointmentBaseRead(ORMModel):
     id: int
     professional_id: int
@@ -48,8 +54,7 @@ class AppointmentBaseRead(ORMModel):
     consultation_mode: ConsultationMode
     meeting_provider: str | None
     meeting_url: str | None
-    external_meeting_id: str | None
-    calendar_event_id: str | None
+    meeting: AppointmentMeetingRead | None = None
     cancellation_reason: str | None
     client_notes: str | None
     history: list[AppointmentHistoryRead] = Field(default_factory=list)
