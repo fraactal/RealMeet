@@ -1,10 +1,10 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.schemas.common import ORMModel
 
 
 class CategoryBase(BaseModel):
-    name: str
+    name: str = Field(min_length=1, max_length=100)
     description: str | None = None
     is_active: bool = True
 
@@ -19,9 +19,19 @@ class CategoryUpdate(BaseModel):
     is_active: bool | None = None
 
 
-class CategoryRead(ORMModel):
+class CategoryPublicRead(ORMModel):
+    id: int
+    name: str
+    slug: str
+    description: str | None
+
+
+class CategoryAdminRead(ORMModel):
     id: int
     name: str
     slug: str
     description: str | None
     is_active: bool
+
+
+CategoryRead = CategoryAdminRead

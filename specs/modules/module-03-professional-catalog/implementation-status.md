@@ -27,8 +27,8 @@ Fecha de inicio: 2026-07-14.
 
 | Fase | Estado | Commit esperado | Observaciones |
 | --- | --- | --- | --- |
-| 3.1 Baseline y diseno | en progreso | `docs(catalog): define module 3 professional catalog baseline` | Documentacion inicial. |
-| 3.2 Categorias y especialidades backend | pendiente | `feat(catalog): add category and specialty management` | Puede requerir commit DB previo. |
+| 3.1 Baseline y diseno | completada | `602b701 docs(catalog): define module 3 professional catalog baseline` | Documentacion inicial. |
+| 3.2 Categorias y especialidades backend | en progreso | `feat(catalog): add category and specialty management` | Commit DB `568b4b5`; backend aplicado, pendiente commit. |
 | 3.3 Especialidades propias profesional | pendiente | `feat(professional): manage own specialties` |  |
 | 3.4 Perfil publico profesional backend | pendiente | `feat(professional): add safe public professional profiles` |  |
 | 3.5 Busqueda/filtros/paginacion | pendiente | `feat(search): add professional catalog filters and pagination` |  |

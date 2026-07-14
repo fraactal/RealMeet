@@ -9,7 +9,9 @@ from app.core.config import settings
 from app.core.deps import get_current_user, require_admin, require_client, require_professional
 from app.core.security import ALGORITHM, create_access_token, decode_token, hash_password
 from app.models.user import UserRole
+from app.schemas.categories import CategoryAdminRead, CategoryPublicRead
 from app.schemas.professionals import ProfessionalSelfProfileUpdate
+from app.schemas.specialties import SpecialtyAdminRead, SpecialtyPublicRead
 from app.schemas.users import ClientSelfProfileUpdate, UserSelfUpdate
 from app.services.auth import AuthService
 
@@ -132,3 +134,26 @@ def test_professional_self_profile_update_contract_excludes_future_and_admin_fie
     data = payload.model_dump(exclude_unset=True)
 
     assert data == {"first_name": "Professional", "title": "Psicologa"}
+
+
+def test_public_catalog_contracts_exclude_admin_state() -> None:
+    category = CategoryPublicRead(id=1, name="Salud", slug="salud", description=None)
+    specialty = SpecialtyPublicRead(id=1, category_id=1, name="Psicologia", slug="psicologia", description=None)
+
+    assert "is_active" not in category.model_dump()
+    assert "is_active" not in specialty.model_dump()
+
+
+def test_admin_catalog_contracts_include_admin_state() -> None:
+    category = CategoryAdminRead(id=1, name="Salud", slug="salud", description=None, is_active=True)
+    specialty = SpecialtyAdminRead(
+        id=1,
+        category_id=1,
+        name="Psicologia",
+        slug="psicologia",
+        description=None,
+        is_active=True,
+    )
+
+    assert category.is_active is True
+    assert specialty.is_active is True
