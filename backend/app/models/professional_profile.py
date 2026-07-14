@@ -1,7 +1,7 @@
 import enum
 from decimal import Decimal
 
-from sqlalchemy import Boolean, Enum, ForeignKey, Integer, Numeric, String, Text
+from sqlalchemy import Boolean, Enum, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.session import Base
@@ -46,6 +46,7 @@ class ProfessionalProfile(Base, TimestampMixin):
 
 class ProfessionalSpecialty(Base):
     __tablename__ = "professional_specialties"
+    __table_args__ = (UniqueConstraint("professional_id", "specialty_id", name="uq_professional_specialty_pair"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     professional_id: Mapped[int] = mapped_column(ForeignKey("professional_profiles.id"), nullable=False)
