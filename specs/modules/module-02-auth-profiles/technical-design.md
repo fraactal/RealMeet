@@ -43,7 +43,9 @@ Rutas observadas:
 | `GET /users/me/profile` | client | Perfil cliente propio. |
 | `PATCH /users/me/profile` | client | Actualizacion segura de perfil cliente propio. |
 | `/admin/*` | admin | Router protegido por `require_roles(admin)`. |
-| `/professionals/me/profile` | professional | Debe usar contratos propios restringidos. |
+| `POST /professionals/profile` | professional | Usa contrato propio restringido del Modulo 2. |
+| `GET /professionals/me/profile` | professional | Usa contrato propio restringido del Modulo 2. |
+| `PATCH /professionals/me/profile` | professional | Usa contrato propio restringido del Modulo 2. |
 | `/professional/metrics` | professional | Mantener proteccion existente. |
 | `/admin/metrics` | admin | Mantener proteccion existente. |
 | `/appointments` protegidos | client/professional/authenticated segun accion | No ampliar reservas en M2. |
@@ -59,7 +61,7 @@ No se agregan datos clinicos ni nuevas columnas. La actualizacion se realiza en 
 
 ## Perfil profesional
 
-Se usaran campos base existentes:
+Se usan campos base existentes:
 
 - Datos de usuario propios: `first_name`, `last_name`, `phone`.
 - Datos de `ProfessionalProfile`: `title`, `bio`, `years_experience`, `consultation_mode`, `session_duration_minutes`, `address`, `city`, `country`.
@@ -74,7 +76,7 @@ Quedan fuera del contrato propio base:
 - `professional_license`.
 - disponibilidad y agenda.
 
-Los endpoints publicos de profesionales no se amplian en este modulo.
+Los endpoints propios `POST /professionals/profile`, `GET /professionals/me/profile` y `PATCH /professionals/me/profile` usan `ProfessionalSelfProfileRead` y `ProfessionalSelfProfileUpdate`. Los endpoints publicos de profesionales no se amplian en este modulo.
 
 ## Frontend
 

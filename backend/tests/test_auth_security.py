@@ -9,6 +9,7 @@ from app.core.config import settings
 from app.core.deps import get_current_user, require_admin, require_client, require_professional
 from app.core.security import ALGORITHM, create_access_token, decode_token, hash_password
 from app.models.user import UserRole
+from app.schemas.professionals import ProfessionalSelfProfileUpdate
 from app.schemas.users import ClientSelfProfileUpdate, UserSelfUpdate
 from app.services.auth import AuthService
 
@@ -110,3 +111,24 @@ def test_client_self_profile_update_contract_excludes_admin_fields() -> None:
     data = payload.model_dump(exclude_unset=True)
 
     assert set(data) == {"first_name", "birth_date"}
+
+
+def test_professional_self_profile_update_contract_excludes_future_and_admin_fields() -> None:
+    payload = ProfessionalSelfProfileUpdate.model_validate(
+        {
+            "first_name": "Professional",
+            "title": "Psicologa",
+            "category_id": 1,
+            "specialty_ids": [1],
+            "price": "45000",
+            "is_public": False,
+            "is_verified": True,
+            "professional_license": "ABC",
+            "is_active": False,
+            "role": "admin",
+        }
+    )
+
+    data = payload.model_dump(exclude_unset=True)
+
+    assert data == {"first_name": "Professional", "title": "Psicologa"}

@@ -3,7 +3,13 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.models.professional_profile import ProfessionalProfile, ProfessionalSpecialty
 from app.models.user import User, UserRole
-from app.schemas.professionals import ProfessionalProfileCreate, ProfessionalProfileUpdate
+from app.schemas.professionals import (
+    ProfessionalProfileCreate,
+    ProfessionalProfileUpdate,
+    ProfessionalSelfProfileRead,
+    ProfessionalSelfProfileUpdate,
+)
+from app.schemas.users import UserRead
 
 
 class ProfessionalService:
@@ -28,6 +34,57 @@ class ProfessionalService:
         self.db.commit()
         self.db.refresh(profile)
         return profile
+
+    def get_self_profile(self, user: User) -> ProfessionalSelfProfileRead:
+        profile = self._get_or_create_profile(user)
+        return self._serialize_self_profile(user, profile)
+
+    def upsert_self_profile(self, user: User, payload: ProfessionalSelfProfileUpdate) -> ProfessionalSelfProfileRead:
+        profile = self._get_or_create_profile(user)
+        data = payload.model_dump(exclude_unset=True)
+        for key in ("first_name", "last_name", "phone"):
+            if key in data:
+                setattr(user, key, data[key])
+        for key in (
+            "title",
+            "bio",
+            "years_experience",
+            "consultation_mode",
+            "session_duration_minutes",
+            "address",
+            "city",
+            "country",
+        ):
+            if key in data:
+                setattr(profile, key, data[key])
+        self.db.commit()
+        self.db.refresh(user)
+        self.db.refresh(profile)
+        return self._serialize_self_profile(user, profile)
+
+    def _get_or_create_profile(self, user: User) -> ProfessionalProfile:
+        profile = self.db.scalar(select(ProfessionalProfile).where(ProfessionalProfile.user_id == user.id))
+        if profile:
+            return profile
+        profile = ProfessionalProfile(user_id=user.id)
+        self.db.add(profile)
+        self.db.flush()
+        return profile
+
+    @staticmethod
+    def _serialize_self_profile(user: User, profile: ProfessionalProfile) -> ProfessionalSelfProfileRead:
+        return ProfessionalSelfProfileRead(
+            id=profile.id,
+            user=UserRead.model_validate(user),
+            title=profile.title,
+            bio=profile.bio,
+            years_experience=profile.years_experience,
+            consultation_mode=profile.consultation_mode,
+            session_duration_minutes=profile.session_duration_minutes,
+            address=profile.address,
+            city=profile.city,
+            country=profile.country,
+        )
 
     def list_public(self, search: str | None = None, category_id: int | None = None, specialty_id: int | None = None) -> list[ProfessionalProfile]:
         query = (

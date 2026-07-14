@@ -4,7 +4,7 @@ from pydantic import BaseModel
 
 from app.models.professional_profile import ConsultationMode
 from app.schemas.common import ORMModel
-from app.schemas.users import UserRead
+from app.schemas.users import UserRead, UserSelfUpdate
 
 
 class ProfessionalProfileCreate(BaseModel):
@@ -43,6 +43,30 @@ class ProfessionalProfileRead(ORMModel):
     country: str | None
     is_verified: bool
     is_public: bool
+
+
+class ProfessionalSelfProfileRead(BaseModel):
+    id: int
+    user: UserRead
+    title: str | None
+    bio: str | None
+    years_experience: int | None
+    consultation_mode: ConsultationMode
+    session_duration_minutes: int
+    address: str | None
+    city: str | None
+    country: str | None
+
+
+class ProfessionalSelfProfileUpdate(UserSelfUpdate):
+    title: str | None = None
+    bio: str | None = None
+    years_experience: int | None = None
+    consultation_mode: ConsultationMode | None = None
+    session_duration_minutes: int | None = None
+    address: str | None = None
+    city: str | None = None
+    country: str | None = None
 
 
 class ProfessionalPublicRead(BaseModel):
