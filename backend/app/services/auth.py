@@ -43,6 +43,6 @@ class AuthService:
 
     def login(self, email: str, password: str) -> str:
         user = self.users.get_by_email(email.lower())
-        if not user or not verify_password(password, user.password_hash):
+        if not user or not user.is_active or not verify_password(password, user.password_hash):
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
         return create_access_token(str(user.id))

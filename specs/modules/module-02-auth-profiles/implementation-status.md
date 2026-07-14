@@ -24,8 +24,8 @@ Fecha de inicio: 2026-07-14.
 
 | Fase | Estado | Commit esperado | Observaciones |
 | --- | --- | --- | --- |
-| 2.1 Baseline y contratos | en progreso | `docs(auth): define module 2 authentication baseline` | Documentacion inicial. |
-| 2.2 JWT, usuario activo y errores | pendiente | `fix(auth): harden jwt validation and authentication errors` |  |
+| 2.1 Baseline y contratos | completada | `cff0979 docs(auth): define module 2 authentication baseline` | Documentacion inicial. |
+| 2.2 JWT, usuario activo y errores | en progreso | `fix(auth): harden jwt validation and authentication errors` | Validacion tecnica aplicada; pendiente commit. |
 | 2.3 Autorizacion por rol | pendiente | `feat(authz): enforce role-based access control` |  |
 | 2.4 Perfil base de cliente | pendiente | `feat(client): add secure self-service profile` |  |
 | 2.5 Perfil base de profesional | pendiente | `feat(professional): add secure self-service profile` |  |
@@ -34,8 +34,8 @@ Fecha de inicio: 2026-07-14.
 
 ## Seguridad y riesgos
 
-- Riesgo confirmado: usuario inactivo puede iniciar sesion hasta aplicar Fase 2.2.
-- Riesgo confirmado: token con `sub` malformado puede provocar error no normalizado.
+- Riesgo corregido en Fase 2.2: usuario inactivo ya no puede iniciar sesion.
+- Riesgo corregido en Fase 2.2: token con `sub` malformado responde `401` controlado.
 - Riesgo confirmado: perfil propio puede modificar campos administrativos o de modulos posteriores.
 - Riesgo confirmado: frontend puede mostrar rutas no autorizadas si existe token local.
 - Riesgo aceptado temporalmente: token en `localStorage`.

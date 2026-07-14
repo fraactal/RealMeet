@@ -7,15 +7,15 @@
 | M2-VAL-001 | Git baseline | `git status --short --branch`, `git log --oneline -3` | Rama `main`, base `7304f66`, sin cambios versionables | Rama `main`, base confirmada, solo ignorados | aprobado | Ejecutado antes de modificar archivos. |
 | M2-VAL-002 | Inspeccion auth backend | `rg` y lectura de auth/security/deps/services/schemas | Riesgos documentados | Riesgos confirmados | aprobado | Fase 2.1. |
 | M2-VAL-003 | Inspeccion frontend auth | `rg` y lectura de store/API/rutas/layouts | Riesgos documentados | Riesgos confirmados | aprobado | Fase 2.1. |
-| M2-VAL-004 | `git diff --check` fase 2.1 | `git diff --check` | Sin whitespace errors | pendiente | pendiente |  |
-| M2-VAL-005 | Tests backend | `docker-compose exec -T backend pytest` | Tests pasan | pendiente | pendiente |  |
+| M2-VAL-004 | `git diff --check` fase 2.1 | `git diff --check` | Sin whitespace errors | Sin errores; advertencias CRLF en Windows | aprobado | Fase 2.1 commit `cff0979`. |
+| M2-VAL-005 | Tests backend | `docker-compose exec -T backend pytest` | Tests pasan | 12 passed, 1 warning | aprobado | Fase 2.2. |
 | M2-VAL-006 | Build frontend | `docker-compose exec -T frontend npm run build` | Build pasa | pendiente | pendiente |  |
-| M2-VAL-007 | Health | `GET /health` | 200 | pendiente | pendiente |  |
-| M2-VAL-008 | Ready | `GET /ready` | 200 | pendiente | pendiente |  |
+| M2-VAL-007 | Health | `GET /health` | 200 | 200 `status=ok` | aprobado | Fase 2.2. |
+| M2-VAL-008 | Ready | `GET /ready` | 200 | 200 `status=ready` | aprobado | Fase 2.2. |
 | M2-VAL-009 | Login activo | Login demo admin/professional/client | 200/token | pendiente | pendiente |  |
-| M2-VAL-010 | Login invalido | Credenciales incorrectas | 401 generico | pendiente | pendiente |  |
-| M2-VAL-011 | Usuario inactivo | Login/acceso con usuario inactivo | 401 | pendiente | pendiente |  |
-| M2-VAL-012 | Token invalido/vencido | Requests con token invalido/vencido | 401 | pendiente | pendiente |  |
+| M2-VAL-010 | Login invalido | Credenciales incorrectas | 401 generico | 401 | aprobado | Runtime Fase 2.2. |
+| M2-VAL-011 | Usuario inactivo | Login/acceso con usuario inactivo | 401 | 401 en pruebas unitarias | aprobado | Sin alterar datos demo. |
+| M2-VAL-012 | Token invalido/vencido | Requests con token invalido/vencido | 401 | 401 runtime para invalido; vencido cubierto por prueba | aprobado | Fase 2.2. |
 | M2-VAL-013 | Rol incorrecto | Cliente a admin/professional; professional a admin | 403 | pendiente | pendiente |  |
 | M2-VAL-014 | Perfil cliente propio | GET/PATCH perfil cliente | Solo datos propios permitidos | pendiente | pendiente |  |
 | M2-VAL-015 | Perfil profesional propio | GET/PATCH perfil profesional | Campos base permitidos; futuros bloqueados | pendiente | pendiente |  |

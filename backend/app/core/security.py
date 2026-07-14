@@ -8,6 +8,15 @@ from app.core.config import settings
 
 pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 ALGORITHM = "HS256"
+AUTHENTICATION_ERROR_DETAIL = "Could not validate credentials"
+
+
+def authentication_exception() -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail=AUTHENTICATION_ERROR_DETAIL,
+        headers={"WWW-Authenticate": "Bearer"},
+    )
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -27,6 +36,9 @@ def create_access_token(subject: str) -> str:
 
 def decode_token(token: str) -> dict:
     try:
-        return jwt.decode(token, settings.secret_key, algorithms=[ALGORITHM])
+        payload = jwt.decode(token, settings.secret_key, algorithms=[ALGORITHM])
     except jwt.PyJWTError as exc:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Could not validate credentials") from exc
+        raise authentication_exception() from exc
+    if not isinstance(payload, dict):
+        raise authentication_exception()
+    return payload
