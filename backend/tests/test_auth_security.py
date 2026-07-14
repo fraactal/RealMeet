@@ -9,6 +9,7 @@ from app.core.config import settings
 from app.core.deps import get_current_user, require_admin, require_client, require_professional
 from app.core.security import ALGORITHM, create_access_token, decode_token, hash_password
 from app.models.user import UserRole
+from app.schemas.users import ClientSelfProfileUpdate, UserSelfUpdate
 from app.services.auth import AuthService
 
 
@@ -91,3 +92,21 @@ def test_role_helpers_reject_wrong_role() -> None:
         require_admin(SimpleNamespace(role=UserRole.client))
 
     assert exc_info.value.status_code == 403
+
+
+def test_user_self_update_contract_excludes_admin_fields() -> None:
+    payload = UserSelfUpdate.model_validate({"first_name": "Client", "is_active": False, "role": "admin"})
+
+    data = payload.model_dump(exclude_unset=True)
+
+    assert data == {"first_name": "Client"}
+
+
+def test_client_self_profile_update_contract_excludes_admin_fields() -> None:
+    payload = ClientSelfProfileUpdate.model_validate(
+        {"first_name": "Client", "birth_date": "1990-01-01", "is_active": False, "user_id": 99}
+    )
+
+    data = payload.model_dump(exclude_unset=True)
+
+    assert set(data) == {"first_name", "birth_date"}

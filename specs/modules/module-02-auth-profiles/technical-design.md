@@ -39,7 +39,9 @@ Rutas observadas:
 | `POST /auth/login` | publico | Debe rechazar usuario inactivo. |
 | `GET /auth/me` | autenticado | Debe usar contrato seguro. |
 | `GET /users/me` | autenticado | Debe usar contrato seguro. |
-| `PATCH /users/me` | autenticado | Debe impedir `is_active` y campos admin. |
+| `PATCH /users/me` | autenticado | Usa `UserSelfUpdate`; impide `is_active` y campos admin. |
+| `GET /users/me/profile` | client | Perfil cliente propio. |
+| `PATCH /users/me/profile` | client | Actualizacion segura de perfil cliente propio. |
 | `/admin/*` | admin | Router protegido por `require_roles(admin)`. |
 | `/professionals/me/profile` | professional | Debe usar contratos propios restringidos. |
 | `/professional/metrics` | professional | Mantener proteccion existente. |
@@ -53,7 +55,7 @@ Se usaran campos existentes:
 - Datos de usuario propios: `first_name`, `last_name`, `phone`.
 - Datos de `ClientProfile`: `birth_date`, `notes`.
 
-No se agregan datos clinicos ni nuevas columnas. La actualizacion se realizara en servicio y no permitira `role`, `is_active`, identificadores, hash ni campos de otros usuarios.
+No se agregan datos clinicos ni nuevas columnas. La actualizacion se realiza en `ProfileService` y no permite `role`, `is_active`, identificadores, hash ni campos de otros usuarios.
 
 ## Perfil profesional
 

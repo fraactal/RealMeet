@@ -22,6 +22,12 @@ class UserUpdate(BaseModel):
     is_active: bool | None = None
 
 
+class UserSelfUpdate(BaseModel):
+    first_name: str | None = None
+    last_name: str | None = None
+    phone: str | None = None
+
+
 class UserRead(ORMModel):
     id: int
     email: str
@@ -35,5 +41,16 @@ class UserRead(ORMModel):
 
 
 class ClientProfileCreate(BaseModel):
+    birth_date: date | None = None
+    notes: str | None = None
+
+
+class ClientSelfProfileRead(BaseModel):
+    user: UserRead
+    birth_date: date | None
+    notes: str | None
+
+
+class ClientSelfProfileUpdate(UserSelfUpdate):
     birth_date: date | None = None
     notes: str | None = None

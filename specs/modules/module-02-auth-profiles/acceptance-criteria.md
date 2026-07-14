@@ -15,9 +15,9 @@
 | AC-M2-011 | Rutas de cliente requieren `client` cuando corresponde. | implementado-parcial | aprobado parcial | Helper `require_client` en creacion de reservas; perfil cliente se completa en Fase 2.4. |
 | AC-M2-012 | Cliente no accede a funciones admin o professional. | implementado-parcial | aprobado backend | `test_role_helpers_reject_wrong_role`; frontend pendiente Fase 2.6. |
 | AC-M2-013 | Profesional no modifica perfiles ajenos. | implementado-parcial | pendiente | Perfil propio filtra por `user.id`; falta contrato seguro. |
-| AC-M2-014 | Cliente consulta y actualiza unicamente su perfil. | no-implementado | pendiente | No existe perfil cliente dedicado. |
+| AC-M2-014 | Cliente consulta y actualiza unicamente su perfil. | no-implementado | aprobado backend | `GET/PATCH /users/me/profile` con `require_client` y `ProfileService`. |
 | AC-M2-015 | Profesional consulta y actualiza unicamente su perfil. | implementado-parcial | pendiente | Existe `/professionals/me/profile`; contrato amplio. |
-| AC-M2-016 | Payloads propios no permiten modificar rol, `is_active` ni campos administrativos. | fallido | pendiente | `/users/me` acepta `is_active`. |
+| AC-M2-016 | Payloads propios no permiten modificar rol, `is_active` ni campos administrativos. | fallido | aprobado parcial | `UserSelfUpdate` y `ClientSelfProfileUpdate` no declaran campos admin; profesional pendiente Fase 2.5. |
 | AC-M2-017 | Perfil profesional base no permite modificar categorias, especialidades, precio ni publicacion. | fallido | pendiente | `ProfessionalProfileUpdate` permite esos campos. |
 | AC-M2-018 | Logout elimina token y estado local. | implementado | pendiente | Store y navbar lo hacen; se revalidara. |
 | AC-M2-019 | Ante `401`, frontend limpia sesion. | no-implementado | pendiente | Falta interceptor de respuesta. |
@@ -27,7 +27,7 @@
 | AC-M2-023 | Backend, frontend y PostgreSQL continuan funcionando. | verificado M1 | pendiente | Validacion integrada M2. |
 | AC-M2-024 | `/health` y `/ready` continuan operativos. | verificado M1 | aprobado parcial | Runtime `GET /health` y `GET /ready` OK tras Fase 2.2. |
 | AC-M2-025 | Frontend compila. | verificado M1 | pendiente | Build M2. |
-| AC-M2-026 | Pruebas minimas relacionadas pasan. | parcial | aprobado parcial | `docker-compose exec -T backend pytest`: 14 passed. |
+| AC-M2-026 | Pruebas minimas relacionadas pasan. | parcial | aprobado parcial | `docker-compose exec -T backend pytest`: 16 passed. |
 | AC-M2-027 | Cada fase tiene commit independiente. | pendiente | pendiente | Git. |
 | AC-M2-028 | Matriz de trazabilidad actualizada. | pendiente | pendiente | `requirements-matrix.md`. |
 | AC-M2-029 | No se implementaron funciones del Modulo 3. | pendiente | pendiente | Revision de cambios. |
