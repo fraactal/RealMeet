@@ -75,3 +75,12 @@ Estado Modulo 8: dashboards, metricas y backoffice minimo se consideran parte de
 - El MVP se considera cerrado para desarrollo local y demo controlada solo si pasan pruebas backend, build frontend, health/readiness y validaciones acotadas por rol.
 - Staging requiere checklist previo, secretos reales, CORS restringido y credenciales demo gestionadas.
 - Produccion y uso clinico real quedan fuera de alcance hasta completar hardening, cumplimiento y operacion.
+
+## Hardening tecnico para staging
+
+- Staging y produccion no deben usar secretos placeholder o cortos.
+- CORS debe usar origenes explicitos; wildcard no es compatible con credenciales.
+- Swagger/OpenAPI debe poder deshabilitarse por configuracion.
+- Seed demo no debe ejecutarse automaticamente fuera de entornos locales salvo decision explicita.
+- Rate limiting en memoria reduce abuso basico en una sola instancia, pero no reemplaza un control distribuido productivo.
+- Backups deben generarse fuera del repositorio y restaurarse primero en entornos aislados.

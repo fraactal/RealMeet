@@ -141,6 +141,7 @@ Variables backend relevantes:
 
 - `APP_NAME`
 - `APP_ENV`
+- `DEBUG`
 - `API_V1_PREFIX`
 - `DATABASE_URL`
 - `SECRET_KEY`
@@ -157,6 +158,11 @@ Variables backend relevantes:
 - `EMAIL_MODE`
 - `DEFAULT_MEETING_PROVIDER`
 - `MOCK_MEETING_BASE_URL`
+- `ENABLE_DOCS`
+- `RATE_LIMIT_ENABLED`
+- `RATE_LIMIT_WINDOW_SECONDS`
+- `RATE_LIMIT_MAX_REQUESTS`
+- `ENABLE_DEMO_SEED`
 - `BACKEND_HOST`
 - `BACKEND_PORT`
 
@@ -329,6 +335,7 @@ El seed es idempotente: reutiliza usuarios, categorias, especialidades, perfil p
 - CORS: valida `CORS_ORIGINS`; acepta JSON o CSV.
 - Variables faltantes: backend falla temprano si faltan `SECRET_KEY`, `DATABASE_URL` o CORS queda vacio.
 - Compose v1 vs v2: `docker compose` es recomendado; `docker-compose` funciona como alternativa cuando v2 no esta disponible.
+- Staging: usa `APP_ENV=staging`, `DEBUG=false`, `ENABLE_DEMO_SEED=false`, `ENABLE_DOCS=false` si la instancia es publica, `CORS_ORIGINS` explicito y `SECRET_KEY` fuerte de 32+ caracteres.
 
 ## Seguridad implementada hasta Modulo 2
 
@@ -341,11 +348,41 @@ El seed es idempotente: reutiliza usuarios, categorias, especialidades, perfil p
 - Perfil cliente propio: `GET/PATCH /users/me/profile`, solo para `client`.
 - Perfil profesional propio: `POST /professionals/profile`, `GET/PATCH /professionals/me/profile`, solo para `professional`, sin `category_id`, `specialty_ids`, `price`, `is_public`, verificaciones ni licencia.
 - Frontend limpia sesion ante `401`, restaura sesion con `/auth/me`, restringe rutas por rol y logout limpia token/usuario.
+- Backend agrega headers basicos de seguridad: `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy` y `Cache-Control: no-store` en rutas sensibles.
+- Login y creacion de reservas tienen rate limiting en memoria configurable mediante `RATE_LIMIT_*`.
+- Swagger/OpenAPI se controla con `ENABLE_DOCS`; no eliminar la documentacion en desarrollo.
+- El seed demo se controla con `ENABLE_DEMO_SEED`; en staging publico debe estar deshabilitado y las credenciales demo deben rotarse o desactivarse.
 
 Deuda tecnica aceptada:
 
 - El token sigue en `localStorage`; migrar a cookies `HttpOnly`/`SameSite` queda para hardening posterior.
+- El rate limiter en memoria es solo para una instancia; produccion multi-instancia requiere Redis, gateway o WAF.
 - `npm audit` informa 5 vulnerabilidades: `axios` high, `react-router/react-router-dom` high, `vite` high y `postcss` moderate. No se ejecuto `npm audit fix --force` porque requiere cambios fuera de rango y fuera de alcance del modulo.
+
+## Backup y restauracion PostgreSQL
+
+Estos comandos son para el servicio `db` de Docker Compose y no borran volumenes. Guarda los archivos fuera del repositorio.
+
+Crear backup:
+
+```bash
+docker-compose exec -T db pg_dump -U realmeet -d realmeet -Fc > backups/realmeet-YYYYMMDD.dump
+```
+
+Validar contenido del backup:
+
+```bash
+docker-compose exec -T db pg_restore --list < backups/realmeet-YYYYMMDD.dump
+```
+
+Restaurar en una base aislada o staging temporal:
+
+```bash
+docker-compose exec -T db createdb -U realmeet realmeet_restore_test
+docker-compose exec -T db pg_restore -U realmeet -d realmeet_restore_test --clean --if-exists < backups/realmeet-YYYYMMDD.dump
+```
+
+No restaures sobre la base activa sin backup previo, ventana de mantenimiento y plan de rollback. No uses `docker-compose down -v` para probar restauraciones.
 
 ## Dependencias y licencias
 
@@ -402,6 +439,8 @@ Readiness:
 - Staging: preparado con checklist previo en `specs/modules/module-08-mvp-closure/staging-checklist.md`.
 - Produccion: no listo; requiere hardening, secretos reales, HTTPS, backups, monitoreo, SAST/SCA, rate limiting y operacion.
 - Uso clinico real: no listo; requiere privacidad clinica, consentimiento, retencion, auditoria regulatoria y cumplimiento legal.
+
+Modulo 9 agrega hardening tecnico para staging: settings por entorno, rechazo de secretos inseguros en staging/production, headers HTTP, rate limiting basico, Swagger configurable, seed demo configurable, Docker no root cuando es viable y documentacion de backup/restauracion.
 
 ## Plan sugerido de commits
 

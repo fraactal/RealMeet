@@ -54,6 +54,7 @@ Usar prefijos estables por dominio:
 - `MIG`: migraciones.
 - `SEED`: datos iniciales.
 - `MVP`: cierre integrado y readiness.
+- `SEC`: seguridad y hardening.
 
 Formato recomendado: `PREFIX-001`.
 
@@ -126,3 +127,4 @@ Gherkin no se utiliza en la etapa actual.
 - `modules/module-06-notifications-meetings`: notificaciones y reuniones mock.
 - `modules/module-07-dashboards-admin`: dashboards, metricas y backoffice minimo.
 - `modules/module-08-mvp-closure`: cierre integrado del MVP y preparacion para staging.
+- `modules/module-09-technical-hardening`: hardening tecnico y preparacion segura para staging.

@@ -28,6 +28,9 @@ frontend/.eslintcache
 *.log
 *.sqlite3
 *.db
+*.dump
+*.backup
+backups/
 .coverage
 backend/.coverage
 

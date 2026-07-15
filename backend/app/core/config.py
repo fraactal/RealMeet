@@ -1,14 +1,20 @@
 from functools import lru_cache
 import json
 from typing import Annotated
+from urllib.parse import urlparse
 
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
+PLACEHOLDER_SECRETS = {"change-me-in-production", "secret", "changeme", "test"}
+STRICT_ENVS = {"staging", "production", "prod"}
+
+
 class Settings(BaseSettings):
     app_name: str = Field(default="RealMeet API", alias="APP_NAME")
     app_env: str = Field(default="development", alias="APP_ENV")
+    debug: bool = Field(default=False, alias="DEBUG")
     api_v1_prefix: str = Field(default="/api/v1", alias="API_V1_PREFIX")
     secret_key: str = Field(..., alias="SECRET_KEY")
     access_token_expire_minutes: int = Field(default=120, alias="ACCESS_TOKEN_EXPIRE_MINUTES")
@@ -28,6 +34,11 @@ class Settings(BaseSettings):
     email_mode: str = Field(default="log", alias="EMAIL_MODE")
     default_meeting_provider: str = Field(default="mock", alias="DEFAULT_MEETING_PROVIDER")
     mock_meeting_base_url: str = Field(default="http://localhost:15173/mock-meeting", alias="MOCK_MEETING_BASE_URL")
+    enable_docs: bool | None = Field(default=None, alias="ENABLE_DOCS")
+    rate_limit_enabled: bool = Field(default=True, alias="RATE_LIMIT_ENABLED")
+    rate_limit_window_seconds: int = Field(default=60, alias="RATE_LIMIT_WINDOW_SECONDS")
+    rate_limit_max_requests: int = Field(default=10, alias="RATE_LIMIT_MAX_REQUESTS")
+    enable_demo_seed: bool | None = Field(default=None, alias="ENABLE_DEMO_SEED")
     backend_host: str = Field(default="0.0.0.0", alias="BACKEND_HOST")
     backend_port: int = Field(default=8000, alias="BACKEND_PORT")
 
@@ -37,6 +48,15 @@ class Settings(BaseSettings):
         case_sensitive=False,
         extra="ignore",
     )
+
+    @field_validator("app_env")
+    @classmethod
+    def normalize_app_env(cls, value: str) -> str:
+        normalized = value.lower().strip()
+        allowed = {"development", "docker", "staging", "production", "prod", "test"}
+        if normalized not in allowed:
+            raise ValueError(f"APP_ENV must be one of: {', '.join(sorted(allowed))}")
+        return normalized
 
     @field_validator("cors_origins", mode="before")
     @classmethod
@@ -52,6 +72,20 @@ class Settings(BaseSettings):
                 return [item.strip() for item in parsed if item.strip()]
             return [item.strip() for item in stripped.split(",") if item.strip()]
         return value
+
+    @field_validator("cors_origins")
+    @classmethod
+    def validate_cors_origins(cls, value: list[str]) -> list[str]:
+        normalized: list[str] = []
+        for origin in value:
+            stripped = origin.strip().rstrip("/")
+            if stripped == "*":
+                raise ValueError("CORS_ORIGINS cannot include wildcard when credentials are enabled")
+            parsed = urlparse(stripped)
+            if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+                raise ValueError("CORS_ORIGINS entries must be explicit http(s) origins")
+            normalized.append(stripped)
+        return normalized
 
     @field_validator("default_meeting_provider")
     @classmethod
@@ -70,11 +104,35 @@ class Settings(BaseSettings):
             raise ValueError(f"EMAIL_MODE must be one of: {', '.join(sorted(allowed))}")
         return normalized
 
+    @field_validator("rate_limit_window_seconds", "rate_limit_max_requests")
+    @classmethod
+    def validate_positive_int(cls, value: int) -> int:
+        if value < 1:
+            raise ValueError("Rate limit values must be positive")
+        return value
+
     @model_validator(mode="after")
-    def validate_production_safety(self) -> "Settings":
-        if self.app_env.lower() in {"production", "prod"} and self.secret_key == "change-me-in-production":
-            raise ValueError("SECRET_KEY must be changed in production")
+    def validate_environment_safety(self) -> "Settings":
+        if self.app_env in STRICT_ENVS:
+            if self.secret_key.strip().lower() in PLACEHOLDER_SECRETS or len(self.secret_key.strip()) < 32:
+                raise ValueError("SECRET_KEY must be non-placeholder and at least 32 characters in staging/production")
+            if self.enable_demo_seed is True and self.app_env in {"production", "prod"}:
+                raise ValueError("ENABLE_DEMO_SEED cannot be true in production")
+            if self.debug:
+                raise ValueError("DEBUG cannot be true in staging/production")
         return self
+
+    @property
+    def docs_enabled(self) -> bool:
+        if self.enable_docs is not None:
+            return self.enable_docs
+        return self.app_env not in {"production", "prod"}
+
+    @property
+    def demo_seed_enabled(self) -> bool:
+        if self.enable_demo_seed is not None:
+            return self.enable_demo_seed
+        return self.app_env in {"development", "docker", "test"}
 
     def critical_config_errors(self) -> list[str]:
         errors: list[str] = []
@@ -84,6 +142,12 @@ class Settings(BaseSettings):
             errors.append("DATABASE_URL is required")
         if not self.cors_origins:
             errors.append("CORS_ORIGINS must include at least one origin")
+        if self.app_env in STRICT_ENVS and (
+            self.secret_key.strip().lower() in PLACEHOLDER_SECRETS or len(self.secret_key.strip()) < 32
+        ):
+            errors.append("SECRET_KEY must be hardened for staging/production")
+        if self.app_env in {"production", "prod"} and self.demo_seed_enabled:
+            errors.append("ENABLE_DEMO_SEED must be false in production")
         return errors
 
 

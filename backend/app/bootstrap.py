@@ -26,8 +26,11 @@ def run() -> None:
     wait_for_database()
     logger.info("running_migrations")
     subprocess.run(["alembic", "upgrade", "head"], check=True)
-    logger.info("running_seed")
-    seed()
+    if settings.demo_seed_enabled:
+        logger.info("running_seed")
+        seed()
+    else:
+        logger.info("demo_seed_skipped env=%s", settings.app_env)
     logger.info("starting_uvicorn host=%s port=%s", settings.backend_host, settings.backend_port)
     uvicorn.run("app.main:app", host=settings.backend_host, port=settings.backend_port, reload=False)
 

@@ -26,6 +26,7 @@
 - Notificaciones basicas de reserva creada, confirmada y cancelada.
 - Auditoria administrativa basica para cambios administrativos relevantes.
 - Cierre integrado con checklist de staging y reporte de readiness.
+- Hardening tecnico inicial para staging: settings por entorno, headers basicos, rate limiting local, Swagger configurable y seed demo configurable.
 
 ## Excluido por ahora
 
@@ -44,5 +45,6 @@
 - Auditorias regulatorias avanzadas.
 - Produccion clinica.
 - Pentesting, pruebas de carga, SAST/SCA completo, backups y observabilidad productiva.
+- Rate limiting distribuido, WAF, SIEM, Redis obligatorio, cookies HttpOnly y CSRF completo.
 
 Estas capacidades requieren specs futuras.
