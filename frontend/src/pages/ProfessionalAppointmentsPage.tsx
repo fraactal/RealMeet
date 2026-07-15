@@ -10,11 +10,14 @@ import {
   markNoShowProfessionalAppointment,
   updateAppointmentPrivateNotes,
 } from "../api/queries";
-import { Badge } from "../components/ui/Badge";
-import { Card } from "../components/ui/Card";
-import type { ProfessionalAppointment } from "../types";
+import { ProfessionalAppointmentCard } from "../components/professional/ProfessionalAppointmentCard";
+import { Button, EmptyState, ErrorState, Input, Label, LoadingState, PageHeader, StatusBadge, Textarea } from "../components/ui";
+import type { AppointmentStatus, ProfessionalAppointment } from "../types";
+import { formatDateTime } from "../utils/dates";
+import { getAppointmentStatusLabel, getConsultationModeLabel, getMeetingStatusLabel } from "../utils/labels";
 
 type StatusAction = "confirm" | "cancel" | "complete" | "no_show";
+type StatusFilter = "all" | AppointmentStatus;
 
 function availableActions(appointment: ProfessionalAppointment): StatusAction[] {
   if (appointment.status === "pending") {
@@ -30,12 +33,30 @@ function meetingLabel(appointment: ProfessionalAppointment): string {
   if (!appointment.meeting) {
     return appointment.consultation_mode === "presencial" ? "Atencion presencial" : "Reunion pendiente";
   }
-  return appointment.meeting.status === "active" ? `Reunion ${appointment.meeting.provider}` : "Reunion inactiva";
+  return appointment.meeting.status === "active" ? `Reunion disponible` : getMeetingStatusLabel(appointment.meeting.status);
 }
+
+const actionLabels: Record<StatusAction, string> = {
+  confirm: "Confirmar",
+  cancel: "Cancelar",
+  complete: "Completar",
+  no_show: "No asistio",
+};
+
+const filterOptions: Array<{ label: string; value: StatusFilter }> = [
+  { label: "Todas", value: "all" },
+  { label: "Pendientes", value: "pending" },
+  { label: "Confirmadas", value: "confirmed" },
+  { label: "Completadas", value: "completed" },
+  { label: "Canceladas", value: "cancelled" },
+  { label: "No asistio", value: "no_show" },
+];
 
 export function ProfessionalAppointmentsPage() {
   const queryClient = useQueryClient();
   const [notesDrafts, setNotesDrafts] = useState<Record<number, string>>({});
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [search, setSearch] = useState("");
   const appointmentsQuery = useQuery({
     queryKey: ["professional-appointments"],
     queryFn: fetchProfessionalAppointments,
@@ -66,90 +87,156 @@ export function ProfessionalAppointmentsPage() {
     },
   });
 
+  const appointments = appointmentsQuery.data ?? [];
+  const filteredAppointments = appointments.filter((appointment) => {
+    const matchesStatus = statusFilter === "all" || appointment.status === statusFilter;
+    const query = search.trim().toLowerCase();
+    const matchesSearch =
+      !query ||
+      getAppointmentStatusLabel(appointment.status).toLowerCase().includes(query) ||
+      getConsultationModeLabel(appointment.consultation_mode).toLowerCase().includes(query) ||
+      meetingLabel(appointment).toLowerCase().includes(query);
+    return matchesStatus && matchesSearch;
+  });
+
+  if (appointmentsQuery.isLoading) {
+    return <LoadingState label="Cargando reservas profesionales" />;
+  }
+
+  if (appointmentsQuery.isError) {
+    return <ErrorState title="No pudimos cargar tus reservas" message={normalizeApiError(appointmentsQuery.error).message} />;
+  }
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-semibold tracking-tight text-ink">Reservas profesionales</h1>
-        <p className="text-slate-600">Gestiona estados e historial de tus reservas.</p>
+      <PageHeader
+        title="Reservas profesionales"
+        description="Revisa solicitudes, confirma atenciones y conserva notas privadas sin perder contexto."
+      />
+
+      <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-soft">
+        <div className="grid gap-3 lg:grid-cols-[1fr_auto] lg:items-end">
+          <div>
+            <Label htmlFor="appointment-search">Buscar en reservas</Label>
+            <Input
+              id="appointment-search"
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Filtra por estado, modalidad o reunion"
+              value={search}
+            />
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {filterOptions.map((option) => (
+              <Button
+                key={option.value}
+                onClick={() => setStatusFilter(option.value)}
+                size="sm"
+                variant={statusFilter === option.value ? "primary" : "secondary"}
+              >
+                {option.label}
+              </Button>
+            ))}
+          </div>
+        </div>
       </div>
 
-      <Card>
-        {appointmentsQuery.isLoading ? <p className="text-slate-500">Cargando reservas...</p> : null}
-        {appointmentsQuery.isError ? <p className="text-red-600">{normalizeApiError(appointmentsQuery.error).message}</p> : null}
+      <section>
         <div className="space-y-4">
-          {appointmentsQuery.data?.map((appointment) => {
+          {filteredAppointments.map((appointment) => {
             const draft = notesDrafts[appointment.id] ?? appointment.professional_private_notes ?? "";
             return (
-              <div key={appointment.id} className="space-y-4 rounded-2xl border border-slate-200 p-4">
-                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                  <div>
-                    <p className="font-semibold text-ink">{new Date(appointment.start_datetime).toLocaleString()}</p>
-                    <p className="text-sm text-slate-500">
-                      Reserva #{appointment.id} - Cliente #{appointment.client_id} - {appointment.consultation_mode ?? "modalidad no informada"}
-                    </p>
-                    <p className="text-sm text-slate-500">{meetingLabel(appointment)}</p>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-3">
-                    <Badge label={appointment.status} />
+              <ProfessionalAppointmentCard
+                actions={
+                  <>
                     {appointment.meeting?.status === "active" && appointment.meeting.join_url ? (
-                      <button
-                        className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700"
+                      <Button
                         onClick={() => void navigator.clipboard.writeText(appointment.meeting?.join_url ?? "")}
+                        size="sm"
+                        variant="secondary"
                       >
                         Copiar reunion
-                      </button>
+                      </Button>
                     ) : null}
                     {availableActions(appointment).map((action) => (
-                      <button
-                        key={action}
-                        className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50"
+                      <Button
                         disabled={actionMutation.isPending}
+                        key={action}
                         onClick={() => actionMutation.mutate({ appointmentId: appointment.id, action })}
+                        size="sm"
+                        variant={action === "cancel" ? "danger" : "secondary"}
                       >
-                        {action === "confirm" ? "Confirmar" : action === "complete" ? "Completar" : action === "no_show" ? "No show" : "Cancelar"}
-                      </button>
+                        {actionLabels[action]}
+                      </Button>
                     ))}
-                  </div>
-                </div>
-                <label className="block space-y-2 text-sm font-medium text-slate-700">
-                  Notas privadas
-                  <textarea
-                    value={draft}
-                    onChange={(event) => setNotesDrafts((current) => ({ ...current, [appointment.id]: event.target.value }))}
-                    rows={3}
-                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-normal outline-none focus:border-brand"
-                    placeholder="Notas de atencion"
-                  />
-                </label>
-                <button
-                  className="rounded-xl bg-ink px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
-                  disabled={notesMutation.isPending}
-                  onClick={() => notesMutation.mutate({ appointmentId: appointment.id, professional_private_notes: draft })}
-                >
-                  Guardar notas
-                </button>
-                {appointment.history?.length ? (
-                  <div className="border-t border-slate-100 pt-3 text-sm text-slate-500">
-                    <p className="font-semibold text-slate-700">Historial</p>
-                    <div className="mt-2 space-y-1">
-                      {appointment.history.map((item) => (
-                        <p key={item.id}>
-                          {new Date(item.created_at).toLocaleString()} - {item.old_status ?? "nuevo"} a {item.new_status}
-                        </p>
-                      ))}
+                  </>
+                }
+                appointment={appointment}
+                detail={
+                  <div className="space-y-4">
+                    <div className="grid gap-3 text-sm text-ink-700 md:grid-cols-3">
+                      <div>
+                        <p className="font-semibold text-ink-900">Horario</p>
+                        <p>{formatDateTime(appointment.start_datetime)}</p>
+                      </div>
+                      <div>
+                        <p className="font-semibold text-ink-900">Modalidad</p>
+                        <p>{getConsultationModeLabel(appointment.consultation_mode)}</p>
+                      </div>
+                      <div>
+                        <p className="font-semibold text-ink-900">Reunion</p>
+                        <p>{meetingLabel(appointment)}</p>
+                      </div>
                     </div>
+                    <details className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                      <summary className="cursor-pointer text-sm font-semibold text-ink-900">Notas privadas e historial</summary>
+                      <div className="mt-4 space-y-4">
+                        <div>
+                          <Label htmlFor={`notes-${appointment.id}`}>Notas privadas</Label>
+                          <Textarea
+                            id={`notes-${appointment.id}`}
+                            onChange={(event) => setNotesDrafts((current) => ({ ...current, [appointment.id]: event.target.value }))}
+                            placeholder="Notas privadas visibles solo para ti"
+                            rows={3}
+                            value={draft}
+                          />
+                          <Button
+                            className="mt-3"
+                            disabled={notesMutation.isPending}
+                            onClick={() => notesMutation.mutate({ appointmentId: appointment.id, professional_private_notes: draft })}
+                            size="sm"
+                          >
+                            Guardar notas
+                          </Button>
+                        </div>
+                        {appointment.history?.length ? (
+                          <div className="space-y-2 text-sm text-ink-700">
+                            <p className="font-semibold text-ink-900">Historial</p>
+                            {appointment.history.map((item) => (
+                              <p key={item.id}>
+                                {formatDateTime(item.created_at)} - {item.old_status ? getAppointmentStatusLabel(item.old_status) : "Nueva"} a{" "}
+                                {getAppointmentStatusLabel(item.new_status)}
+                              </p>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
+                    </details>
                   </div>
-                ) : null}
-              </div>
+                }
+                key={appointment.id}
+              />
             );
           })}
-          {!appointmentsQuery.isLoading && appointmentsQuery.data?.length === 0 ? (
-            <p className="text-slate-500">Todavia no tienes reservas asignadas.</p>
+          {appointments.length === 0 ? (
+            <EmptyState title="Aun no tienes reservas" description="Cuando un cliente agende contigo, sus datos de agenda apareceran aqui." />
+          ) : null}
+          {appointments.length > 0 && filteredAppointments.length === 0 ? (
+            <EmptyState title="Sin resultados para este filtro" description="Prueba con otro estado o borra la busqueda." />
           ) : null}
         </div>
-        {actionMutation.isError ? <p className="mt-4 text-sm text-red-600">{normalizeApiError(actionMutation.error).message}</p> : null}
-        {notesMutation.isError ? <p className="mt-4 text-sm text-red-600">{normalizeApiError(notesMutation.error).message}</p> : null}
-      </Card>
+        {actionMutation.isError ? <ErrorState message={normalizeApiError(actionMutation.error).message} title="No se pudo actualizar la reserva" /> : null}
+        {notesMutation.isError ? <ErrorState message={normalizeApiError(notesMutation.error).message} title="No se pudieron guardar las notas" /> : null}
+      </section>
     </div>
   );
 }

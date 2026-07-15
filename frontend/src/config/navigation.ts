@@ -100,8 +100,8 @@ export function getNavigationForRole(role: UserRole): NavigationItem[] {
 export function isNavigationItemActive(item: NavigationItem, pathname: string): boolean {
   const matchPaths = item.matchPaths ?? [item.path];
   return matchPaths.some((matchPath) => {
-    if (matchPath === "/dashboard") {
-      return pathname === "/dashboard";
+    if (matchPath === "/dashboard" || matchPath === "/dashboard/professional" || matchPath === "/dashboard/admin") {
+      return pathname === matchPath;
     }
 
     return pathname === matchPath || pathname.startsWith(`${matchPath}/`);

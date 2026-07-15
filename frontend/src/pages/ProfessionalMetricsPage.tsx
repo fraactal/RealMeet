@@ -1,68 +1,84 @@
 import { useQuery } from "@tanstack/react-query";
 
 import { fetchProfessionalMetrics } from "../api/queries";
-import { Card } from "../components/ui/Card";
+import { ProfessionalAppointmentCard } from "../components/professional/ProfessionalAppointmentCard";
+import { ProfessionalStatCard } from "../components/professional/ProfessionalStatCard";
+import { EmptyState, ErrorState, LoadingState, PageHeader, SectionCard } from "../components/ui";
 
 export function ProfessionalMetricsPage() {
   const { data, isLoading, isError } = useQuery({ queryKey: ["professional-metrics"], queryFn: fetchProfessionalMetrics });
 
   if (isLoading) {
-    return <p className="text-slate-500">Cargando metricas...</p>;
+    return <LoadingState label="Cargando metricas profesionales" />;
   }
 
   if (isError || !data) {
-    return <p className="text-red-600">No fue posible obtener las metricas profesionales.</p>;
+    return <ErrorState title="No pudimos cargar las metricas" message="Intenta nuevamente en unos minutos." />;
   }
 
-  const metrics: Array<[string, number | string]> = [
-    ["Reservas de hoy", data.today_reservations],
-    ["Proximas reservas", data.upcoming_reservations],
-    ["Pendientes", data.pending_reservations],
-    ["Confirmadas", data.confirmed_reservations],
-    ["Completadas del mes", data.monthly_completed],
-    ["Completadas historicas", data.lifetime_completed],
-    ["Clientes unicos", data.unique_clients],
-    ["Canceladas", data.cancelled_reservations],
-    ["No show", data.no_show_reservations],
-    ["Tasa de cancelacion", `${data.cancellation_rate}%`],
-    ["Reglas activas", data.availability_rules_count],
-    ["Perfil publico", data.is_public ? "Si" : "No"],
+  const primaryMetrics = [
+    { label: "Reservas de hoy", value: data.today_reservations, icon: "calendar" as const },
+    { label: "Proximas reservas", value: data.upcoming_reservations, icon: "clock" as const },
+    { label: "Atenciones del mes", value: data.monthly_completed, icon: "check" as const },
+    { label: "Clientes unicos", value: data.unique_clients, icon: "users" as const },
+  ];
+
+  const secondaryMetrics = [
+    { label: "Pendientes", value: data.pending_reservations },
+    { label: "Confirmadas", value: data.confirmed_reservations },
+    { label: "Completadas historicas", value: data.lifetime_completed },
+    { label: "Canceladas", value: data.cancelled_reservations },
+    { label: "No asistio", value: data.no_show_reservations },
+    { label: "Tasa de cancelacion", value: `${data.cancellation_rate}%` },
+    { label: "Reglas de disponibilidad", value: data.availability_rules_count },
+    { label: "Perfil publico", value: data.is_public ? "Visible" : "No publicado" },
   ];
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-semibold tracking-tight text-ink">Metricas profesionales</h1>
-        <p className="text-slate-600">Actividad y configuracion de tu perfil profesional.</p>
-      </div>
-      <div className="grid gap-5 md:grid-cols-3 xl:grid-cols-5">
-        {metrics.map(([label, value]) => (
-          <Card key={label} title={label}>
-            <p className="text-3xl font-semibold text-ink">{value}</p>
-          </Card>
+      <PageHeader
+        title="Metricas profesionales"
+        description="Actividad y configuracion de tu operacion diaria con datos actuales de reservas y perfil."
+      />
+
+      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+        {primaryMetrics.map((metric) => (
+          <ProfessionalStatCard icon={metric.icon} key={metric.label} label={metric.label} value={metric.value} />
         ))}
       </div>
+
+      <SectionCard title="Resumen operativo" description="Indicadores complementarios para revisar carga y configuracion.">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {secondaryMetrics.map((metric) => (
+            <div className="rounded-lg border border-slate-200 bg-white p-4" key={metric.label}>
+              <p className="text-sm font-semibold text-ink-700">{metric.label}</p>
+              <p className="mt-2 text-2xl font-bold text-ink-900">{metric.value}</p>
+            </div>
+          ))}
+        </div>
+      </SectionCard>
+
       <div className="grid gap-5 lg:grid-cols-2">
-        <Card title="Proximas reservas">
-          <div className="space-y-3 text-sm">
+        <SectionCard title="Proximas reservas" description="Actividad futura registrada en tu agenda.">
+          <div className="space-y-3">
             {data.next_appointments.map((item) => (
-              <p key={item.id} className="rounded-xl border border-slate-100 p-3">
-                {new Date(item.start_datetime).toLocaleString()} - {item.status}
-              </p>
+              <ProfessionalAppointmentCard appointment={item} key={item.id} />
             ))}
-            {data.next_appointments.length === 0 ? <p className="text-slate-500">No hay proximas reservas.</p> : null}
+            {data.next_appointments.length === 0 ? (
+              <EmptyState title="Sin proximas reservas" description="Aun no tienes reservas futuras registradas." />
+            ) : null}
           </div>
-        </Card>
-        <Card title="Actividad reciente">
-          <div className="space-y-3 text-sm">
+        </SectionCard>
+        <SectionCard title="Actividad reciente" description="Ultimos movimientos visibles para tu perfil.">
+          <div className="space-y-3">
             {data.recent_appointments.map((item) => (
-              <p key={item.id} className="rounded-xl border border-slate-100 p-3">
-                {new Date(item.start_datetime).toLocaleString()} - {item.status}
-              </p>
+              <ProfessionalAppointmentCard appointment={item} key={item.id} />
             ))}
-            {data.recent_appointments.length === 0 ? <p className="text-slate-500">Sin actividad reciente.</p> : null}
+            {data.recent_appointments.length === 0 ? (
+              <EmptyState title="Sin actividad reciente" description="Cuando existan reservas o cambios, apareceran aqui." />
+            ) : null}
           </div>
-        </Card>
+        </SectionCard>
       </div>
     </div>
   );

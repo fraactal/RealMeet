@@ -9,8 +9,10 @@ import {
   updateProfessionalPublicProfile,
   updateProfessionalSpecialties,
 } from "../api/queries";
-import { Card } from "../components/ui/Card";
+import { normalizeApiError } from "../api/errors";
+import { Avatar, Badge, Button, EmptyState, ErrorState, Input, Label, LoadingState, PageHeader, SectionCard, Select, Textarea } from "../components/ui";
 import type { ConsultationMode, ProfessionalPublicProfileUpdate } from "../types";
+import { getConsultationModeLabel } from "../utils/labels";
 
 export function ProfessionalCatalogPage() {
   const queryClient = useQueryClient();
@@ -31,6 +33,8 @@ export function ProfessionalCatalogPage() {
     is_public: true,
   });
   const [selectedSpecialties, setSelectedSpecialties] = useState<number[]>([]);
+  const [profileSaved, setProfileSaved] = useState(false);
+  const [specialtiesSaved, setSpecialtiesSaved] = useState(false);
 
   useEffect(() => {
     if (!profileQuery.data) return;
@@ -58,11 +62,17 @@ export function ProfessionalCatalogPage() {
 
   const profileMutation = useMutation({
     mutationFn: updateProfessionalPublicProfile,
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["professional-public-profile"] }),
+    onSuccess: () => {
+      setProfileSaved(true);
+      void queryClient.invalidateQueries({ queryKey: ["professional-public-profile"] });
+    },
   });
   const specialtiesMutation = useMutation({
     mutationFn: updateProfessionalSpecialties,
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["professional-specialties"] }),
+    onSuccess: () => {
+      setSpecialtiesSaved(true);
+      void queryClient.invalidateQueries({ queryKey: ["professional-specialties"] });
+    },
   });
 
   const saveProfile = () => {
@@ -87,35 +97,79 @@ export function ProfessionalCatalogPage() {
   };
 
   if (profileQuery.isLoading || categoriesQuery.isLoading || allSpecialtiesQuery.isLoading || mySpecialtiesQuery.isLoading) {
-    return <p className="text-slate-500">Cargando catalogo profesional...</p>;
+    return <LoadingState label="Cargando tu perfil publico" />;
   }
+
+  if (profileQuery.isError || categoriesQuery.isError || allSpecialtiesQuery.isError || mySpecialtiesQuery.isError) {
+    return <ErrorState title="No pudimos cargar tu perfil" message="Intenta nuevamente antes de editar tu informacion publica." />;
+  }
+
+  const selectedCategory = categoriesQuery.data?.find((category) => category.id.toString() === profileForm.category_id);
+  const completedFields = [
+    profileForm.title,
+    profileForm.bio,
+    profileForm.category_id,
+    profileForm.city,
+    profileForm.country,
+    profileForm.session_duration_minutes,
+    selectedSpecialties.length > 0 ? "specialties" : "",
+  ].filter(Boolean).length;
+  const completion = Math.round((completedFields / 7) * 100);
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-semibold tracking-tight text-ink">Catalogo profesional</h1>
-        <p className="text-slate-600">Administra los datos publicos y especialidades visibles en busqueda.</p>
-      </div>
+      <PageHeader
+        title="Perfil publico profesional"
+        description="Administra como te ven los clientes al buscar profesionales y revisar disponibilidad."
+      />
 
-      <Card title="Perfil publico">
-        <div className="grid gap-4 md:grid-cols-2">
-          <label className="space-y-1 text-sm font-medium text-slate-700">
-            Titulo
-            <input
+      <div className="grid gap-5 lg:grid-cols-[0.8fr_1.2fr]">
+        <SectionCard title="Vista previa" description="Resumen visible con los datos publicos disponibles.">
+          <div className="space-y-5">
+            <div className="flex items-center gap-3">
+              <Avatar name={profileForm.title || "RealMeet"} size="lg" />
+              <div>
+                <p className="text-lg font-semibold text-ink-900">{profileForm.title || "Titulo profesional pendiente"}</p>
+                <p className="text-sm text-ink-500">{selectedCategory?.name ?? "Categoria no definida"}</p>
+              </div>
+            </div>
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+              <p className="text-sm font-semibold text-ink-900">Completitud del perfil</p>
+              <div className="mt-3 h-2 rounded-full bg-slate-200">
+                <div className="h-2 rounded-full bg-brand-700" style={{ width: `${completion}%` }} />
+              </div>
+              <p className="mt-2 text-sm text-ink-500">
+                {completion >= 80 ? "Perfil listo para una buena presentacion." : "Agrega datos basicos para mejorar tu presencia publica."}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Badge label={profileForm.is_public ? "Visible" : "No publicado"} tone={profileForm.is_public ? "success" : "warning"} />
+              <Badge label={getConsultationModeLabel(profileForm.consultation_mode)} tone="info" />
+              {profileForm.session_duration_minutes ? <Badge label={`${profileForm.session_duration_minutes} min`} tone="neutral" /> : null}
+            </div>
+            <p className="text-sm leading-6 text-ink-700">{profileForm.bio || "Tu biografia ayudara a los clientes a entender tu enfoque profesional."}</p>
+          </div>
+        </SectionCard>
+
+        <SectionCard title="Informacion publica" description="Datos principales que aparecen en tu perfil.">
+          <div className="grid gap-4 md:grid-cols-2">
+            <div>
+              <Label htmlFor="profile-title">Titulo</Label>
+              <Input
+                id="profile-title"
               value={profileForm.title}
               onChange={(event) => setProfileForm((current) => ({ ...current, title: event.target.value }))}
-              className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-brand"
             />
-          </label>
-          <label className="space-y-1 text-sm font-medium text-slate-700">
-            Categoria
-            <select
+            </div>
+            <div>
+              <Label htmlFor="profile-category">Categoria</Label>
+              <Select
+                id="profile-category"
               value={profileForm.category_id}
               onChange={(event) => {
                 setProfileForm((current) => ({ ...current, category_id: event.target.value }));
                 setSelectedSpecialties([]);
               }}
-              className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-brand"
             >
               <option value="">Sin categoria</option>
               {categoriesQuery.data?.map((category) => (
@@ -123,87 +177,103 @@ export function ProfessionalCatalogPage() {
                   {category.name}
                 </option>
               ))}
-            </select>
-          </label>
-          <label className="space-y-1 text-sm font-medium text-slate-700 md:col-span-2">
-            Biografia
-            <textarea
+              </Select>
+            </div>
+            <div className="md:col-span-2">
+              <Label htmlFor="profile-bio">Biografia</Label>
+              <Textarea
+                id="profile-bio"
               value={profileForm.bio}
               onChange={(event) => setProfileForm((current) => ({ ...current, bio: event.target.value }))}
               rows={4}
-              className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-brand"
             />
-          </label>
-          <label className="space-y-1 text-sm font-medium text-slate-700">
-            Modalidad
-            <select
+            </div>
+            <div>
+              <Label htmlFor="profile-mode">Modalidad</Label>
+              <Select
+                id="profile-mode"
               value={profileForm.consultation_mode}
               onChange={(event) =>
                 setProfileForm((current) => ({ ...current, consultation_mode: event.target.value as ConsultationMode }))
               }
-              className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-brand"
             >
               <option value="online">Online</option>
               <option value="presencial">Presencial</option>
               <option value="hybrid">Hibrida</option>
-            </select>
-          </label>
-          <label className="space-y-1 text-sm font-medium text-slate-700">
-            Duracion
-            <input
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="profile-duration">Duracion de sesion</Label>
+              <Input
+                id="profile-duration"
               type="number"
               min={15}
               value={profileForm.session_duration_minutes}
               onChange={(event) => setProfileForm((current) => ({ ...current, session_duration_minutes: event.target.value }))}
-              className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-brand"
             />
-          </label>
-          <label className="space-y-1 text-sm font-medium text-slate-700">
-            Ciudad
-            <input
+            </div>
+            <div>
+              <Label htmlFor="profile-city">Ciudad</Label>
+              <Input
+                id="profile-city"
               value={profileForm.city}
               onChange={(event) => setProfileForm((current) => ({ ...current, city: event.target.value }))}
-              className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-brand"
             />
-          </label>
-          <label className="space-y-1 text-sm font-medium text-slate-700">
-            Pais
-            <input
+            </div>
+            <div>
+              <Label htmlFor="profile-country">Pais</Label>
+              <Input
+                id="profile-country"
               value={profileForm.country}
               onChange={(event) => setProfileForm((current) => ({ ...current, country: event.target.value }))}
-              className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-brand"
             />
-          </label>
-          <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
-            <input
+            </div>
+            <label className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white p-3 text-sm font-medium text-ink-700">
+              <input
               type="checkbox"
               checked={profileForm.is_public}
               onChange={(event) => setProfileForm((current) => ({ ...current, is_public: event.target.checked }))}
             />
-            Perfil publico
-          </label>
-        </div>
-        <button className="mt-5 rounded-xl bg-ink px-4 py-2 text-sm font-semibold text-white" onClick={saveProfile}>
-          Guardar perfil
-        </button>
-      </Card>
+              Perfil publico
+            </label>
+          </div>
+          <div className="mt-5 flex flex-wrap items-center gap-3">
+            <Button isLoading={profileMutation.isPending} onClick={saveProfile}>
+              Guardar perfil
+            </Button>
+            {profileSaved ? <p className="text-sm font-semibold text-success-700">Perfil guardado.</p> : null}
+          </div>
+          {profileMutation.isError ? <ErrorState message={normalizeApiError(profileMutation.error).message} title="No se pudo guardar el perfil" /> : null}
+        </SectionCard>
+      </div>
 
-      <Card title="Especialidades">
+      <SectionCard title="Especialidades" description="Selecciona las areas que corresponden a tu categoria principal.">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {filteredSpecialties.map((specialty) => (
-            <label key={specialty.id} className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700">
+            <label key={specialty.id} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-ink-700">
               <input type="checkbox" checked={selectedSpecialties.includes(specialty.id)} onChange={() => toggleSpecialty(specialty.id)} />
               {specialty.name}
             </label>
           ))}
+          {filteredSpecialties.length === 0 ? (
+            <div className="sm:col-span-2 lg:col-span-3">
+              <EmptyState title="Sin especialidades disponibles" description="Selecciona una categoria para revisar sus especialidades." />
+            </div>
+          ) : null}
         </div>
-        <button
-          className="mt-5 rounded-xl bg-ink px-4 py-2 text-sm font-semibold text-white"
+        <div className="mt-5 flex flex-wrap items-center gap-3">
+          <Button
+          isLoading={specialtiesMutation.isPending}
           onClick={() => specialtiesMutation.mutate({ specialty_ids: selectedSpecialties })}
         >
           Guardar especialidades
-        </button>
-      </Card>
+          </Button>
+          {specialtiesSaved ? <p className="text-sm font-semibold text-success-700">Especialidades guardadas.</p> : null}
+        </div>
+        {specialtiesMutation.isError ? (
+          <ErrorState message={normalizeApiError(specialtiesMutation.error).message} title="No se pudieron guardar las especialidades" />
+        ) : null}
+      </SectionCard>
     </div>
   );
 }
