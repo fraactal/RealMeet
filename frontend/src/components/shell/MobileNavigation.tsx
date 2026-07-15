@@ -24,7 +24,7 @@ export function MobileNavigation({ activePath, isOpen, items, onClose, onLogout,
 
   return (
     <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true" aria-label="Navegacion mobile">
-      <button className="absolute inset-0 bg-ink-900/35" onClick={onClose} aria-label="Cerrar navegacion" />
+      <button className="absolute inset-0 bg-ink-900/35" onClick={onClose} aria-label="Cerrar navegacion" type="button" />
       <aside className="relative flex h-full w-[min(22rem,calc(100vw-2rem))] flex-col bg-white p-4 shadow-lift">
         <div className="mb-5 flex items-center justify-between gap-3">
           <Link className="flex items-center gap-3 rounded-lg py-2" onClick={onClose} to="/dashboard">

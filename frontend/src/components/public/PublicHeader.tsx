@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
 
 import { useAuthStore } from "../../store/auth";
@@ -19,6 +19,27 @@ export function PublicHeader() {
     setIsOpen(false);
     navigate("/login", { replace: true });
   };
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsOpen(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isOpen]);
 
   return (
     <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/90 backdrop-blur">
@@ -60,7 +81,7 @@ export function PublicHeader() {
 
         <button
           aria-expanded={isOpen}
-          aria-label="Abrir menu"
+          aria-label={isOpen ? "Cerrar menu" : "Abrir menu"}
           className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-slate-200 bg-white text-ink-700 md:hidden"
           onClick={() => setIsOpen((current) => !current)}
           type="button"
