@@ -68,6 +68,11 @@ def test_integration_config_rejects_sensitive_key_inside_list() -> None:
         IntegrationCreate(**_integration_payload(config={"items": [{"private_key": "do-not-store"}]}))
 
 
+def test_integration_config_rejects_sensitive_value() -> None:
+    with pytest.raises(ValidationError):
+        IntegrationCreate(**_integration_payload(config={"label": "TEST_SECRET_VALUE_NOT_REAL"}))
+
+
 def test_secret_reference_accepts_environment_variable_format() -> None:
     payload = IntegrationCreate(**_integration_payload(secret_reference="GOOGLE_MEET_CLIENT_SECRET"))
 
@@ -162,4 +167,14 @@ def test_execution_metadata_rejects_sensitive_keys() -> None:
             operation="test",
             idempotency_key="test-11-1:sensitive-metadata",
             request_metadata={"headers": {"Authorization": "Bearer token"}},
+        )
+
+
+def test_execution_metadata_rejects_sensitive_values() -> None:
+    with pytest.raises(ValidationError):
+        IntegrationExecutionCreate(
+            integration_id=1,
+            operation="test",
+            idempotency_key="test-11-1:sensitive-metadata-value",
+            request_metadata={"headers": {"value": "Bearer TEST_SECRET_VALUE_NOT_REAL"}},
         )

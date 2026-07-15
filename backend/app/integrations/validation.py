@@ -59,3 +59,9 @@ def _validate_safe_value(value: Any, *, field_name: str, path: str, depth: int, 
     if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
         for index, item in enumerate(value):
             _validate_safe_value(item, field_name=field_name, path=f"{path}[{index}]", depth=depth + 1, max_depth=max_depth)
+        return
+
+    if isinstance(value, str):
+        normalized_value = normalize_key(value)
+        if any(secret_part in normalized_value for secret_part in NORMALIZED_SENSITIVE_KEYS):
+            raise IntegrationValidationError(f"{field_name} contains a sensitive-looking value at {path}")
