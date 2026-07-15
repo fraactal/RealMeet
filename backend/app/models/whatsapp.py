@@ -12,6 +12,8 @@ from app.whatsapp.enums import (
     WhatsAppTemplateCategory,
     WhatsAppTemplatePurpose,
     WhatsAppTemplateStatus,
+    WhatsAppWebhookEventType,
+    WhatsAppWebhookProcessingStatus,
 )
 
 
@@ -62,5 +64,41 @@ class WhatsAppTemplate(Base, TimestampMixin):
     external_template_id: Mapped[str | None] = mapped_column(String(120))
     last_synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     notes: Mapped[str | None] = mapped_column(Text)
+
+    integration = relationship("Integration")
+
+
+class WhatsAppWebhookEvent(Base):
+    __tablename__ = "whatsapp_webhook_events"
+    __table_args__ = (UniqueConstraint("event_key", name="uq_whatsapp_webhook_events_event_key"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    integration_id: Mapped[int | None] = mapped_column(ForeignKey("integrations.id"))
+    event_key: Mapped[str] = mapped_column(String(180), nullable=False)
+    payload_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    object_type: Mapped[str | None] = mapped_column(String(80))
+    field: Mapped[str | None] = mapped_column(String(80))
+    event_type: Mapped[WhatsAppWebhookEventType] = mapped_column(Enum(WhatsAppWebhookEventType, name="whatsapp_webhook_event_type"), nullable=False)
+    external_message_id: Mapped[str | None] = mapped_column(String(160))
+    phone_number_id_masked: Mapped[str | None] = mapped_column(String(40))
+    phone_number_id_hash: Mapped[str | None] = mapped_column(String(64))
+    sender_phone_hash: Mapped[str | None] = mapped_column(String(64))
+    recipient_phone_hash: Mapped[str | None] = mapped_column(String(64))
+    status: Mapped[str | None] = mapped_column(String(40))
+    occurred_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    last_received_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    processing_status: Mapped[WhatsAppWebhookProcessingStatus] = mapped_column(
+        Enum(WhatsAppWebhookProcessingStatus, name="whatsapp_webhook_processing_status"),
+        nullable=False,
+    )
+    signature_valid: Mapped[bool] = mapped_column(nullable=False, default=False)
+    duplicate: Mapped[bool] = mapped_column(nullable=False, default=False)
+    received_count: Mapped[int] = mapped_column(nullable=False, default=1)
+    safe_metadata: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    error_code: Mapped[str | None] = mapped_column(String(80))
+    error_message: Mapped[str | None] = mapped_column(String(300))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     integration = relationship("Integration")

@@ -1,0 +1,21 @@
+# Acceptance Criteria
+
+- Branch remains `codex/module-13-whatsapp-integration`.
+- Working tree starts clean at `e1165d6`.
+- Mini-spec exists before implementation.
+- Public webhook routes require no login but enforce verify token/signature.
+- Raw body bytes are used for HMAC-SHA256.
+- Oversized bodies return `413` and are not parsed.
+- Invalid JSON returns `400`.
+- Events are persisted without raw body, message text, headers or signatures.
+- Inbound, sent, delivered, read, failed and unknown events are classified.
+- Event key uniqueness prevents duplicate rows.
+- Multiple events in one payload are handled independently.
+- Unknown phone number IDs do not leak configuration presence.
+- Admin event APIs are protected by existing admin guard.
+- Client/professional users cannot access admin event APIs.
+- No frontend files are changed.
+- No reservations are changed.
+- No messages are sent.
+- No Graph API calls are made.
+- A single commit is created with message `feat(integrations): add secure WhatsApp webhooks`.

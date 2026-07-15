@@ -58,6 +58,10 @@ class Settings(BaseSettings):
     whatsapp_default_language: str = Field(default="es_CL", alias="WHATSAPP_DEFAULT_LANGUAGE")
     whatsapp_default_country_code: str | None = Field(default="CL", alias="WHATSAPP_DEFAULT_COUNTRY_CODE")
     whatsapp_phone_hmac_key: str | None = Field(default=None, alias="WHATSAPP_PHONE_HMAC_KEY")
+    whatsapp_webhook_public_url: str | None = Field(default=None, alias="WHATSAPP_WEBHOOK_PUBLIC_URL")
+    whatsapp_webhook_max_body_bytes: int = Field(default=262144, alias="WHATSAPP_WEBHOOK_MAX_BODY_BYTES")
+    whatsapp_webhook_event_retention_days: int = Field(default=30, alias="WHATSAPP_WEBHOOK_EVENT_RETENTION_DAYS")
+    whatsapp_webhook_require_signature: bool = Field(default=True, alias="WHATSAPP_WEBHOOK_REQUIRE_SIGNATURE")
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -189,6 +193,20 @@ class Settings(BaseSettings):
             raise ValueError("WHATSAPP_GRAPH_API_VERSION must use format vXX.X")
         return normalized
 
+    @field_validator("whatsapp_webhook_max_body_bytes")
+    @classmethod
+    def validate_whatsapp_webhook_size(cls, value: int) -> int:
+        if value < 1024 or value > 1048576:
+            raise ValueError("WHATSAPP_WEBHOOK_MAX_BODY_BYTES must be between 1024 and 1048576")
+        return value
+
+    @field_validator("whatsapp_webhook_event_retention_days")
+    @classmethod
+    def validate_whatsapp_retention(cls, value: int) -> int:
+        if value < 1 or value > 365:
+            raise ValueError("WHATSAPP_WEBHOOK_EVENT_RETENTION_DAYS must be between 1 and 365")
+        return value
+
     @model_validator(mode="after")
     def validate_environment_safety(self) -> "Settings":
         if self.app_env in STRICT_ENVS:
@@ -198,6 +216,8 @@ class Settings(BaseSettings):
                 raise ValueError("ENABLE_DEMO_SEED cannot be true in production")
             if self.debug:
                 raise ValueError("DEBUG cannot be true in staging/production")
+            if self.whatsapp_cloud_enabled and not self.whatsapp_webhook_require_signature:
+                raise ValueError("WHATSAPP_WEBHOOK_REQUIRE_SIGNATURE must be true when WhatsApp is enabled in staging/production")
         return self
 
     @property

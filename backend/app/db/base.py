@@ -8,7 +8,7 @@ from app.models.professional_profile import ProfessionalProfile, ProfessionalSpe
 from app.models.specialty import Specialty
 from app.models.system_setting import SystemSetting
 from app.models.user import User
-from app.models.whatsapp import WhatsAppConsent, WhatsAppTemplate
+from app.models.whatsapp import WhatsAppConsent, WhatsAppTemplate, WhatsAppWebhookEvent
 
 __all__ = [
     "Appointment",
@@ -31,4 +31,5 @@ __all__ = [
     "User",
     "WhatsAppConsent",
     "WhatsAppTemplate",
+    "WhatsAppWebhookEvent",
 ]

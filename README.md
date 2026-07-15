@@ -480,7 +480,9 @@ Notas operativas:
 
 ## Fundacion WhatsApp Cloud
 
-El Modulo 13.1A prepara la base backend para WhatsApp Cloud API: configuracion local, referencias de secretos, normalizacion telefonica, HMAC privado, consentimiento explicito y plantillas locales. RealMeet todavia no recibe webhooks ni envia mensajes en el Submodulo 13.1A.
+El Modulo 13.1A prepara la base backend para WhatsApp Cloud API: configuracion local, referencias de secretos, normalizacion telefonica, HMAC privado, consentimiento explicito y plantillas locales. El Modulo 13.1B agrega recepcion segura de webhooks.
+
+RealMeet recibe y registra webhooks de forma segura en 13.1B, pero todavia no responde mensajes, no envia WhatsApp y no conecta eventos con reservas.
 
 Arquitectura actual:
 
@@ -489,7 +491,8 @@ Arquitectura actual:
 - Las credenciales reales permanecen fuera de la base como variables de entorno; la integracion guarda solo referencias tipo `WHATSAPP_ACCESS_TOKEN`.
 - `WhatsAppConsent` registra consentimiento por usuario, telefono normalizado, finalidad y estado, con telefono enmascarado para salida administrativa.
 - `WhatsAppTemplate` registra definiciones locales de plantillas `utility` en estado `draft`; no crea ni aprueba plantillas en Meta.
-- No existe envio, sincronizacion con Meta, webhooks, recordatorios ni conexion con reservas en 13.1A.
+- `WhatsAppWebhookEvent` registra eventos entrantes reducidos, deduplicados y sin payload completo.
+- No existe envio, sincronizacion con Meta, recordatorios ni conexion con reservas.
 
 Variables WhatsApp:
 
@@ -501,6 +504,10 @@ Variables WhatsApp:
 - `WHATSAPP_DEFAULT_LANGUAGE`: idioma por defecto, por ejemplo `es_CL`.
 - `WHATSAPP_DEFAULT_COUNTRY_CODE`: pais por defecto para normalizacion, por ejemplo `CL`.
 - `WHATSAPP_PHONE_HMAC_KEY`: clave HMAC fuera de Git para correlacion privada de telefonos.
+- `WHATSAPP_WEBHOOK_PUBLIC_URL`: URL publica informativa para configurar Meta.
+- `WHATSAPP_WEBHOOK_MAX_BODY_BYTES`: limite de body, por defecto `262144`.
+- `WHATSAPP_WEBHOOK_EVENT_RETENTION_DAYS`: retencion futura documentada, por defecto `30`.
+- `WHATSAPP_WEBHOOK_REQUIRE_SIGNATURE`: exige `X-Hub-Signature-256`, por defecto `true`.
 
 APIs backend disponibles:
 
@@ -508,11 +515,24 @@ APIs backend disponibles:
 - Admin: estado/validacion local bajo `/api/v1/admin/integrations/{integration_id}/whatsapp`.
 - Admin: plantillas locales bajo `/api/v1/admin/integrations/{integration_id}/whatsapp/templates`.
 - Admin: resumen seguro y correcciones auditadas bajo `/api/v1/admin/whatsapp/consents`.
+- Webhook publico: `GET/POST /api/v1/integrations/whatsapp/webhook`.
+- Admin: eventos webhook bajo `/api/v1/admin/integrations/{integration_id}/whatsapp/webhook-events` y estado bajo `/webhook-status`.
+
+Webhooks:
+
+- GET verifica `hub.mode`, `hub.verify_token` y devuelve `hub.challenge` como texto plano si coincide.
+- POST usa el body crudo para validar `X-Hub-Signature-256: sha256=<digest>` con HMAC-SHA256.
+- El body se limita por configuracion y no se persiste.
+- Se clasifican eventos `inbound_message`, `message_sent`, `message_delivered`, `message_read`, `message_failed`, `template_status` y `unknown`.
+- La idempotencia usa `event_key` unico; reintentos incrementan `received_count` y no crean segunda fila.
+- El rate limiting especifico de webhooks queda diferido hasta definir proxy/IP confiable; las protecciones actuales son firma, tamano e idempotencia.
+- La limpieza automatica por retencion queda diferida; no se usa APScheduler para webhooks en esta etapa.
 
 Seguridad:
 
 - No pegues tokens, app secrets, verify tokens ni credenciales en `Integration.config`.
 - Los listados administrativos no exponen telefono completo ni hash.
+- Los eventos webhook no almacenan body, texto de mensajes, headers, firmas, contactos ni telefonos completos.
 - Las finalidades iniciales son transaccionales: `appointment_transactional`, `appointment_reminders` y `appointment_updates`.
 - Marketing, campanas, mensajes libres, bots y WhatsApp Flows quedan fuera de esta etapa.
 

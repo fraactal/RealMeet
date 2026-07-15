@@ -72,8 +72,11 @@ from app.whatsapp.schemas import (
     WhatsAppTemplateRead,
     WhatsAppTemplateUpdate,
     WhatsAppValidationRead,
+    WhatsAppWebhookEventRead,
+    WhatsAppWebhookStatusRead,
 )
-from app.whatsapp.services import WhatsAppConsentService, WhatsAppTemplateService
+from app.whatsapp.enums import WhatsAppWebhookEventType, WhatsAppWebhookProcessingStatus
+from app.whatsapp.services import WhatsAppConsentService, WhatsAppTemplateService, WhatsAppWebhookService, serialize_webhook_event
 
 router = APIRouter(dependencies=[Depends(require_admin)])
 
@@ -300,6 +303,57 @@ def update_whatsapp_template(
     except WhatsAppError as exc:
         raise _whatsapp_http_error(exc) from exc
     return WhatsAppTemplateRead.model_validate(item)
+
+
+@router.get("/integrations/{integration_id}/whatsapp/webhook-events", response_model=list[WhatsAppWebhookEventRead])
+def list_whatsapp_webhook_events(
+    integration_id: int,
+    event_type: WhatsAppWebhookEventType | None = Query(default=None),
+    processing_status: WhatsAppWebhookProcessingStatus | None = Query(default=None),
+    duplicate: bool | None = Query(default=None),
+    limit: int = Query(default=100, ge=1, le=200),
+    db: Session = Depends(get_db),
+) -> list[WhatsAppWebhookEventRead]:
+    try:
+        integration = IntegrationService(db).get_integration(integration_id)
+        WhatsAppTemplateService(db).status(integration)
+        items = WhatsAppWebhookService(db).list_events(
+            integration_id=integration_id,
+            event_type=event_type,
+            processing_status=processing_status,
+            duplicate=duplicate,
+            limit=limit,
+        )
+    except IntegrationError as exc:
+        raise _integration_http_error(exc) from exc
+    except WhatsAppError as exc:
+        raise _whatsapp_http_error(exc) from exc
+    return [WhatsAppWebhookEventRead(**serialize_webhook_event(item)) for item in items]
+
+
+@router.get("/integrations/{integration_id}/whatsapp/webhook-events/{event_id}", response_model=WhatsAppWebhookEventRead)
+def get_whatsapp_webhook_event(integration_id: int, event_id: int, db: Session = Depends(get_db)) -> WhatsAppWebhookEventRead:
+    try:
+        integration = IntegrationService(db).get_integration(integration_id)
+        WhatsAppTemplateService(db).status(integration)
+        item = WhatsAppWebhookService(db).get_event(integration_id=integration_id, event_id=event_id)
+    except IntegrationError as exc:
+        raise _integration_http_error(exc) from exc
+    except WhatsAppError as exc:
+        raise _whatsapp_http_error(exc) from exc
+    return WhatsAppWebhookEventRead(**serialize_webhook_event(item))
+
+
+@router.get("/integrations/{integration_id}/whatsapp/webhook-status", response_model=WhatsAppWebhookStatusRead)
+def get_whatsapp_webhook_status(integration_id: int, db: Session = Depends(get_db)) -> WhatsAppWebhookStatusRead:
+    try:
+        integration = IntegrationService(db).get_integration(integration_id)
+        WhatsAppTemplateService(db).status(integration)
+        return WhatsAppWebhookStatusRead(**WhatsAppWebhookService(db).webhook_status(integration_id))
+    except IntegrationError as exc:
+        raise _integration_http_error(exc) from exc
+    except WhatsAppError as exc:
+        raise _whatsapp_http_error(exc) from exc
 
 
 @router.get("/whatsapp/consents", response_model=list[WhatsAppConsentSummary])

@@ -10,6 +10,8 @@ from app.whatsapp.enums import (
     WhatsAppTemplateCategory,
     WhatsAppTemplatePurpose,
     WhatsAppTemplateStatus,
+    WhatsAppWebhookEventType,
+    WhatsAppWebhookProcessingStatus,
 )
 
 
@@ -193,3 +195,49 @@ class WhatsAppValidationRead(BaseModel):
     code: str
     message: str
     metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class WhatsAppWebhookEventRead(BaseModel):
+    id: int
+    integration_id: int | None
+    event_key_partial: str
+    payload_hash_partial: str
+    object_type: str | None
+    field: str | None
+    event_type: WhatsAppWebhookEventType
+    external_message_id_partial: str | None
+    phone_number_id_masked: str | None
+    status: str | None
+    occurred_at: datetime | None
+    received_at: datetime
+    last_received_at: datetime | None
+    processed_at: datetime | None
+    processing_status: WhatsAppWebhookProcessingStatus
+    signature_valid: bool
+    duplicate: bool
+    received_count: int
+    safe_metadata: dict[str, Any]
+    error_code: str | None
+    error_message: str | None
+
+
+class WhatsAppWebhookStatusRead(BaseModel):
+    integration_id: int
+    public_url_configured: bool
+    verify_token_configured: bool
+    app_secret_configured: bool
+    signature_required: bool
+    max_body_bytes: int
+    retention_days: int
+    last_received_at: datetime | None
+    recent_total: int
+    last_error: str | None = None
+
+
+class WhatsAppWebhookReceiveRead(BaseModel):
+    accepted: bool
+    received_count: int
+    stored_count: int
+    duplicate_count: int
+    ignored_count: int
+    failed_count: int

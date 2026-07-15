@@ -3,8 +3,8 @@ from collections.abc import Sequence
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models.whatsapp import WhatsAppConsent, WhatsAppTemplate
-from app.whatsapp.enums import WhatsAppConsentPurpose
+from app.models.whatsapp import WhatsAppConsent, WhatsAppTemplate, WhatsAppWebhookEvent
+from app.whatsapp.enums import WhatsAppConsentPurpose, WhatsAppWebhookEventType, WhatsAppWebhookProcessingStatus
 
 
 class WhatsAppConsentRepository:
@@ -66,3 +66,42 @@ class WhatsAppTemplateRepository:
                 WhatsAppTemplate.language == language,
             )
         )
+
+
+class WhatsAppWebhookEventRepository:
+    def __init__(self, db: Session) -> None:
+        self.db = db
+
+    def create(self, event: WhatsAppWebhookEvent) -> WhatsAppWebhookEvent:
+        self.db.add(event)
+        self.db.flush()
+        return event
+
+    def get(self, event_id: int) -> WhatsAppWebhookEvent | None:
+        return self.db.get(WhatsAppWebhookEvent, event_id)
+
+    def get_by_event_key(self, event_key: str) -> WhatsAppWebhookEvent | None:
+        return self.db.scalar(select(WhatsAppWebhookEvent).where(WhatsAppWebhookEvent.event_key == event_key))
+
+    def list_recent(
+        self,
+        *,
+        integration_id: int | None = None,
+        event_type: WhatsAppWebhookEventType | None = None,
+        processing_status: WhatsAppWebhookProcessingStatus | None = None,
+        duplicate: bool | None = None,
+        limit: int = 100,
+    ) -> Sequence[WhatsAppWebhookEvent]:
+        query = select(WhatsAppWebhookEvent)
+        conditions = []
+        if integration_id is not None:
+            conditions.append(WhatsAppWebhookEvent.integration_id == integration_id)
+        if event_type is not None:
+            conditions.append(WhatsAppWebhookEvent.event_type == event_type)
+        if processing_status is not None:
+            conditions.append(WhatsAppWebhookEvent.processing_status == processing_status)
+        if duplicate is not None:
+            conditions.append(WhatsAppWebhookEvent.duplicate.is_(duplicate))
+        if conditions:
+            query = query.where(*conditions)
+        return self.db.scalars(query.order_by(WhatsAppWebhookEvent.received_at.desc(), WhatsAppWebhookEvent.id.desc()).limit(limit)).all()
