@@ -1,0 +1,21 @@
+# Acceptance Criteria
+
+- `WhatsAppMessage` model and migration are added after `20260715_0009`.
+- WhatsApp Cloud client contract, HTTP implementation and fake implementation exist.
+- Access token is resolved only from environment variable reference.
+- Admin send requires enabled integration, active consent and approved utility template.
+- Admin send does not accept token, phone number, provider, Graph URL or headers.
+- Idempotency prevents duplicate sends.
+- Failed messages can be retried manually.
+- Template sync is read-only and admin-triggered.
+- Health check is read-only and admin-triggered.
+- Webhooks update outbound message states monotonically.
+- Unknown webhook message IDs do not create outbound messages.
+- Responses are safe and reduced.
+- Integration executions are recorded without sensitive metadata.
+- Backoffice exposes health, sync, messages and manual test send.
+- No reservation code is modified.
+- No real Meta calls occur in tests.
+- Frontend build passes.
+- Required backend tests pass.
+- A single commit is created with message `feat(integrations): add WhatsApp Cloud provider`.

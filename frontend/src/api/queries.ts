@@ -41,8 +41,13 @@ import type {
   IntegrationUpdatePayload,
   WhatsAppConsentCorrectionPayload,
   WhatsAppConsentSummary,
+  WhatsAppHealthCheckResult,
   WhatsAppIntegrationStatus,
+  WhatsAppMessage,
+  WhatsAppMessageSendPayload,
+  WhatsAppMessageSendResult,
   WhatsAppTemplate,
+  WhatsAppTemplateSyncResult,
   WhatsAppTemplateWrite,
   WhatsAppValidationResult,
   WhatsAppWebhookEvent,
@@ -488,6 +493,31 @@ export async function createWhatsAppTemplate(integrationId: number, payload: Req
 
 export async function updateWhatsAppTemplate(integrationId: number, templateId: number, payload: WhatsAppTemplateWrite): Promise<WhatsAppTemplate> {
   const { data } = await api.patch(`/admin/integrations/${integrationId}/whatsapp/templates/${templateId}`, payload);
+  return data;
+}
+
+export async function syncWhatsAppTemplates(integrationId: number): Promise<WhatsAppTemplateSyncResult> {
+  const { data } = await api.post(`/admin/integrations/${integrationId}/whatsapp/templates/sync`);
+  return data;
+}
+
+export async function healthCheckWhatsApp(integrationId: number): Promise<WhatsAppHealthCheckResult> {
+  const { data } = await api.post(`/admin/integrations/${integrationId}/whatsapp/health-check`);
+  return data;
+}
+
+export async function fetchWhatsAppMessages(integrationId: number): Promise<WhatsAppMessage[]> {
+  const { data } = await api.get(`/admin/integrations/${integrationId}/whatsapp/messages`, { params: { limit: 50 } });
+  return data;
+}
+
+export async function sendWhatsAppMessage(integrationId: number, payload: WhatsAppMessageSendPayload): Promise<WhatsAppMessageSendResult> {
+  const { data } = await api.post(`/admin/integrations/${integrationId}/whatsapp/messages`, payload);
+  return data;
+}
+
+export async function retryWhatsAppMessage(integrationId: number, messageId: number): Promise<WhatsAppMessageSendResult> {
+  const { data } = await api.post(`/admin/integrations/${integrationId}/whatsapp/messages/${messageId}/retry`);
   return data;
 }
 

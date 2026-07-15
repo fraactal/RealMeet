@@ -28,6 +28,7 @@ from app.whatsapp.enums import (
     WhatsAppWebhookProcessingStatus,
 )
 from app.whatsapp.exceptions import WhatsAppNotFoundError, WhatsAppValidationError
+from app.whatsapp.messaging import WhatsAppMessagingService
 from app.whatsapp.phone import mask_phone_e164, normalize_phone, phone_hmac
 from app.whatsapp.repositories import WhatsAppConsentRepository, WhatsAppTemplateRepository, WhatsAppWebhookEventRepository
 from app.whatsapp.schemas import (
@@ -295,6 +296,19 @@ class WhatsAppWebhookService:
                 duplicates += 1
                 continue
             self.events.create(event)
+            if event.event_type in {
+                WhatsAppWebhookEventType.message_sent,
+                WhatsAppWebhookEventType.message_delivered,
+                WhatsAppWebhookEventType.message_read,
+                WhatsAppWebhookEventType.message_failed,
+            }:
+                WhatsAppMessagingService(self.db).correlate_status(
+                    external_message_id=event.external_message_id,
+                    event_type=event.event_type,
+                    occurred_at=event.occurred_at,
+                    error_code=event.error_code,
+                    error_message=event.error_message,
+                )
             if event.processing_status == WhatsAppWebhookProcessingStatus.failed:
                 failed += 1
             elif event.processing_status == WhatsAppWebhookProcessingStatus.ignored:

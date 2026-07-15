@@ -7,6 +7,7 @@ from app.whatsapp.enums import (
     WhatsAppConsentPurpose,
     WhatsAppConsentSource,
     WhatsAppConsentStatus,
+    WhatsAppMessageStatus,
     WhatsAppTemplateCategory,
     WhatsAppTemplatePurpose,
     WhatsAppTemplateStatus,
@@ -242,3 +243,96 @@ class WhatsAppWebhookReceiveRead(BaseModel):
     duplicate_count: int
     ignored_count: int
     failed_count: int
+
+
+class WhatsAppTemplateSyncRead(BaseModel):
+    success: bool
+    code: str
+    message: str
+    synced_count: int
+    updated_count: int
+    skipped_count: int
+
+
+class WhatsAppHealthCheckRead(BaseModel):
+    success: bool
+    code: str
+    message: str
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class WhatsAppMessageVariables(StrictBaseModel):
+    client_name: str | None = Field(default=None, max_length=120)
+    professional_name: str | None = Field(default=None, max_length=120)
+    appointment_date: str | None = Field(default=None, max_length=40)
+    appointment_time: str | None = Field(default=None, max_length=40)
+    appointment_modality: str | None = Field(default=None, max_length=80)
+    meeting_url: str | None = Field(default=None, max_length=500)
+    platform_name: str | None = Field(default=None, max_length=80)
+
+    @field_validator("*")
+    @classmethod
+    def reject_sensitive_values(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        lowered = stripped.lower()
+        forbidden = ["diagnostico", "diagnosis", "rut", "password", "token", "secret", "historial", "medical", "pago"]
+        if any(item in lowered for item in forbidden):
+            raise ValueError("Variable no permitida")
+        return stripped
+
+    def safe_values(self) -> dict[str, str]:
+        return {key: value for key, value in self.model_dump().items() if value}
+
+
+class WhatsAppMessageSendRequest(StrictBaseModel):
+    consent_id: int = Field(gt=0)
+    template_id: int = Field(gt=0)
+    purpose: WhatsAppTemplatePurpose
+    language: str = Field(min_length=2, max_length=10)
+    variables: WhatsAppMessageVariables = Field(default_factory=WhatsAppMessageVariables)
+    idempotency_key: str = Field(min_length=1, max_length=180)
+    explicit_confirmation: bool
+
+    @field_validator("language")
+    @classmethod
+    def normalize_language(cls, value: str) -> str:
+        return value.replace("-", "_")
+
+    @model_validator(mode="after")
+    def require_confirmation(self) -> "WhatsAppMessageSendRequest":
+        if not self.explicit_confirmation:
+            raise ValueError("El envio requiere confirmacion explicita")
+        return self
+
+
+class WhatsAppMessageRead(BaseModel):
+    id: int
+    integration_id: int
+    user_id: int | None
+    template_id: int
+    purpose: WhatsAppTemplatePurpose
+    recipient_masked: str
+    status: WhatsAppMessageStatus
+    external_message_id_partial: str | None
+    idempotency_key: str
+    attempt: int
+    accepted_at: datetime | None
+    sent_at: datetime | None
+    delivered_at: datetime | None
+    read_at: datetime | None
+    failed_at: datetime | None
+    last_status_at: datetime | None
+    error_code: str | None
+    error_message: str | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class WhatsAppMessageSendRead(BaseModel):
+    success: bool
+    code: str
+    message: str
+    skipped: bool = False
+    data: WhatsAppMessageRead

@@ -7,6 +7,8 @@ import type {
   WhatsAppConsentPurpose,
   WhatsAppConsentSummary,
   WhatsAppIntegrationStatus,
+  WhatsAppMessage,
+  WhatsAppMessageSendPayload,
   WhatsAppTemplate,
   WhatsAppTemplatePurpose,
   WhatsAppTemplateVariable,
@@ -22,6 +24,7 @@ import {
   getWhatsAppConsentStatusLabel,
   getWhatsAppTemplatePurposeLabel,
   getWhatsAppTemplateStatusLabel,
+  getWhatsAppMessageStatusLabel,
   getWhatsAppWebhookEventTypeLabel,
   getWhatsAppWebhookProcessingStatusLabel,
   whatsappVariableLabels,
@@ -58,16 +61,25 @@ interface WhatsAppFoundationPanelProps {
   templates: WhatsAppTemplate[];
   consents: WhatsAppConsentSummary[];
   events: WhatsAppWebhookEvent[];
+  messages: WhatsAppMessage[];
   loading: boolean;
   error: boolean;
   validationResult?: WhatsAppValidationResult | null;
   validating: boolean;
   templateSaving: boolean;
   correctionSaving: boolean;
+  healthBusy: boolean;
+  syncBusy: boolean;
+  sendBusy: boolean;
+  retryBusy: boolean;
   onValidate: () => void;
+  onHealthCheck: () => void;
+  onSyncTemplates: () => void;
   onCreateTemplate: (payload: Required<WhatsAppTemplateWrite>) => void;
   onUpdateTemplate: (templateId: number, payload: WhatsAppTemplateWrite) => void;
   onCreateConsentCorrection: (payload: WhatsAppConsentCorrectionPayload) => void;
+  onSendMessage: (payload: WhatsAppMessageSendPayload) => void;
+  onRetryMessage: (messageId: number) => void;
   onRefresh: () => void;
 }
 
@@ -85,6 +97,14 @@ interface ConsentCorrectionState {
   purpose: WhatsAppConsentPurpose;
   consent_text_version: string;
   reason: string;
+  explicit_confirmation: boolean;
+}
+
+interface SendFormState {
+  consent_id: string;
+  template_id: string;
+  idempotency_key: string;
+  variables: Record<string, string>;
   explicit_confirmation: boolean;
 }
 
@@ -111,21 +131,32 @@ export function WhatsAppFoundationPanel({
   templates,
   consents,
   events,
+  messages,
   loading,
   error,
   validationResult,
   validating,
   templateSaving,
   correctionSaving,
+  healthBusy,
+  syncBusy,
+  sendBusy,
+  retryBusy,
   onValidate,
+  onHealthCheck,
+  onSyncTemplates,
   onCreateTemplate,
   onUpdateTemplate,
   onCreateConsentCorrection,
+  onSendMessage,
+  onRetryMessage,
   onRefresh,
 }: WhatsAppFoundationPanelProps) {
   const [templateForm, setTemplateForm] = useState<TemplateFormState | null>(null);
   const [consentFormOpen, setConsentFormOpen] = useState(false);
   const [consentForm, setConsentForm] = useState<ConsentCorrectionState>(emptyConsentCorrection);
+  const [sendFormOpen, setSendFormOpen] = useState(false);
+  const [sendForm, setSendForm] = useState<SendFormState>({ consent_id: "", template_id: "", idempotency_key: `manual:wa:${Date.now()}`, variables: {}, explicit_confirmation: false });
   const [selectedEvent, setSelectedEvent] = useState<WhatsAppWebhookEvent | null>(null);
   const secretReferences = integration.config.secret_references ?? {};
   const webhookUrl = webhookStatus?.public_url ?? "";
@@ -174,21 +205,54 @@ export function WhatsAppFoundationPanel({
     setConsentFormOpen(false);
   };
 
+  const approvedTemplates = templates.filter((template) => template.status === "approved" && template.category === "utility");
+  const selectedTemplate = approvedTemplates.find((template) => String(template.id) === sendForm.template_id);
+  const sendVariableKeys = selectedTemplate?.components_schema.variables?.map((item) => item.key) ?? [];
+  const saveSendMessage = () => {
+    const consentId = Number(sendForm.consent_id);
+    const templateId = Number(sendForm.template_id);
+    if (!consentId || !templateId || !selectedTemplate || !sendForm.idempotency_key.trim() || !sendForm.explicit_confirmation) return;
+    onSendMessage({
+      consent_id: consentId,
+      template_id: templateId,
+      purpose: selectedTemplate.purpose,
+      language: selectedTemplate.language,
+      idempotency_key: sendForm.idempotency_key.trim(),
+      explicit_confirmation: true,
+      variables: sendVariableKeys.reduce<Record<string, string>>((acc, key) => {
+        acc[key] = sendForm.variables[key] ?? "";
+        return acc;
+      }, {}),
+    });
+    setSendFormOpen(false);
+  };
+
   return (
     <div className="mt-5 space-y-5 rounded-lg border border-slate-200 bg-white p-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h3 className="text-base font-semibold text-ink-900">Fundacion WhatsApp Cloud</h3>
           <p className="mt-1 text-sm leading-6 text-ink-500">
-            Configuracion local, webhooks, plantillas y consentimientos. El envio real de mensajes queda fuera de 13.1.
+            Configuracion local, webhooks, plantillas, consentimientos y envio manual administrativo. Las reservas todavia no generan mensajes automaticamente.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Badge label="Sin envio" tone="neutral" />
+          <Badge label="Envio manual admin" tone="info" />
           <Badge label={status?.locally_configured ? "Config local valida" : "Config local pendiente"} tone={status?.locally_configured ? "success" : "warning"} />
           <Badge label={status?.operational_for_sending ? "Envio operativo" : "Envio no habilitado"} tone={status?.operational_for_sending ? "success" : "neutral"} />
         </div>
       </div>
+
+      <Panel title="Operacion controlada 13.2">
+        <p className="text-sm leading-6 text-ink-500">El envio de esta etapa es manual y administrativo. Esta accion puede enviar un mensaje real mediante la cuenta WhatsApp conectada si existen credenciales locales.</p>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Button isLoading={healthBusy} onClick={onHealthCheck} variant="secondary">Health check WhatsApp</Button>
+          <Button isLoading={syncBusy} onClick={onSyncTemplates} variant="secondary">Sincronizar plantillas</Button>
+          <Button disabled={approvedTemplates.length === 0 || consents.length === 0} onClick={() => { setSendForm({ consent_id: "", template_id: "", idempotency_key: `manual:wa:${Date.now()}`, variables: {}, explicit_confirmation: false }); setSendFormOpen(true); }}>Enviar mensaje de prueba</Button>
+        </div>
+        {approvedTemplates.length === 0 ? <p className="mt-3 text-sm text-ink-500">Sin plantillas utility aprobadas. Sincroniza plantillas o revisa el estado remoto antes de enviar.</p> : null}
+        {consents.length === 0 ? <p className="mt-2 text-sm text-ink-500">Sin consentimientos activos visibles para seleccionar destinatario.</p> : null}
+      </Panel>
 
       {loading ? <LoadingState label="Cargando fundamento WhatsApp" /> : null}
       {error ? <ErrorState title="No pudimos cargar WhatsApp" message="Revisa la configuracion local o intenta nuevamente." /> : null}
@@ -319,6 +383,31 @@ export function WhatsAppFoundationPanel({
         </div>
       </Panel>
 
+      <Panel title="Mensajes WhatsApp">
+        {messages.length === 0 ? <EmptyState title="No hay mensajes WhatsApp registrados" /> : null}
+        <div className="grid gap-3 lg:grid-cols-2">
+          {messages.map((message) => (
+            <article className="rounded-lg border border-slate-200 bg-white p-4" key={message.id}>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <p className="font-semibold text-ink-900">Mensaje #{message.id}</p>
+                  <p className="mt-1 text-sm text-ink-500">{getWhatsAppTemplatePurposeLabel(message.purpose)} · {message.recipient_masked}</p>
+                </div>
+                <Badge label={getWhatsAppMessageStatusLabel(message.status)} tone={message.status === "failed" ? "danger" : message.status === "accepted" || message.status === "sent" || message.status === "delivered" || message.status === "read" ? "success" : "neutral"} />
+              </div>
+              <div className="mt-3 grid gap-2 text-sm text-ink-600 sm:grid-cols-2">
+                <Info label="Intento" value={String(message.attempt)} />
+                <Info label="Meta ID" value={message.external_message_id_partial ?? "No disponible"} />
+                <Info label="Creado" value={formatDateTime(message.created_at)} />
+                <Info label="Ultimo estado" value={message.last_status_at ? formatDateTime(message.last_status_at) : "Sin estado remoto"} />
+                <Info label="Error" value={message.error_message ?? message.error_code ?? "Sin error"} />
+              </div>
+              {message.status === "failed" ? <Button className="mt-3" isLoading={retryBusy} onClick={() => onRetryMessage(message.id)} size="sm" variant="secondary">Reintentar</Button> : null}
+            </article>
+          ))}
+        </div>
+      </Panel>
+
       {templateForm ? (
         <TemplateDialog
           form={templateForm}
@@ -335,6 +424,17 @@ export function WhatsAppFoundationPanel({
           onChange={setConsentForm}
           onClose={() => setConsentFormOpen(false)}
           onSave={saveConsentCorrection}
+        />
+      ) : null}
+      {sendFormOpen ? (
+        <SendMessageDialog
+          approvedTemplates={approvedTemplates}
+          consents={consents.filter((consent) => consent.status === "granted")}
+          form={sendForm}
+          isSaving={sendBusy}
+          onChange={setSendForm}
+          onClose={() => setSendFormOpen(false)}
+          onSave={saveSendMessage}
         />
       ) : null}
       {selectedEvent ? <EventDetailDialog event={selectedEvent} onClose={() => setSelectedEvent(null)} /> : null}
@@ -443,6 +543,83 @@ function ConsentCorrectionDialog({ form, isSaving, onChange, onClose, onSave }: 
       <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
         <Button onClick={onClose} variant="secondary">Cancelar</Button>
         <Button disabled={!form.user_id || !form.phone.trim() || !form.reason.trim() || !form.explicit_confirmation} isLoading={isSaving} onClick={onSave}>Registrar correccion</Button>
+      </div>
+    </Dialog>
+  );
+}
+
+function SendMessageDialog({
+  approvedTemplates,
+  consents,
+  form,
+  isSaving,
+  onChange,
+  onClose,
+  onSave,
+}: {
+  approvedTemplates: WhatsAppTemplate[];
+  consents: WhatsAppConsentSummary[];
+  form: SendFormState;
+  isSaving: boolean;
+  onChange: (form: SendFormState) => void;
+  onClose: () => void;
+  onSave: () => void;
+}) {
+  useEscape(onClose);
+  const template = approvedTemplates.find((item) => String(item.id) === form.template_id);
+  const variables = template?.components_schema.variables?.map((item) => item.key) ?? [];
+  return (
+    <Dialog title="Enviar mensaje de prueba WhatsApp" onClose={onClose}>
+      <p className="rounded-md border border-warning-100 bg-warning-50 p-3 text-sm font-semibold text-warning-700">
+        Esta accion puede enviar un mensaje real mediante la cuenta WhatsApp conectada.
+      </p>
+      <div className="mt-4 grid gap-4 sm:grid-cols-2">
+        <Field id="wa-send-consent" label="Consentimiento">
+          <Select id="wa-send-consent" value={form.consent_id} onChange={(event) => onChange({ ...form, consent_id: event.target.value })}>
+            <option value="">Selecciona consentimiento</option>
+            {consents.map((consent) => (
+              <option key={consent.id} value={consent.id}>
+                Usuario {consent.user_id} · {consent.phone_masked} · {getWhatsAppConsentPurposeLabel(consent.purpose)}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field id="wa-send-template" label="Plantilla aprobada">
+          <Select id="wa-send-template" value={form.template_id} onChange={(event) => onChange({ ...form, template_id: event.target.value, variables: {} })}>
+            <option value="">Selecciona plantilla</option>
+            {approvedTemplates.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.name} · {getWhatsAppTemplatePurposeLabel(item.purpose)} · {item.language}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field id="wa-send-key" label="Clave idempotente">
+          <Input id="wa-send-key" value={form.idempotency_key} onChange={(event) => onChange({ ...form, idempotency_key: event.target.value })} />
+        </Field>
+      </div>
+      {variables.length > 0 ? (
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          {variables.map((key) => (
+            <Field id={`wa-send-var-${key}`} key={key} label={whatsappVariableLabels[key] ?? key}>
+              <Input
+                id={`wa-send-var-${key}`}
+                value={form.variables[key] ?? ""}
+                onChange={(event) => onChange({ ...form, variables: { ...form.variables, [key]: event.target.value } })}
+              />
+            </Field>
+          ))}
+        </div>
+      ) : null}
+      <label className="mt-4 flex items-center gap-2 text-sm font-semibold text-ink-700">
+        <input checked={form.explicit_confirmation} onChange={(event) => onChange({ ...form, explicit_confirmation: event.target.checked })} type="checkbox" />
+        Confirmo que este envio manual administrativo puede usar WhatsApp Cloud si la cuenta esta conectada
+      </label>
+      <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+        <Button onClick={onClose} variant="secondary">Cancelar</Button>
+        <Button disabled={!form.consent_id || !form.template_id || !form.idempotency_key.trim() || !form.explicit_confirmation || variables.some((key) => !(form.variables[key] ?? "").trim())} isLoading={isSaving} onClick={onSave}>
+          Enviar mensaje
+        </Button>
       </div>
     </Dialog>
   );

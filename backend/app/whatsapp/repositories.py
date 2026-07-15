@@ -3,7 +3,7 @@ from collections.abc import Sequence
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models.whatsapp import WhatsAppConsent, WhatsAppTemplate, WhatsAppWebhookEvent
+from app.models.whatsapp import WhatsAppConsent, WhatsAppMessage, WhatsAppTemplate, WhatsAppWebhookEvent
 from app.whatsapp.enums import WhatsAppConsentPurpose, WhatsAppWebhookEventType, WhatsAppWebhookProcessingStatus
 
 
@@ -66,6 +66,38 @@ class WhatsAppTemplateRepository:
                 WhatsAppTemplate.language == language,
             )
         )
+
+
+class WhatsAppMessageRepository:
+    def __init__(self, db: Session) -> None:
+        self.db = db
+
+    def create(self, message: WhatsAppMessage) -> WhatsAppMessage:
+        self.db.add(message)
+        self.db.flush()
+        return message
+
+    def get(self, message_id: int) -> WhatsAppMessage | None:
+        return self.db.get(WhatsAppMessage, message_id)
+
+    def get_by_idempotency_key(self, integration_id: int, idempotency_key: str) -> WhatsAppMessage | None:
+        return self.db.scalar(
+            select(WhatsAppMessage).where(
+                WhatsAppMessage.integration_id == integration_id,
+                WhatsAppMessage.idempotency_key == idempotency_key,
+            )
+        )
+
+    def get_by_external_message_id(self, external_message_id: str) -> WhatsAppMessage | None:
+        return self.db.scalar(select(WhatsAppMessage).where(WhatsAppMessage.external_message_id == external_message_id))
+
+    def list_by_integration(self, integration_id: int, *, limit: int = 50) -> Sequence[WhatsAppMessage]:
+        return self.db.scalars(
+            select(WhatsAppMessage)
+            .where(WhatsAppMessage.integration_id == integration_id)
+            .order_by(WhatsAppMessage.created_at.desc(), WhatsAppMessage.id.desc())
+            .limit(limit)
+        ).all()
 
 
 class WhatsAppWebhookEventRepository:

@@ -62,6 +62,9 @@ class Settings(BaseSettings):
     whatsapp_webhook_max_body_bytes: int = Field(default=262144, alias="WHATSAPP_WEBHOOK_MAX_BODY_BYTES")
     whatsapp_webhook_event_retention_days: int = Field(default=30, alias="WHATSAPP_WEBHOOK_EVENT_RETENTION_DAYS")
     whatsapp_webhook_require_signature: bool = Field(default=True, alias="WHATSAPP_WEBHOOK_REQUIRE_SIGNATURE")
+    whatsapp_http_connect_timeout_seconds: float = Field(default=3.0, alias="WHATSAPP_HTTP_CONNECT_TIMEOUT_SECONDS")
+    whatsapp_http_read_timeout_seconds: float = Field(default=8.0, alias="WHATSAPP_HTTP_READ_TIMEOUT_SECONDS")
+    whatsapp_http_total_timeout_seconds: float = Field(default=10.0, alias="WHATSAPP_HTTP_TOTAL_TIMEOUT_SECONDS")
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -205,6 +208,13 @@ class Settings(BaseSettings):
     def validate_whatsapp_retention(cls, value: int) -> int:
         if value < 1 or value > 365:
             raise ValueError("WHATSAPP_WEBHOOK_EVENT_RETENTION_DAYS must be between 1 and 365")
+        return value
+
+    @field_validator("whatsapp_http_connect_timeout_seconds", "whatsapp_http_read_timeout_seconds", "whatsapp_http_total_timeout_seconds")
+    @classmethod
+    def validate_whatsapp_timeout(cls, value: float) -> float:
+        if value <= 0 or value > 60:
+            raise ValueError("WhatsApp HTTP timeouts must be between 0 and 60 seconds")
         return value
 
     @model_validator(mode="after")

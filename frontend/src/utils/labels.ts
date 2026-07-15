@@ -9,6 +9,7 @@ import type {
   WhatsAppConsentPurpose,
   WhatsAppConsentSource,
   WhatsAppConsentStatus,
+  WhatsAppMessageStatus,
   WhatsAppTemplatePurpose,
   WhatsAppTemplateStatus,
   WhatsAppWebhookEventType,
@@ -187,6 +188,17 @@ export const whatsappWebhookProcessingStatusLabels: Record<WhatsAppWebhookProces
   failed: "Fallido",
 };
 
+export const whatsappMessageStatusLabels: Record<WhatsAppMessageStatus, string> = {
+  queued: "En cola",
+  accepted: "Aceptado",
+  sent: "Enviado",
+  delivered: "Entregado",
+  read: "Leido",
+  failed: "Fallido",
+  cancelled: "Cancelado",
+  skipped: "Omitido",
+};
+
 export const whatsappVariableLabels: Record<string, string> = {
   client_name: "Nombre del cliente",
   professional_name: "Nombre del profesional",
@@ -223,4 +235,8 @@ export function getWhatsAppWebhookEventTypeLabel(value: WhatsAppWebhookEventType
 
 export function getWhatsAppWebhookProcessingStatusLabel(value: WhatsAppWebhookProcessingStatus | string): string {
   return whatsappWebhookProcessingStatusLabels[value as WhatsAppWebhookProcessingStatus] ?? value;
+}
+
+export function getWhatsAppMessageStatusLabel(value: WhatsAppMessageStatus | string): string {
+  return whatsappMessageStatusLabels[value as WhatsAppMessageStatus] ?? value;
 }

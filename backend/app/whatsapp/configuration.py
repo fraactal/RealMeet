@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import os
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -108,14 +109,15 @@ def ensure_whatsapp_integration(integration: Integration) -> None:
 def whatsapp_status(integration: Integration) -> dict[str, Any]:
     ensure_whatsapp_integration(integration)
     config = parse_whatsapp_config(integration.config or {})
+    token_available = bool(config.secret_references.access_token and os.environ.get(config.secret_references.access_token))
     return {
         "integration_id": integration.id,
         "provider": integration.provider.value,
         "status": integration.status.value,
         "enabled": integration.enabled,
         "locally_configured": True,
-        "operational_for_sending": False,
-        "message": "Configuracion y consentimiento preparados. El envio de mensajes se habilitara en una etapa posterior.",
+        "operational_for_sending": bool(integration.enabled and token_available),
+        "message": "Envio manual administrativo disponible si la integracion esta habilitada, el token existe en entorno, hay consentimiento activo y la plantilla esta aprobada.",
         "waba_id_partial": _partial(config.waba_id),
         "phone_number_id_partial": _partial(config.phone_number_id),
         "display_phone_number_masked": config.display_phone_number_masked,

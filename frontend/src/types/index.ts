@@ -604,6 +604,7 @@ export type WhatsAppTemplateCategory = "utility" | "authentication" | "marketing
 export type WhatsAppTemplatePurpose = "appointment_confirmation" | "appointment_reminder" | "appointment_updated" | "appointment_cancelled" | "meeting_ready";
 export type WhatsAppWebhookEventType = "inbound_message" | "message_sent" | "message_delivered" | "message_read" | "message_failed" | "template_status" | "unknown";
 export type WhatsAppWebhookProcessingStatus = "received" | "classified" | "ignored" | "duplicate" | "failed";
+export type WhatsAppMessageStatus = "queued" | "accepted" | "sent" | "delivered" | "read" | "failed" | "cancelled" | "skipped";
 
 export interface WhatsAppIntegrationStatus {
   integration_id: number;
@@ -717,4 +718,71 @@ export interface WhatsAppConsentCorrectionPayload {
   purpose: WhatsAppConsentPurpose;
   consent_text_version: string;
   reason: string;
+}
+
+export interface WhatsAppHealthCheckResult {
+  success: boolean;
+  code: string;
+  message: string;
+  metadata: Record<string, string | number | boolean | null>;
+}
+
+export interface WhatsAppTemplateSyncResult {
+  success: boolean;
+  code: string;
+  message: string;
+  synced_count: number;
+  updated_count: number;
+  skipped_count: number;
+}
+
+export interface WhatsAppMessageVariables {
+  client_name?: string | null;
+  professional_name?: string | null;
+  appointment_date?: string | null;
+  appointment_time?: string | null;
+  appointment_modality?: string | null;
+  meeting_url?: string | null;
+  platform_name?: string | null;
+}
+
+export interface WhatsAppMessageSendPayload {
+  consent_id: number;
+  template_id: number;
+  purpose: WhatsAppTemplatePurpose;
+  language: string;
+  variables: WhatsAppMessageVariables;
+  idempotency_key: string;
+  explicit_confirmation: boolean;
+}
+
+export interface WhatsAppMessage {
+  id: number;
+  integration_id: number;
+  user_id?: number | null;
+  template_id: number;
+  purpose: WhatsAppTemplatePurpose;
+  recipient_masked: string;
+  status: WhatsAppMessageStatus;
+  external_message_id_partial?: string | null;
+  idempotency_key: string;
+  attempt: number;
+  accepted_at?: string | null;
+  sent_at?: string | null;
+  delivered_at?: string | null;
+  read_at?: string | null;
+  failed_at?: string | null;
+  last_status_at?: string | null;
+  error_code?: string | null;
+  error_message?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WhatsAppMessageSendResult {
+  success: boolean;
+  code: string;
+  message: string;
+  skipped: boolean;
+  data: WhatsAppMessage;
 }

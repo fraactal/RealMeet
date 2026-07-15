@@ -25,6 +25,7 @@ from app.repositories.integration_execution_repository import IntegrationExecuti
 from app.repositories.integration_repository import IntegrationRepository
 from app.schemas.integrations import IntegrationCreate, IntegrationExecutionCreate, IntegrationUpdate
 from app.services.google_meet import GoogleMeetService
+from app.whatsapp.configuration import validate_whatsapp_local_configuration
 
 logger = logging.getLogger("realmeet.integrations")
 
@@ -114,6 +115,14 @@ class IntegrationService:
             integration.enabled = True
             integration.status = IntegrationStatus.configured
             self._audit(admin_user, "integration_enabled", integration, {"result": "enabled", "scope": "admin_google_meet"})
+            self._commit()
+            self.db.refresh(integration)
+            return integration
+        if integration.provider == IntegrationProvider.whatsapp_cloud:
+            validate_whatsapp_local_configuration(integration)
+            integration.enabled = True
+            integration.status = IntegrationStatus.configured
+            self._audit(admin_user, "integration_enabled", integration, {"result": "enabled", "scope": "admin_whatsapp_cloud"})
             self._commit()
             self.db.refresh(integration)
             return integration

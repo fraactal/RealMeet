@@ -68,14 +68,20 @@ from app.whatsapp.schemas import (
     WhatsAppConsentRead,
     WhatsAppConsentSummary,
     WhatsAppIntegrationStatusRead,
+    WhatsAppHealthCheckRead,
+    WhatsAppMessageRead,
+    WhatsAppMessageSendRead,
+    WhatsAppMessageSendRequest,
     WhatsAppTemplateCreate,
     WhatsAppTemplateRead,
+    WhatsAppTemplateSyncRead,
     WhatsAppTemplateUpdate,
     WhatsAppValidationRead,
     WhatsAppWebhookEventRead,
     WhatsAppWebhookStatusRead,
 )
 from app.whatsapp.enums import WhatsAppWebhookEventType, WhatsAppWebhookProcessingStatus
+from app.whatsapp.messaging import WhatsAppMessagingService, serialize_message
 from app.whatsapp.services import WhatsAppConsentService, WhatsAppTemplateService, WhatsAppWebhookService, serialize_webhook_event
 
 router = APIRouter(dependencies=[Depends(require_admin)])
@@ -275,6 +281,21 @@ def create_whatsapp_template(
     return WhatsAppTemplateRead.model_validate(item)
 
 
+@router.post("/integrations/{integration_id}/whatsapp/templates/sync", response_model=WhatsAppTemplateSyncRead)
+def sync_whatsapp_templates(
+    integration_id: int,
+    admin_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> WhatsAppTemplateSyncRead:
+    try:
+        integration = IntegrationService(db).get_integration(integration_id)
+        return WhatsAppMessagingService(db).sync_templates(integration, admin_user)
+    except IntegrationError as exc:
+        raise _integration_http_error(exc) from exc
+    except WhatsAppError as exc:
+        raise _whatsapp_http_error(exc) from exc
+
+
 @router.get("/integrations/{integration_id}/whatsapp/templates/{template_id}", response_model=WhatsAppTemplateRead)
 def get_whatsapp_template(integration_id: int, template_id: int, db: Session = Depends(get_db)) -> WhatsAppTemplateRead:
     try:
@@ -303,6 +324,81 @@ def update_whatsapp_template(
     except WhatsAppError as exc:
         raise _whatsapp_http_error(exc) from exc
     return WhatsAppTemplateRead.model_validate(item)
+
+
+@router.post("/integrations/{integration_id}/whatsapp/health-check", response_model=WhatsAppHealthCheckRead)
+def health_check_whatsapp(
+    integration_id: int,
+    admin_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> WhatsAppHealthCheckRead:
+    try:
+        integration = IntegrationService(db).get_integration(integration_id)
+        result = WhatsAppMessagingService(db).health_check(integration, admin_user)
+        return WhatsAppHealthCheckRead(success=result.success, code=result.code, message=result.message, metadata=result.metadata)
+    except IntegrationError as exc:
+        raise _integration_http_error(exc) from exc
+    except WhatsAppError as exc:
+        raise _whatsapp_http_error(exc) from exc
+
+
+@router.get("/integrations/{integration_id}/whatsapp/messages", response_model=list[WhatsAppMessageRead])
+def list_whatsapp_messages(
+    integration_id: int,
+    limit: int = Query(default=50, ge=1, le=100),
+    db: Session = Depends(get_db),
+) -> list[WhatsAppMessageRead]:
+    try:
+        integration = IntegrationService(db).get_integration(integration_id)
+        items = WhatsAppMessagingService(db).list_messages(integration, limit=limit)
+        return [serialize_message(item) for item in items]
+    except IntegrationError as exc:
+        raise _integration_http_error(exc) from exc
+    except WhatsAppError as exc:
+        raise _whatsapp_http_error(exc) from exc
+
+
+@router.post("/integrations/{integration_id}/whatsapp/messages", response_model=WhatsAppMessageSendRead)
+def send_whatsapp_message(
+    integration_id: int,
+    payload: WhatsAppMessageSendRequest,
+    admin_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> WhatsAppMessageSendRead:
+    try:
+        integration = IntegrationService(db).get_integration(integration_id)
+        return WhatsAppMessagingService(db).send_template(integration, payload, admin_user)
+    except IntegrationError as exc:
+        raise _integration_http_error(exc) from exc
+    except WhatsAppError as exc:
+        raise _whatsapp_http_error(exc) from exc
+
+
+@router.get("/integrations/{integration_id}/whatsapp/messages/{message_id}", response_model=WhatsAppMessageRead)
+def get_whatsapp_message(integration_id: int, message_id: int, db: Session = Depends(get_db)) -> WhatsAppMessageRead:
+    try:
+        integration = IntegrationService(db).get_integration(integration_id)
+        return serialize_message(WhatsAppMessagingService(db).get_message(integration, message_id))
+    except IntegrationError as exc:
+        raise _integration_http_error(exc) from exc
+    except WhatsAppError as exc:
+        raise _whatsapp_http_error(exc) from exc
+
+
+@router.post("/integrations/{integration_id}/whatsapp/messages/{message_id}/retry", response_model=WhatsAppMessageSendRead)
+def retry_whatsapp_message(
+    integration_id: int,
+    message_id: int,
+    admin_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> WhatsAppMessageSendRead:
+    try:
+        integration = IntegrationService(db).get_integration(integration_id)
+        return WhatsAppMessagingService(db).retry_message(integration, message_id, admin_user)
+    except IntegrationError as exc:
+        raise _integration_http_error(exc) from exc
+    except WhatsAppError as exc:
+        raise _whatsapp_http_error(exc) from exc
 
 
 @router.get("/integrations/{integration_id}/whatsapp/webhook-events", response_model=list[WhatsAppWebhookEventRead])

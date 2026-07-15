@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, Enum, ForeignKey, JSON, String, Text, UniqueConstraint, func
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Index, JSON, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.session import Base
@@ -9,6 +9,7 @@ from app.whatsapp.enums import (
     WhatsAppConsentPurpose,
     WhatsAppConsentSource,
     WhatsAppConsentStatus,
+    WhatsAppMessageStatus,
     WhatsAppTemplateCategory,
     WhatsAppTemplatePurpose,
     WhatsAppTemplateStatus,
@@ -66,6 +67,45 @@ class WhatsAppTemplate(Base, TimestampMixin):
     notes: Mapped[str | None] = mapped_column(Text)
 
     integration = relationship("Integration")
+
+
+class WhatsAppMessage(Base, TimestampMixin):
+    __tablename__ = "whatsapp_messages"
+    __table_args__ = (
+        UniqueConstraint("integration_id", "idempotency_key", name="uq_whatsapp_messages_integration_idempotency"),
+        Index("ix_whatsapp_messages_external_message_id", "external_message_id"),
+        Index("ix_whatsapp_messages_status_created_at", "status", "created_at"),
+        Index("ix_whatsapp_messages_integration_created_at", "integration_id", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    integration_id: Mapped[int] = mapped_column(ForeignKey("integrations.id"), nullable=False)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    template_id: Mapped[int] = mapped_column(ForeignKey("whatsapp_templates.id"), nullable=False)
+    purpose: Mapped[WhatsAppTemplatePurpose] = mapped_column(Enum(WhatsAppTemplatePurpose, name="whatsapp_template_purpose"), nullable=False)
+    recipient_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    recipient_masked: Mapped[str] = mapped_column(String(40), nullable=False)
+    status: Mapped[WhatsAppMessageStatus] = mapped_column(
+        Enum(WhatsAppMessageStatus, name="whatsapp_message_status"),
+        default=WhatsAppMessageStatus.queued,
+        nullable=False,
+    )
+    external_message_id: Mapped[str | None] = mapped_column(String(160))
+    idempotency_key: Mapped[str] = mapped_column(String(180), nullable=False)
+    attempt: Mapped[int] = mapped_column(nullable=False, default=1)
+    fallback_used: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    failed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_status_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    error_code: Mapped[str | None] = mapped_column(String(80))
+    error_message: Mapped[str | None] = mapped_column(String(300))
+
+    integration = relationship("Integration")
+    user = relationship("User")
+    template = relationship("WhatsAppTemplate")
 
 
 class WhatsAppWebhookEvent(Base):

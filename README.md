@@ -478,11 +478,11 @@ Notas operativas:
 - La cancelacion de reserva intenta cancelar la reunion externa, pero nunca revierte la cancelacion de la reserva si Google falla.
 - Los administradores pueden reintentar creacion, reintentar cancelacion y reconciliar manualmente desde el backoffice de reservas.
 
-## Fundacion WhatsApp Cloud
+## WhatsApp Cloud
 
 El Modulo 13.1A prepara la base backend para WhatsApp Cloud API: configuracion local, referencias de secretos, normalizacion telefonica, HMAC privado, consentimiento explicito y plantillas locales. El Modulo 13.1B agrega recepcion segura de webhooks.
 
-RealMeet recibe y registra webhooks de forma segura en 13.1B, pero todavia no responde mensajes, no envia WhatsApp y no conecta eventos con reservas.
+El Modulo 13.2 agrega un proveedor WhatsApp Cloud controlado para envio administrativo explicito de mensajes de plantilla. RealMeet puede enviar mensajes de plantilla mediante una operacion administrativa explicita. Las reservas y recordatorios todavia no generan mensajes automaticamente.
 
 Arquitectura actual:
 
@@ -490,9 +490,12 @@ Arquitectura actual:
 - La configuracion no secreta vive en `Integration.config` y valida WABA ID, Phone Number ID, Graph API version, idioma, pais y telefono visible enmascarado.
 - Las credenciales reales permanecen fuera de la base como variables de entorno; la integracion guarda solo referencias tipo `WHATSAPP_ACCESS_TOKEN`.
 - `WhatsAppConsent` registra consentimiento por usuario, telefono normalizado, finalidad y estado, con telefono enmascarado para salida administrativa.
-- `WhatsAppTemplate` registra definiciones locales de plantillas `utility` en estado `draft`; no crea ni aprueba plantillas en Meta.
+- `WhatsAppTemplate` registra definiciones locales de plantillas `utility`; la sincronizacion admin de 13.2 actualiza estado, idioma e ID remoto desde Meta sin crear, editar ni borrar plantillas remotas.
+- `WhatsAppMessage` registra mensajes salientes reducidos, con destinatario enmascarado, estado, idempotencia, ID externo parcial en respuestas y timestamps. No almacena telefono completo, variables completas, contenido renderizado, request, response ni token.
 - `WhatsAppWebhookEvent` registra eventos entrantes reducidos, deduplicados y sin payload completo.
-- No existe envio, sincronizacion con Meta, recordatorios ni conexion con reservas.
+- `WhatsAppCloudClient` construye requests HTTP hacia `https://graph.facebook.com/{graph_api_version}/{phone_number_id}/messages` usando solo configuracion validada del backend.
+- `WhatsAppMessagingService` valida integracion habilitada, token de entorno, consentimiento activo, plantilla `utility` aprobada, variables permitidas e idempotencia antes de invocar al cliente.
+- No existe conexion automatica con reservas, recordatorios, mensajes libres, respuestas, workers ni bulk messages.
 
 Variables WhatsApp:
 
@@ -508,12 +511,18 @@ Variables WhatsApp:
 - `WHATSAPP_WEBHOOK_MAX_BODY_BYTES`: limite de body, por defecto `262144`.
 - `WHATSAPP_WEBHOOK_EVENT_RETENTION_DAYS`: retencion futura documentada, por defecto `30`.
 - `WHATSAPP_WEBHOOK_REQUIRE_SIGNATURE`: exige `X-Hub-Signature-256`, por defecto `true`.
+- `WHATSAPP_HTTP_CONNECT_TIMEOUT_SECONDS`: timeout de conexion para Graph API, por defecto `3`.
+- `WHATSAPP_HTTP_READ_TIMEOUT_SECONDS`: timeout de lectura para Graph API, por defecto `8`.
+- `WHATSAPP_HTTP_TOTAL_TIMEOUT_SECONDS`: timeout total para Graph API, por defecto `10`.
 
 APIs backend disponibles:
 
 - Usuario autenticado: `GET/POST /api/v1/users/me/whatsapp-consents` y `DELETE /api/v1/users/me/whatsapp-consents/{purpose}`.
 - Admin: estado/validacion local bajo `/api/v1/admin/integrations/{integration_id}/whatsapp`.
 - Admin: plantillas locales bajo `/api/v1/admin/integrations/{integration_id}/whatsapp/templates`.
+- Admin: sincronizacion read-only de plantillas con Meta en `POST /api/v1/admin/integrations/{integration_id}/whatsapp/templates/sync`.
+- Admin: health check read-only en `POST /api/v1/admin/integrations/{integration_id}/whatsapp/health-check`.
+- Admin: mensajes salientes en `GET/POST /api/v1/admin/integrations/{integration_id}/whatsapp/messages` y retry manual en `/messages/{message_id}/retry`.
 - Admin: resumen seguro y correcciones auditadas bajo `/api/v1/admin/whatsapp/consents`.
 - Webhook publico: `GET/POST /api/v1/integrations/whatsapp/webhook`.
 - Admin: eventos webhook bajo `/api/v1/admin/integrations/{integration_id}/whatsapp/webhook-events` y estado bajo `/webhook-status`.
@@ -525,6 +534,7 @@ Webhooks:
 - El body se limita por configuracion y no se persiste.
 - Se clasifican eventos `inbound_message`, `message_sent`, `message_delivered`, `message_read`, `message_failed`, `template_status` y `unknown`.
 - La idempotencia usa `event_key` unico; reintentos incrementan `received_count` y no crean segunda fila.
+- Los status webhooks correlacionan `external_message_id` con `WhatsAppMessage` y actualizan estado de forma monotona: `accepted -> sent -> delivered -> read`; estados desconocidos no crean mensajes ficticios.
 - El rate limiting especifico de webhooks queda diferido hasta definir proxy/IP confiable; las protecciones actuales son firma, tamano e idempotencia.
 - La limpieza automatica por retencion queda diferida; no se usa APScheduler para webhooks en esta etapa.
 
@@ -534,6 +544,9 @@ Seguridad:
 - Los listados administrativos no exponen telefono completo ni hash.
 - Los eventos webhook no almacenan body, texto de mensajes, headers, firmas, contactos ni telefonos completos.
 - Las finalidades iniciales son transaccionales: `appointment_transactional`, `appointment_reminders` y `appointment_updates`.
+- El envio real exige consentimiento activo y plantilla local `utility` aprobada. No se acepta telefono libre, token, Graph URL, headers ni Phone Number ID desde frontend.
+- La idempotencia de envio usa `(integration_id, idempotency_key)`. Un mensaje aceptado no se reenvia con la misma clave; un fallo puede reintentarse manualmente.
+- El token se resuelve desde la referencia de entorno y permanece solo en memoria durante la llamada.
 - Marketing, campanas, mensajes libres, bots y WhatsApp Flows quedan fuera de esta etapa.
 
 ## Plan sugerido de commits
@@ -543,7 +556,7 @@ El repositorio tiene commits incrementales por modulo. El Modulo 8 debe cerrarse
 ## Limitaciones actuales del MVP
 
 - Integracion automatica de reservas con Google Meet y Zoom no implementada.
-- WhatsApp tiene fundacion backend de configuracion, consentimiento y plantillas locales; envio real, webhooks, recordatorios, pagos, suscripciones y facturacion quedan diferidos.
+- WhatsApp permite envio manual administrativo de plantillas aprobadas; reservas automaticas, recordatorios, mensajes libres, pagos, suscripciones y facturacion quedan diferidos.
 - Recuperacion de contrasena, MFA y roles configurables quedan diferidos.
 - Pruebas frontend automaticas y E2E completas quedan diferidas.
 - El backoffice es minimo y prioriza operacion inicial sobre cobertura total de UX.

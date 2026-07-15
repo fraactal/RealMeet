@@ -19,11 +19,16 @@ import {
   fetchWhatsAppTemplates,
   fetchWhatsAppWebhookEvents,
   fetchWhatsAppWebhookStatus,
+  fetchWhatsAppMessages,
   healthCheckAdminIntegration,
+  healthCheckWhatsApp,
   refreshGoogleOAuth,
+  retryWhatsAppMessage,
+  sendWhatsAppMessage,
   testAdminIntegration,
   updateAdminIntegration,
   updateWhatsAppTemplate,
+  syncWhatsAppTemplates,
   validateAdminIntegration,
   validateWhatsAppConfiguration,
 } from "../api/queries";
@@ -44,6 +49,7 @@ import type {
   GoogleMeetMeeting,
   GoogleMeetMeetingCreatePayload,
   WhatsAppConsentCorrectionPayload,
+  WhatsAppMessageSendPayload,
   WhatsAppTemplateWrite,
   WhatsAppValidationResult,
 } from "../types";
@@ -190,6 +196,11 @@ export function AdminIntegrationsPage() {
     queryFn: () => fetchWhatsAppConsents(),
     enabled: whatsappEnabled,
   });
+  const whatsappMessagesQuery = useQuery({
+    queryKey: ["admin-whatsapp-messages", selectedIntegration?.id],
+    queryFn: () => fetchWhatsAppMessages(selectedIntegration?.id ?? 0),
+    enabled: whatsappEnabled,
+  });
 
   const refreshIntegrations = () => {
     void queryClient.invalidateQueries({ queryKey: ["admin-integrations"] });
@@ -201,6 +212,7 @@ export function AdminIntegrationsPage() {
       void queryClient.invalidateQueries({ queryKey: ["admin-whatsapp-webhook-events", selectedIntegration.id] });
       void queryClient.invalidateQueries({ queryKey: ["admin-whatsapp-templates", selectedIntegration.id] });
       void queryClient.invalidateQueries({ queryKey: ["admin-whatsapp-consents"] });
+      void queryClient.invalidateQueries({ queryKey: ["admin-whatsapp-messages", selectedIntegration.id] });
     }
   };
 
@@ -292,6 +304,22 @@ export function AdminIntegrationsPage() {
     mutationFn: (payload: WhatsAppConsentCorrectionPayload) => createWhatsAppConsentCorrection(payload),
     onSuccess: () => refreshIntegrations(),
   });
+  const whatsappHealthMutation = useMutation({
+    mutationFn: (id: number) => healthCheckWhatsApp(id),
+    onSuccess: () => refreshIntegrations(),
+  });
+  const whatsappSyncTemplatesMutation = useMutation({
+    mutationFn: (id: number) => syncWhatsAppTemplates(id),
+    onSuccess: () => refreshIntegrations(),
+  });
+  const whatsappSendMessageMutation = useMutation({
+    mutationFn: ({ id, payload }: { id: number; payload: WhatsAppMessageSendPayload }) => sendWhatsAppMessage(id, payload),
+    onSuccess: () => refreshIntegrations(),
+  });
+  const whatsappRetryMessageMutation = useMutation({
+    mutationFn: ({ id, messageId }: { id: number; messageId: number }) => retryWhatsAppMessage(id, messageId),
+    onSuccess: () => refreshIntegrations(),
+  });
 
   const openCreate = () => {
     setForm(emptyForm);
@@ -370,7 +398,11 @@ export function AdminIntegrationsPage() {
     getMutationError(whatsappValidateMutation.error) ??
     getMutationError(createWhatsAppTemplateMutation.error) ??
     getMutationError(updateWhatsAppTemplateMutation.error) ??
-    getMutationError(createWhatsAppConsentCorrectionMutation.error);
+    getMutationError(createWhatsAppConsentCorrectionMutation.error) ??
+    getMutationError(whatsappHealthMutation.error) ??
+    getMutationError(whatsappSyncTemplatesMutation.error) ??
+    getMutationError(whatsappSendMessageMutation.error) ??
+    getMutationError(whatsappRetryMessageMutation.error);
 
   return (
     <div className="space-y-6">
@@ -530,16 +562,25 @@ export function AdminIntegrationsPage() {
                   templates={whatsappTemplatesQuery.data ?? []}
                   consents={whatsappConsentsQuery.data ?? []}
                   events={whatsappWebhookEventsQuery.data ?? []}
-                  loading={whatsappStatusQuery.isLoading || whatsappWebhookStatusQuery.isLoading || whatsappTemplatesQuery.isLoading || whatsappConsentsQuery.isLoading || whatsappWebhookEventsQuery.isLoading}
-                  error={whatsappStatusQuery.isError || whatsappWebhookStatusQuery.isError || whatsappTemplatesQuery.isError || whatsappConsentsQuery.isError || whatsappWebhookEventsQuery.isError}
+                  messages={whatsappMessagesQuery.data ?? []}
+                  loading={whatsappStatusQuery.isLoading || whatsappWebhookStatusQuery.isLoading || whatsappTemplatesQuery.isLoading || whatsappConsentsQuery.isLoading || whatsappWebhookEventsQuery.isLoading || whatsappMessagesQuery.isLoading}
+                  error={whatsappStatusQuery.isError || whatsappWebhookStatusQuery.isError || whatsappTemplatesQuery.isError || whatsappConsentsQuery.isError || whatsappWebhookEventsQuery.isError || whatsappMessagesQuery.isError}
                   validationResult={whatsappValidationResult}
                   validating={whatsappValidateMutation.isPending}
                   templateSaving={createWhatsAppTemplateMutation.isPending || updateWhatsAppTemplateMutation.isPending}
                   correctionSaving={createWhatsAppConsentCorrectionMutation.isPending}
+                  healthBusy={whatsappHealthMutation.isPending}
+                  syncBusy={whatsappSyncTemplatesMutation.isPending}
+                  sendBusy={whatsappSendMessageMutation.isPending}
+                  retryBusy={whatsappRetryMessageMutation.isPending}
                   onValidate={() => whatsappValidateMutation.mutate(selectedIntegration.id)}
+                  onHealthCheck={() => whatsappHealthMutation.mutate(selectedIntegration.id)}
+                  onSyncTemplates={() => whatsappSyncTemplatesMutation.mutate(selectedIntegration.id)}
                   onCreateTemplate={(payload) => createWhatsAppTemplateMutation.mutate({ id: selectedIntegration.id, payload })}
                   onUpdateTemplate={(templateId, payload) => updateWhatsAppTemplateMutation.mutate({ id: selectedIntegration.id, templateId, payload })}
                   onCreateConsentCorrection={(payload) => createWhatsAppConsentCorrectionMutation.mutate(payload)}
+                  onSendMessage={(payload) => whatsappSendMessageMutation.mutate({ id: selectedIntegration.id, payload })}
+                  onRetryMessage={(messageId) => whatsappRetryMessageMutation.mutate({ id: selectedIntegration.id, messageId })}
                   onRefresh={refreshIntegrations}
                 />
               ) : null}

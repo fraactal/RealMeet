@@ -45,6 +45,17 @@ class WhatsAppTemplatePurpose(str, enum.Enum):
     meeting_ready = "meeting_ready"
 
 
+class WhatsAppMessageStatus(str, enum.Enum):
+    queued = "queued"
+    accepted = "accepted"
+    sent = "sent"
+    delivered = "delivered"
+    read = "read"
+    failed = "failed"
+    cancelled = "cancelled"
+    skipped = "skipped"
+
+
 class WhatsAppWebhookEventType(str, enum.Enum):
     inbound_message = "inbound_message"
     message_sent = "message_sent"
