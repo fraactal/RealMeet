@@ -3,6 +3,7 @@ import { createBrowserRouter } from "react-router-dom";
 import { DashboardLayout } from "../layouts/DashboardLayout";
 import { PublicLayout } from "../layouts/PublicLayout";
 import { AdminCatalogPage } from "../pages/AdminCatalogPage";
+import { AdminIntegrationsPage } from "../pages/AdminIntegrationsPage";
 import { AdminManagementPage } from "../pages/AdminManagementPage";
 import { AdminMetricsPage } from "../pages/AdminMetricsPage";
 import { AppointmentsPage } from "../pages/AppointmentsPage";
@@ -103,6 +104,14 @@ export const router = createBrowserRouter([
             element: (
               <RequireAuth allowedRoles={["admin"]}>
                 <AdminCatalogPage />
+              </RequireAuth>
+            ),
+          },
+          {
+            path: "admin/integrations",
+            element: (
+              <RequireAuth allowedRoles={["admin"]}>
+                <AdminIntegrationsPage />
               </RequireAuth>
             ),
           },

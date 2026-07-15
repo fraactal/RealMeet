@@ -430,3 +430,89 @@ export interface AdminAppointmentListResponse {
   items: Appointment[];
   meta: PageMeta;
 }
+
+export type IntegrationType = "meeting" | "calendar" | "messaging" | "email" | "automation" | "webhook";
+export type IntegrationProvider =
+  | "mock"
+  | "google_meet"
+  | "google_calendar"
+  | "microsoft_365"
+  | "whatsapp_cloud"
+  | "twilio"
+  | "smtp"
+  | "n8n"
+  | "generic_webhook";
+export type IntegrationStatus = "not_configured" | "configured" | "healthy" | "error" | "unsupported";
+export type IntegrationExecutionStatus = "pending" | "running" | "succeeded" | "failed" | "skipped";
+
+export interface IntegrationConfig {
+  simulate_error?: boolean;
+  health?: "healthy" | "error";
+  response_delay_ms?: number;
+}
+
+export interface Integration {
+  id: number;
+  name: string;
+  integration_type: IntegrationType;
+  provider: IntegrationProvider;
+  enabled: boolean;
+  status: IntegrationStatus;
+  config: IntegrationConfig;
+  secret_reference?: string | null;
+  last_checked_at?: string | null;
+  last_success_at?: string | null;
+  last_error_at?: string | null;
+  last_error_message?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface IntegrationExecution {
+  id: number;
+  integration_id: number;
+  operation: string;
+  entity_type?: string | null;
+  entity_id?: string | null;
+  idempotency_key: string;
+  status: IntegrationExecutionStatus;
+  attempt: number;
+  error_code?: string | null;
+  error_message?: string | null;
+  started_at?: string | null;
+  finished_at?: string | null;
+  created_at: string;
+}
+
+export interface IntegrationOperationResult {
+  success: boolean;
+  code: string;
+  message: string;
+  skipped: boolean;
+  metadata: Record<string, string | number | boolean | null>;
+  execution_id?: number | null;
+  duration_ms: number;
+}
+
+export interface IntegrationListResponse {
+  items: Integration[];
+  meta: PageMeta;
+}
+
+export interface IntegrationCreatePayload {
+  name: string;
+  integration_type: IntegrationType;
+  provider: IntegrationProvider;
+  config: IntegrationConfig;
+  secret_reference?: string | null;
+}
+
+export interface IntegrationUpdatePayload {
+  name?: string;
+  config?: IntegrationConfig;
+  secret_reference?: string | null;
+}
+
+export interface IntegrationTestPayload {
+  idempotency_key: string;
+}

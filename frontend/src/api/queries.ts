@@ -23,6 +23,16 @@ import type {
   ClientSelfProfileUpdate,
   ClientRegisterPayload,
   ClientDashboard,
+  Integration,
+  IntegrationCreatePayload,
+  IntegrationExecution,
+  IntegrationListResponse,
+  IntegrationOperationResult,
+  IntegrationProvider,
+  IntegrationStatus,
+  IntegrationTestPayload,
+  IntegrationType,
+  IntegrationUpdatePayload,
   ProfessionalMetrics,
   ProfessionalAppointment,
   ProfessionalPublicProfile,
@@ -312,5 +322,62 @@ export async function fetchAdminAppointments(params: {
   page_size?: number;
 } = {}): Promise<AdminAppointmentListResponse> {
   const { data } = await api.get("/admin/appointments", { params });
+  return data;
+}
+
+export async function fetchAdminIntegrations(params: {
+  integration_type?: IntegrationType;
+  provider?: IntegrationProvider;
+  enabled?: boolean;
+  status?: IntegrationStatus;
+  page?: number;
+  page_size?: number;
+} = {}): Promise<IntegrationListResponse> {
+  const { data } = await api.get("/admin/integrations", { params });
+  return data;
+}
+
+export async function fetchAdminIntegration(integrationId: number): Promise<Integration> {
+  const { data } = await api.get(`/admin/integrations/${integrationId}`);
+  return data;
+}
+
+export async function createAdminIntegration(payload: IntegrationCreatePayload): Promise<Integration> {
+  const { data } = await api.post("/admin/integrations", payload);
+  return data;
+}
+
+export async function updateAdminIntegration(integrationId: number, payload: IntegrationUpdatePayload): Promise<Integration> {
+  const { data } = await api.patch(`/admin/integrations/${integrationId}`, payload);
+  return data;
+}
+
+export async function validateAdminIntegration(integrationId: number): Promise<IntegrationOperationResult> {
+  const { data } = await api.post(`/admin/integrations/${integrationId}/validate`);
+  return data;
+}
+
+export async function enableAdminIntegration(integrationId: number): Promise<Integration> {
+  const { data } = await api.post(`/admin/integrations/${integrationId}/enable`);
+  return data;
+}
+
+export async function disableAdminIntegration(integrationId: number): Promise<Integration> {
+  const { data } = await api.post(`/admin/integrations/${integrationId}/disable`);
+  return data;
+}
+
+export async function healthCheckAdminIntegration(integrationId: number): Promise<IntegrationOperationResult> {
+  const { data } = await api.post(`/admin/integrations/${integrationId}/health-check`);
+  return data;
+}
+
+export async function testAdminIntegration(integrationId: number, payload: IntegrationTestPayload): Promise<IntegrationOperationResult> {
+  const { data } = await api.post(`/admin/integrations/${integrationId}/test`, payload);
+  return data;
+}
+
+export async function fetchAdminIntegrationExecutions(integrationId: number): Promise<IntegrationExecution[]> {
+  const { data } = await api.get(`/admin/integrations/${integrationId}/executions`);
   return data;
 }

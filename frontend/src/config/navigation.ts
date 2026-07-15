@@ -91,6 +91,14 @@ export const authenticatedNavigation: NavigationItem[] = [
     matchPaths: ["/dashboard/admin/catalog"],
     description: "Categorias y especialidades",
   },
+  {
+    label: "Integraciones",
+    path: "/dashboard/admin/integrations",
+    icon: "settings",
+    roles: ["admin"],
+    matchPaths: ["/dashboard/admin/integrations"],
+    description: "Proveedores externos",
+  },
 ];
 
 export function getNavigationForRole(role: UserRole): NavigationItem[] {

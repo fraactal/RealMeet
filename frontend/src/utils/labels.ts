@@ -1,4 +1,4 @@
-import type { AppointmentStatus, ConsultationMode, UserRole } from "../types";
+import type { AppointmentStatus, ConsultationMode, IntegrationExecutionStatus, IntegrationProvider, IntegrationStatus, IntegrationType, UserRole } from "../types";
 
 export type MeetingStatus = "active" | "inactive" | "pending" | "unknown";
 
@@ -56,4 +56,57 @@ export function getMeetingStatusLabel(status?: MeetingStatus | string | null): s
   }
 
   return meetingStatusLabels[status as MeetingStatus] ?? status;
+}
+
+export const integrationTypeLabels: Record<IntegrationType, string> = {
+  meeting: "Reuniones",
+  calendar: "Calendario",
+  messaging: "Mensajeria",
+  email: "Correo",
+  automation: "Automatizacion",
+  webhook: "Webhook",
+};
+
+export const integrationProviderLabels: Record<IntegrationProvider, string> = {
+  mock: "Mock interno",
+  google_meet: "Google Meet",
+  google_calendar: "Google Calendar",
+  microsoft_365: "Microsoft 365",
+  whatsapp_cloud: "WhatsApp Cloud API",
+  twilio: "Twilio",
+  smtp: "SMTP",
+  n8n: "n8n",
+  generic_webhook: "Webhook generico",
+};
+
+export const integrationStatusLabels: Record<IntegrationStatus, string> = {
+  not_configured: "Sin configurar",
+  configured: "Configurada",
+  healthy: "Saludable",
+  error: "Con error",
+  unsupported: "No soportada",
+};
+
+export const integrationExecutionStatusLabels: Record<IntegrationExecutionStatus, string> = {
+  pending: "Pendiente",
+  running: "En ejecucion",
+  succeeded: "Exitosa",
+  failed: "Fallida",
+  skipped: "Omitida",
+};
+
+export function getIntegrationTypeLabel(value: IntegrationType | string): string {
+  return integrationTypeLabels[value as IntegrationType] ?? value;
+}
+
+export function getIntegrationProviderLabel(value: IntegrationProvider | string): string {
+  return integrationProviderLabels[value as IntegrationProvider] ?? value;
+}
+
+export function getIntegrationStatusLabel(value: IntegrationStatus | string): string {
+  return integrationStatusLabels[value as IntegrationStatus] ?? value;
+}
+
+export function getIntegrationExecutionStatusLabel(value: IntegrationExecutionStatus | string): string {
+  return integrationExecutionStatusLabels[value as IntegrationExecutionStatus] ?? value;
 }
