@@ -1,0 +1,21 @@
+# Acceptance Criteria
+
+- The repo remains on `codex/module-13-whatsapp-integration`.
+- Backend starts without WhatsApp environment variables.
+- `.env.example` files contain only safe WhatsApp placeholders.
+- `whatsapp_cloud` is recognized as configurable local `messaging`, not operational for sending.
+- WhatsApp integration config validates WABA ID, phone number ID, Graph API version, language, country and masked display phone.
+- Secret values are rejected from config; only environment variable references are accepted.
+- Phones normalize to E.164, reject ambiguous/invalid values, mask for UI/logs and use keyed HMAC for correlation.
+- Consent can be granted, read and revoked for the authenticated user.
+- Admin can list safe consent summaries and record an audited correction with a reason.
+- Professional users cannot access admin WhatsApp APIs.
+- Local templates can be created, listed, read and updated for WhatsApp integrations only.
+- Template variables are definitions only and sensitive variable names are rejected.
+- New templates start in `draft`; payloads cannot force `approved`.
+- No frontend files are modified.
+- No webhook endpoints are implemented.
+- No messages are sent or persisted automatically.
+- Reservations are not modified.
+- Module 11 and 12 tests continue to pass.
+- A single commit is created with message `feat(integrations): add WhatsApp domain and consent`.

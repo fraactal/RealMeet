@@ -7,6 +7,7 @@ from app.integrations.enums import IntegrationExecutionStatus, IntegrationProvid
 from app.integrations.exceptions import IntegrationValidationError
 from app.integrations.validation import validate_safe_metadata, validate_secret_reference
 from app.schemas.common import ORMModel
+from app.whatsapp.configuration import parse_whatsapp_config
 
 
 class StrictBaseModel(BaseModel):
@@ -24,7 +25,12 @@ class IntegrationCreate(StrictBaseModel):
     @classmethod
     def validate_config(cls, value: dict[str, Any]) -> dict[str, Any]:
         try:
-            return validate_safe_metadata(value, field_name="config")
+            safe_value = {key: nested for key, nested in value.items() if key != "secret_references"}
+            validate_safe_metadata(safe_value, field_name="config")
+            if isinstance(value.get("secret_references"), dict):
+                for reference in value["secret_references"].values():
+                    validate_secret_reference(reference)
+            return value
         except IntegrationValidationError as exc:
             raise ValueError(str(exc)) from exc
 
@@ -35,6 +41,14 @@ class IntegrationCreate(StrictBaseModel):
             return validate_secret_reference(value)
         except IntegrationValidationError as exc:
             raise ValueError(str(exc)) from exc
+
+    @model_validator(mode="after")
+    def validate_provider_specific_config(self) -> "IntegrationCreate":
+        if self.provider == IntegrationProvider.whatsapp_cloud:
+            if self.integration_type != IntegrationType.messaging:
+                raise ValueError("whatsapp_cloud requires integration_type messaging")
+            parse_whatsapp_config(self.config)
+        return self
 
 
 class IntegrationUpdate(StrictBaseModel):
@@ -48,7 +62,12 @@ class IntegrationUpdate(StrictBaseModel):
         if value is None:
             return None
         try:
-            return validate_safe_metadata(value, field_name="config")
+            safe_value = {key: nested for key, nested in value.items() if key != "secret_references"}
+            validate_safe_metadata(safe_value, field_name="config")
+            if isinstance(value.get("secret_references"), dict):
+                for reference in value["secret_references"].values():
+                    validate_secret_reference(reference)
+            return value
         except IntegrationValidationError as exc:
             raise ValueError(str(exc)) from exc
 

@@ -50,6 +50,14 @@ class Settings(BaseSettings):
     )
     google_oauth_state_ttl_seconds: int = Field(default=600, alias="GOOGLE_OAUTH_STATE_TTL_SECONDS")
     google_token_encryption_key: str | None = Field(default=None, alias="GOOGLE_TOKEN_ENCRYPTION_KEY")
+    whatsapp_cloud_enabled: bool = Field(default=False, alias="WHATSAPP_CLOUD_ENABLED")
+    whatsapp_graph_api_version: str | None = Field(default=None, alias="WHATSAPP_GRAPH_API_VERSION")
+    whatsapp_access_token: str | None = Field(default=None, alias="WHATSAPP_ACCESS_TOKEN")
+    whatsapp_app_secret: str | None = Field(default=None, alias="WHATSAPP_APP_SECRET")
+    whatsapp_webhook_verify_token: str | None = Field(default=None, alias="WHATSAPP_WEBHOOK_VERIFY_TOKEN")
+    whatsapp_default_language: str = Field(default="es_CL", alias="WHATSAPP_DEFAULT_LANGUAGE")
+    whatsapp_default_country_code: str | None = Field(default="CL", alias="WHATSAPP_DEFAULT_COUNTRY_CODE")
+    whatsapp_phone_hmac_key: str | None = Field(default=None, alias="WHATSAPP_PHONE_HMAC_KEY")
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -152,6 +160,34 @@ class Settings(BaseSettings):
         if value < 60 or value > 3600:
             raise ValueError("GOOGLE_OAUTH_STATE_TTL_SECONDS must be between 60 and 3600")
         return value
+
+    @field_validator("whatsapp_default_country_code")
+    @classmethod
+    def validate_whatsapp_country_code(cls, value: str | None) -> str | None:
+        if value is None or not value.strip():
+            return None
+        normalized = value.strip().upper()
+        if len(normalized) != 2 or not normalized.isalpha():
+            raise ValueError("WHATSAPP_DEFAULT_COUNTRY_CODE must be a two-letter ISO country code")
+        return normalized
+
+    @field_validator("whatsapp_default_language")
+    @classmethod
+    def validate_whatsapp_language(cls, value: str) -> str:
+        normalized = value.strip().replace("-", "_")
+        if len(normalized) < 2 or len(normalized) > 10:
+            raise ValueError("WHATSAPP_DEFAULT_LANGUAGE is invalid")
+        return normalized
+
+    @field_validator("whatsapp_graph_api_version")
+    @classmethod
+    def validate_whatsapp_graph_version(cls, value: str | None) -> str | None:
+        if value is None or not value.strip():
+            return None
+        normalized = value.strip()
+        if not normalized.startswith("v") or "." not in normalized:
+            raise ValueError("WHATSAPP_GRAPH_API_VERSION must use format vXX.X")
+        return normalized
 
     @model_validator(mode="after")
     def validate_environment_safety(self) -> "Settings":

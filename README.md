@@ -478,6 +478,44 @@ Notas operativas:
 - La cancelacion de reserva intenta cancelar la reunion externa, pero nunca revierte la cancelacion de la reserva si Google falla.
 - Los administradores pueden reintentar creacion, reintentar cancelacion y reconciliar manualmente desde el backoffice de reservas.
 
+## Fundacion WhatsApp Cloud
+
+El Modulo 13.1A prepara la base backend para WhatsApp Cloud API: configuracion local, referencias de secretos, normalizacion telefonica, HMAC privado, consentimiento explicito y plantillas locales. RealMeet todavia no recibe webhooks ni envia mensajes en el Submodulo 13.1A.
+
+Arquitectura actual:
+
+- `Integration` usa `integration_type=messaging` y `provider=whatsapp_cloud`.
+- La configuracion no secreta vive en `Integration.config` y valida WABA ID, Phone Number ID, Graph API version, idioma, pais y telefono visible enmascarado.
+- Las credenciales reales permanecen fuera de la base como variables de entorno; la integracion guarda solo referencias tipo `WHATSAPP_ACCESS_TOKEN`.
+- `WhatsAppConsent` registra consentimiento por usuario, telefono normalizado, finalidad y estado, con telefono enmascarado para salida administrativa.
+- `WhatsAppTemplate` registra definiciones locales de plantillas `utility` en estado `draft`; no crea ni aprueba plantillas en Meta.
+- No existe envio, sincronizacion con Meta, webhooks, recordatorios ni conexion con reservas en 13.1A.
+
+Variables WhatsApp:
+
+- `WHATSAPP_CLOUD_ENABLED`: bandera local de preparacion, por defecto `false`.
+- `WHATSAPP_GRAPH_API_VERSION`: version Graph API configurable, sin valor real por defecto.
+- `WHATSAPP_ACCESS_TOKEN`: token real solo en entorno seguro, nunca en Git.
+- `WHATSAPP_APP_SECRET`: app secret real solo en entorno seguro, nunca en Git.
+- `WHATSAPP_WEBHOOK_VERIFY_TOKEN`: verify token futuro, nunca en Git.
+- `WHATSAPP_DEFAULT_LANGUAGE`: idioma por defecto, por ejemplo `es_CL`.
+- `WHATSAPP_DEFAULT_COUNTRY_CODE`: pais por defecto para normalizacion, por ejemplo `CL`.
+- `WHATSAPP_PHONE_HMAC_KEY`: clave HMAC fuera de Git para correlacion privada de telefonos.
+
+APIs backend disponibles:
+
+- Usuario autenticado: `GET/POST /api/v1/users/me/whatsapp-consents` y `DELETE /api/v1/users/me/whatsapp-consents/{purpose}`.
+- Admin: estado/validacion local bajo `/api/v1/admin/integrations/{integration_id}/whatsapp`.
+- Admin: plantillas locales bajo `/api/v1/admin/integrations/{integration_id}/whatsapp/templates`.
+- Admin: resumen seguro y correcciones auditadas bajo `/api/v1/admin/whatsapp/consents`.
+
+Seguridad:
+
+- No pegues tokens, app secrets, verify tokens ni credenciales en `Integration.config`.
+- Los listados administrativos no exponen telefono completo ni hash.
+- Las finalidades iniciales son transaccionales: `appointment_transactional`, `appointment_reminders` y `appointment_updates`.
+- Marketing, campanas, mensajes libres, bots y WhatsApp Flows quedan fuera de esta etapa.
+
 ## Plan sugerido de commits
 
 El repositorio tiene commits incrementales por modulo. El Modulo 8 debe cerrarse con un unico commit y sin push salvo instruccion explicita.
@@ -485,7 +523,7 @@ El repositorio tiene commits incrementales por modulo. El Modulo 8 debe cerrarse
 ## Limitaciones actuales del MVP
 
 - Integracion automatica de reservas con Google Meet y Zoom no implementada.
-- WhatsApp, pagos, suscripciones y facturacion quedan diferidos.
+- WhatsApp tiene fundacion backend de configuracion, consentimiento y plantillas locales; envio real, webhooks, recordatorios, pagos, suscripciones y facturacion quedan diferidos.
 - Recuperacion de contrasena, MFA y roles configurables quedan diferidos.
 - Pruebas frontend automaticas y E2E completas quedan diferidas.
 - El backoffice es minimo y prioriza operacion inicial sobre cobertura total de UX.

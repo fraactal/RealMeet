@@ -62,6 +62,18 @@ from app.services.integrations import IntegrationService
 from app.services.google_meet import GoogleMeetService
 from app.services.meeting_provisioning import MeetingProvisioningService
 from app.integrations.meeting_contracts import MeetingAttendee, MeetingCreateRequest
+from app.whatsapp.exceptions import WhatsAppError, WhatsAppNotFoundError, WhatsAppValidationError
+from app.whatsapp.schemas import (
+    WhatsAppConsentAdminCorrection,
+    WhatsAppConsentRead,
+    WhatsAppConsentSummary,
+    WhatsAppIntegrationStatusRead,
+    WhatsAppTemplateCreate,
+    WhatsAppTemplateRead,
+    WhatsAppTemplateUpdate,
+    WhatsAppValidationRead,
+)
+from app.whatsapp.services import WhatsAppConsentService, WhatsAppTemplateService
 
 router = APIRouter(dependencies=[Depends(require_admin)])
 
@@ -203,6 +215,114 @@ def list_integration_executions(
     except IntegrationError as exc:
         raise _integration_http_error(exc) from exc
     return [IntegrationExecutionRead.model_validate(item) for item in items]
+
+
+@router.get("/integrations/{integration_id}/whatsapp/status", response_model=WhatsAppIntegrationStatusRead)
+def get_whatsapp_status(integration_id: int, db: Session = Depends(get_db)) -> WhatsAppIntegrationStatusRead:
+    try:
+        integration = IntegrationService(db).get_integration(integration_id)
+        return WhatsAppIntegrationStatusRead(**WhatsAppTemplateService(db).status(integration))
+    except IntegrationError as exc:
+        raise _integration_http_error(exc) from exc
+    except WhatsAppError as exc:
+        raise _whatsapp_http_error(exc) from exc
+
+
+@router.post("/integrations/{integration_id}/whatsapp/validate", response_model=WhatsAppValidationRead)
+def validate_whatsapp_config(
+    integration_id: int,
+    admin_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> WhatsAppValidationRead:
+    try:
+        integration = IntegrationService(db).get_integration(integration_id)
+        return WhatsAppValidationRead(**WhatsAppTemplateService(db).validate_local_configuration(integration, admin_user))
+    except IntegrationError as exc:
+        raise _integration_http_error(exc) from exc
+    except WhatsAppError as exc:
+        raise _whatsapp_http_error(exc) from exc
+
+
+@router.get("/integrations/{integration_id}/whatsapp/templates", response_model=list[WhatsAppTemplateRead])
+def list_whatsapp_templates(integration_id: int, db: Session = Depends(get_db)) -> list[WhatsAppTemplateRead]:
+    try:
+        integration = IntegrationService(db).get_integration(integration_id)
+        items = WhatsAppTemplateService(db).list_templates(integration)
+    except IntegrationError as exc:
+        raise _integration_http_error(exc) from exc
+    except WhatsAppError as exc:
+        raise _whatsapp_http_error(exc) from exc
+    return [WhatsAppTemplateRead.model_validate(item) for item in items]
+
+
+@router.post("/integrations/{integration_id}/whatsapp/templates", response_model=WhatsAppTemplateRead)
+def create_whatsapp_template(
+    integration_id: int,
+    payload: WhatsAppTemplateCreate,
+    admin_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> WhatsAppTemplateRead:
+    try:
+        integration = IntegrationService(db).get_integration(integration_id)
+        item = WhatsAppTemplateService(db).create_template(integration, payload, admin_user)
+    except IntegrationError as exc:
+        raise _integration_http_error(exc) from exc
+    except WhatsAppError as exc:
+        raise _whatsapp_http_error(exc) from exc
+    return WhatsAppTemplateRead.model_validate(item)
+
+
+@router.get("/integrations/{integration_id}/whatsapp/templates/{template_id}", response_model=WhatsAppTemplateRead)
+def get_whatsapp_template(integration_id: int, template_id: int, db: Session = Depends(get_db)) -> WhatsAppTemplateRead:
+    try:
+        integration = IntegrationService(db).get_integration(integration_id)
+        item = WhatsAppTemplateService(db).get_template(integration, template_id)
+    except IntegrationError as exc:
+        raise _integration_http_error(exc) from exc
+    except WhatsAppError as exc:
+        raise _whatsapp_http_error(exc) from exc
+    return WhatsAppTemplateRead.model_validate(item)
+
+
+@router.patch("/integrations/{integration_id}/whatsapp/templates/{template_id}", response_model=WhatsAppTemplateRead)
+def update_whatsapp_template(
+    integration_id: int,
+    template_id: int,
+    payload: WhatsAppTemplateUpdate,
+    admin_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> WhatsAppTemplateRead:
+    try:
+        integration = IntegrationService(db).get_integration(integration_id)
+        item = WhatsAppTemplateService(db).update_template(integration, template_id, payload, admin_user)
+    except IntegrationError as exc:
+        raise _integration_http_error(exc) from exc
+    except WhatsAppError as exc:
+        raise _whatsapp_http_error(exc) from exc
+    return WhatsAppTemplateRead.model_validate(item)
+
+
+@router.get("/whatsapp/consents", response_model=list[WhatsAppConsentSummary])
+def list_whatsapp_consents(
+    limit: int = Query(default=100, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+) -> list[WhatsAppConsentSummary]:
+    items = WhatsAppConsentService(db).list_admin_summary(limit=limit, offset=offset)
+    return [WhatsAppConsentSummary.model_validate(item) for item in items]
+
+
+@router.post("/whatsapp/consents/corrections", response_model=WhatsAppConsentRead)
+def correct_whatsapp_consent(
+    payload: WhatsAppConsentAdminCorrection,
+    admin_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> WhatsAppConsentRead:
+    try:
+        item = WhatsAppConsentService(db).admin_correction(admin_user, payload)
+    except WhatsAppError as exc:
+        raise _whatsapp_http_error(exc) from exc
+    return WhatsAppConsentRead.model_validate(item)
 
 
 @router.post("/integrations/{integration_id}/oauth/google/authorize", response_model=GoogleOAuthAuthorizationUrlRead)
@@ -634,6 +754,14 @@ def _integration_http_error(exc: IntegrationError) -> HTTPException:
     if getattr(exc, "code", "").startswith("google_oauth"):
         return HTTPException(status_code=status.HTTP_409_CONFLICT, detail=exc.message)
     return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Integration operation failed")
+
+
+def _whatsapp_http_error(exc: WhatsAppError) -> HTTPException:
+    if isinstance(exc, WhatsAppNotFoundError):
+        return HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=exc.message)
+    if isinstance(exc, WhatsAppValidationError):
+        return HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=exc.message)
+    return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="WhatsApp operation failed")
 
 
 def _serialize_user_item(user: User) -> AdminUserListItem:
