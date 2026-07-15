@@ -1,10 +1,13 @@
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 
-import { fetchClientDashboard, fetchProfessionalMetrics } from "../api/queries";
+import { fetchAdminMetrics, fetchClientDashboard, fetchProfessionalMetrics } from "../api/queries";
 import { useAuthStore } from "../store/auth";
 import { Card } from "../components/ui/Card";
 import { Button, EmptyState, ErrorState, LoadingState, PageHeader, SectionCard } from "../components/ui";
+import { AdminAppointmentCard } from "../components/admin/AdminAppointmentCard";
+import { AdminMetricCard } from "../components/admin/AdminMetricCard";
+import { AdminQuickActions } from "../components/admin/AdminQuickActions";
 import { ClientAppointmentCard } from "../components/client/ClientAppointmentCard";
 import { ClientQuickActions } from "../components/client/ClientQuickActions";
 import { ClientStatSummary } from "../components/client/ClientStatSummary";
@@ -24,6 +27,11 @@ export function DashboardHomePage() {
     queryKey: ["professional-metrics"],
     queryFn: fetchProfessionalMetrics,
     enabled: user?.role === "professional",
+  });
+  const adminMetricsQuery = useQuery({
+    queryKey: ["admin-metrics"],
+    queryFn: fetchAdminMetrics,
+    enabled: user?.role === "admin",
   });
 
   if (user?.role === "client") {
@@ -197,6 +205,83 @@ export function DashboardHomePage() {
           </SectionCard>
           <ProfessionalQuickActions />
         </div>
+      </div>
+    );
+  }
+
+  if (user?.role === "admin") {
+    const data = adminMetricsQuery.data;
+
+    if (adminMetricsQuery.isLoading) {
+      return <LoadingState label="Cargando resumen administrativo" />;
+    }
+
+    if (adminMetricsQuery.isError || !data) {
+      return <ErrorState title="No pudimos cargar el resumen administrativo" message="Intenta nuevamente en unos minutos." />;
+    }
+
+    const activeAppointments = data.pending_appointments + data.confirmed_appointments;
+    const recentAppointments = data.recent_appointments.slice(0, 4);
+
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title={`Administracion RealMeet`}
+          description={`${formatLongDate(new Date())}. Revisa el estado operativo general y abre las secciones de gestion.`}
+          actions={
+            <Link to="/dashboard/admin/manage">
+              <Button>Ir al backoffice</Button>
+            </Link>
+          }
+        />
+
+        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+          <AdminMetricCard description="Cuentas registradas en la plataforma." icon="users" label="Usuarios totales" value={data.total_users} />
+          <AdminMetricCard description="Perfiles profesionales registrados." icon="user" label="Profesionales" value={data.total_professionals} />
+          <AdminMetricCard description="Reservas pendientes o confirmadas." icon="calendar" label="Reservas activas" value={activeAppointments} />
+          <AdminMetricCard description="Categorias y especialidades activas." icon="settings" label="Catalogo activo" value={`${data.active_categories}/${data.active_specialties}`} />
+        </div>
+
+        <div className="grid gap-5 lg:grid-cols-[0.8fr_1.2fr]">
+          <SectionCard title="Distribucion de usuarios" description="Estado visible segun los conteos administrativos disponibles.">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <AdminMetricCard icon="user" label="Clientes activos" value={data.active_clients} />
+              <AdminMetricCard icon="users" label="Profesionales activos" value={data.active_professionals} />
+              <AdminMetricCard icon="search" label="Profesionales publicos" value={data.public_professionals} />
+              <AdminMetricCard icon="chart" label="Clientes registrados" value={data.total_clients} />
+            </div>
+          </SectionCard>
+
+          <SectionCard title="Reservas por estado" description="Conteo operativo de reservas existentes.">
+            <div className="space-y-3">
+              {[
+                ["Pendientes", data.pending_appointments],
+                ["Confirmadas", data.confirmed_appointments],
+                ["Completadas", data.completed_appointments],
+                ["Canceladas", data.cancelled_appointments],
+                ["No asistio", data.no_show_appointments],
+              ].map(([label, value]) => (
+                <div className="flex items-center justify-between rounded-md border border-slate-200 bg-white px-4 py-3" key={label}>
+                  <span className="text-sm font-semibold text-ink-700">{label}</span>
+                  <span className="text-lg font-bold text-ink-900">{value}</span>
+                </div>
+              ))}
+            </div>
+          </SectionCard>
+        </div>
+
+        <SectionCard title="Reservas recientes" description="Ultimas reservas registradas en el sistema.">
+          <div className="space-y-3">
+            {recentAppointments.map((appointment) => (
+              <AdminAppointmentCard appointment={appointment} key={appointment.id} />
+            ))}
+            {recentAppointments.length === 0 ? (
+              <EmptyState title="Sin reservas registradas" description="Cuando existan reservas, apareceran aqui como actividad reciente." />
+            ) : null}
+          </div>
+        </SectionCard>
+
+        <AdminQuickActions />
       </div>
     );
   }

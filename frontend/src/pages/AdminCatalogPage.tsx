@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { normalizeApiError } from "../api/errors";
 import {
   createAdminCategory,
   createAdminSpecialty,
@@ -9,7 +10,8 @@ import {
   updateAdminCategory,
   updateAdminSpecialty,
 } from "../api/queries";
-import { Card } from "../components/ui/Card";
+import { AdminStatusPill } from "../components/admin/AdminStatusPill";
+import { Button, EmptyState, ErrorState, Input, Label, LoadingState, PageHeader, SectionCard, Select } from "../components/ui";
 
 export function AdminCatalogPage() {
   const queryClient = useQueryClient();
@@ -50,123 +52,185 @@ export function AdminCatalogPage() {
   });
 
   if (categoriesQuery.isLoading || specialtiesQuery.isLoading) {
-    return <p className="text-slate-500">Cargando catalogo...</p>;
+    return <LoadingState label="Cargando catalogo administrativo" />;
   }
+
+  if (categoriesQuery.isError || specialtiesQuery.isError) {
+    return <ErrorState title="No pudimos cargar el catalogo" message="Intenta nuevamente en unos minutos." />;
+  }
+
+  const categories = categoriesQuery.data ?? [];
+  const specialties = specialtiesQuery.data ?? [];
+  const mutationError =
+    createCategoryMutation.error ?? updateCategoryMutation.error ?? createSpecialtyMutation.error ?? updateSpecialtyMutation.error;
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-semibold tracking-tight text-ink">Catalogo administrativo</h1>
-        <p className="text-slate-600">Gestion minima de categorias y especialidades del marketplace.</p>
-      </div>
+      <PageHeader
+        title="Catalogo administrativo"
+        description="Gestiona categorias y especialidades visibles en la busqueda de profesionales."
+      />
+
+      {mutationError ? <ErrorState title="No pudimos guardar el cambio" message={normalizeApiError(mutationError).message} /> : null}
 
       <div className="grid gap-5 xl:grid-cols-2">
-        <Card title="Categorias">
-          <div className="flex flex-col gap-3 sm:flex-row">
-            <input
-              value={categoryName}
-              onChange={(event) => setCategoryName(event.target.value)}
-              placeholder="Nueva categoria"
-              className="min-w-0 flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-brand"
-            />
-            <button
-              className="rounded-xl bg-ink px-4 py-2 text-sm font-semibold text-white"
-              onClick={() => createCategoryMutation.mutate({ name: categoryName.trim(), is_active: true })}
-              disabled={!categoryName.trim()}
-            >
-              Crear
-            </button>
+        <SectionCard title="Categorias" description="Agrupan profesionales y especialidades del marketplace.">
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+            <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
+              <div className="space-y-1">
+                <Label htmlFor="category-name">Nueva categoria</Label>
+                <Input id="category-name" onChange={(event) => setCategoryName(event.target.value)} placeholder="Ej: Salud" value={categoryName} />
+              </div>
+              <div className="flex items-end">
+                <Button
+                  className="w-full sm:w-auto"
+                  disabled={!categoryName.trim()}
+                  isLoading={createCategoryMutation.isPending}
+                  onClick={() => createCategoryMutation.mutate({ name: categoryName.trim(), is_active: true })}
+                >
+                  Crear
+                </Button>
+              </div>
+            </div>
           </div>
-          <div className="mt-5 overflow-x-auto">
+
+          {categories.length === 0 ? (
+            <EmptyState title="Aun no existen categorias" description="Crea la primera categoria para organizar el catalogo." />
+          ) : null}
+
+          <div className="mt-5 hidden overflow-hidden rounded-lg border border-slate-200 md:block">
             <table className="w-full text-left text-sm">
-              <thead className="text-xs uppercase text-slate-500">
+              <thead className="bg-slate-50 text-xs uppercase text-ink-500">
                 <tr>
-                  <th className="py-2">Nombre</th>
-                  <th className="py-2">Slug</th>
-                  <th className="py-2">Estado</th>
-                  <th className="py-2"></th>
+                  <th className="px-4 py-3">Nombre</th>
+                  <th className="px-4 py-3">Identificador</th>
+                  <th className="px-4 py-3">Estado</th>
+                  <th className="px-4 py-3 text-right">Accion</th>
                 </tr>
               </thead>
-              <tbody>
-                {categoriesQuery.data?.map((category) => (
-                  <tr key={category.id} className="border-t border-slate-100">
-                    <td className="py-3 font-medium text-slate-700">{category.name}</td>
-                    <td className="py-3 text-slate-500">{category.slug}</td>
-                    <td className="py-3 text-slate-500">{category.is_active ? "Activa" : "Inactiva"}</td>
-                    <td className="py-3 text-right">
-                      <button
-                        className="rounded-xl border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-700"
+              <tbody className="divide-y divide-slate-100 bg-white">
+                {categories.map((category) => (
+                  <tr className="transition hover:bg-slate-50" key={category.id}>
+                    <td className="px-4 py-4 font-semibold text-ink-900">{category.name}</td>
+                    <td className="px-4 py-4 text-ink-500">{category.slug}</td>
+                    <td className="px-4 py-4">
+                      <AdminStatusPill active={category.is_active} activeLabel="Activa" inactiveLabel="Inactiva" />
+                    </td>
+                    <td className="px-4 py-4 text-right">
+                      <Button
+                        isLoading={updateCategoryMutation.isPending}
                         onClick={() => updateCategoryMutation.mutate({ id: category.id, is_active: !category.is_active })}
+                        size="sm"
+                        variant="secondary"
                       >
                         {category.is_active ? "Desactivar" : "Activar"}
-                      </button>
+                      </Button>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-        </Card>
 
-        <Card title="Especialidades">
-          <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
-            <input
-              value={specialtyName}
-              onChange={(event) => setSpecialtyName(event.target.value)}
-              placeholder="Nueva especialidad"
-              className="min-w-0 rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-brand"
-            />
-            <select
-              value={specialtyCategoryId}
-              onChange={(event) => setSpecialtyCategoryId(event.target.value)}
-              className="min-w-0 rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-brand"
-            >
-              <option value="">Categoria</option>
-              {categoriesQuery.data?.map((category) => (
-                <option key={category.id} value={category.id}>
-                  {category.name}
-                </option>
-              ))}
-            </select>
-            <button
-              className="rounded-xl bg-ink px-4 py-2 text-sm font-semibold text-white"
-              onClick={() =>
-                createSpecialtyMutation.mutate({
-                  name: specialtyName.trim(),
-                  category_id: Number(specialtyCategoryId),
-                  is_active: true,
-                })
-              }
-              disabled={!specialtyName.trim() || !specialtyCategoryId}
-            >
-              Crear
-            </button>
+          <div className="mt-5 space-y-3 md:hidden">
+            {categories.map((category) => (
+              <article className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm" key={category.id}>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="font-semibold text-ink-900">{category.name}</h3>
+                    <p className="mt-1 text-sm text-ink-500">{category.slug}</p>
+                  </div>
+                  <AdminStatusPill active={category.is_active} activeLabel="Activa" inactiveLabel="Inactiva" />
+                </div>
+                <Button
+                  className="mt-4 w-full"
+                  isLoading={updateCategoryMutation.isPending}
+                  onClick={() => updateCategoryMutation.mutate({ id: category.id, is_active: !category.is_active })}
+                  size="sm"
+                  variant="secondary"
+                >
+                  {category.is_active ? "Desactivar" : "Activar"}
+                </Button>
+              </article>
+            ))}
           </div>
-          <div className="mt-5 overflow-x-auto">
+        </SectionCard>
+
+        <SectionCard title="Especialidades" description="Se asocian a una categoria existente.">
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+            <div className="grid gap-3 lg:grid-cols-[1fr_1fr_auto]">
+              <div className="space-y-1">
+                <Label htmlFor="specialty-name">Nueva especialidad</Label>
+                <Input
+                  id="specialty-name"
+                  onChange={(event) => setSpecialtyName(event.target.value)}
+                  placeholder="Ej: Psicologia"
+                  value={specialtyName}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="specialty-category">Categoria</Label>
+                <Select id="specialty-category" onChange={(event) => setSpecialtyCategoryId(event.target.value)} value={specialtyCategoryId}>
+                  <option value="">Selecciona categoria</option>
+                  {categories.map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.name}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+              <div className="flex items-end">
+                <Button
+                  className="w-full lg:w-auto"
+                  disabled={!specialtyName.trim() || !specialtyCategoryId}
+                  isLoading={createSpecialtyMutation.isPending}
+                  onClick={() =>
+                    createSpecialtyMutation.mutate({
+                      name: specialtyName.trim(),
+                      category_id: Number(specialtyCategoryId),
+                      is_active: true,
+                    })
+                  }
+                >
+                  Crear
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          {specialties.length === 0 ? (
+            <EmptyState title="Aun no existen especialidades" description="Crea especialidades asociadas a categorias activas." />
+          ) : null}
+
+          <div className="mt-5 hidden overflow-hidden rounded-lg border border-slate-200 md:block">
             <table className="w-full text-left text-sm">
-              <thead className="text-xs uppercase text-slate-500">
+              <thead className="bg-slate-50 text-xs uppercase text-ink-500">
                 <tr>
-                  <th className="py-2">Nombre</th>
-                  <th className="py-2">Categoria</th>
-                  <th className="py-2">Estado</th>
-                  <th className="py-2"></th>
+                  <th className="px-4 py-3">Nombre</th>
+                  <th className="px-4 py-3">Categoria</th>
+                  <th className="px-4 py-3">Estado</th>
+                  <th className="px-4 py-3 text-right">Accion</th>
                 </tr>
               </thead>
-              <tbody>
-                {specialtiesQuery.data?.map((specialty) => {
-                  const category = categoriesQuery.data?.find((item) => item.id === specialty.category_id);
+              <tbody className="divide-y divide-slate-100 bg-white">
+                {specialties.map((specialty) => {
+                  const category = categories.find((item) => item.id === specialty.category_id);
                   return (
-                    <tr key={specialty.id} className="border-t border-slate-100">
-                      <td className="py-3 font-medium text-slate-700">{specialty.name}</td>
-                      <td className="py-3 text-slate-500">{category?.name ?? specialty.category_id}</td>
-                      <td className="py-3 text-slate-500">{specialty.is_active ? "Activa" : "Inactiva"}</td>
-                      <td className="py-3 text-right">
-                        <button
-                          className="rounded-xl border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-700"
+                    <tr className="transition hover:bg-slate-50" key={specialty.id}>
+                      <td className="px-4 py-4 font-semibold text-ink-900">{specialty.name}</td>
+                      <td className="px-4 py-4 text-ink-500">{category?.name ?? "Categoria no disponible"}</td>
+                      <td className="px-4 py-4">
+                        <AdminStatusPill active={specialty.is_active} activeLabel="Activa" inactiveLabel="Inactiva" />
+                      </td>
+                      <td className="px-4 py-4 text-right">
+                        <Button
+                          isLoading={updateSpecialtyMutation.isPending}
                           onClick={() => updateSpecialtyMutation.mutate({ id: specialty.id, is_active: !specialty.is_active })}
+                          size="sm"
+                          variant="secondary"
                         >
                           {specialty.is_active ? "Desactivar" : "Activar"}
-                        </button>
+                        </Button>
                       </td>
                     </tr>
                   );
@@ -174,7 +238,33 @@ export function AdminCatalogPage() {
               </tbody>
             </table>
           </div>
-        </Card>
+
+          <div className="mt-5 space-y-3 md:hidden">
+            {specialties.map((specialty) => {
+              const category = categories.find((item) => item.id === specialty.category_id);
+              return (
+                <article className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm" key={specialty.id}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h3 className="font-semibold text-ink-900">{specialty.name}</h3>
+                      <p className="mt-1 text-sm text-ink-500">{category?.name ?? "Categoria no disponible"}</p>
+                    </div>
+                    <AdminStatusPill active={specialty.is_active} activeLabel="Activa" inactiveLabel="Inactiva" />
+                  </div>
+                  <Button
+                    className="mt-4 w-full"
+                    isLoading={updateSpecialtyMutation.isPending}
+                    onClick={() => updateSpecialtyMutation.mutate({ id: specialty.id, is_active: !specialty.is_active })}
+                    size="sm"
+                    variant="secondary"
+                  >
+                    {specialty.is_active ? "Desactivar" : "Activar"}
+                  </Button>
+                </article>
+              );
+            })}
+          </div>
+        </SectionCard>
       </div>
     </div>
   );
