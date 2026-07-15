@@ -7,7 +7,12 @@ from sqlalchemy import delete, select
 from app.core.security import create_access_token, hash_password
 from app.db.session import SessionLocal
 from app.integrations.enums import IntegrationExecutionStatus, IntegrationProvider, IntegrationStatus, IntegrationType
-from app.integrations.exceptions import IntegrationConfigurationError, IntegrationProviderExecutionError, IntegrationProviderUnsupportedError
+from app.integrations.exceptions import (
+    IntegrationConfigurationError,
+    IntegrationOperationUnsupportedError,
+    IntegrationProviderExecutionError,
+    IntegrationProviderUnsupportedError,
+)
 from app.integrations.providers.mock import MockIntegrationProvider
 from app.integrations.registry import provider_registry
 from app.main import app
@@ -88,10 +93,10 @@ def _create_integration(db, *, name: str = "Test 11.2 Mock", provider: Integrati
 
 def test_registry_resolves_mock_and_rejects_future_provider() -> None:
     assert provider_registry.get(IntegrationProvider.mock).provider == "mock"
-    assert provider_registry.is_supported(IntegrationProvider.google_meet) is False
+    assert provider_registry.get(IntegrationProvider.google_meet).provider == "google_meet"
 
     with pytest.raises(IntegrationProviderUnsupportedError):
-        provider_registry.get(IntegrationProvider.google_meet)
+        provider_registry.get(IntegrationProvider.twilio)
 
 
 def test_mock_provider_validates_config_and_rejects_invalid_config(db_session) -> None:
@@ -153,7 +158,7 @@ def test_service_rejects_enable_for_future_provider(db_session) -> None:
         admin,
     )
 
-    with pytest.raises(IntegrationProviderUnsupportedError):
+    with pytest.raises(IntegrationOperationUnsupportedError):
         service.enable_integration(integration.id, admin)
 
 

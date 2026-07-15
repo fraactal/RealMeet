@@ -29,6 +29,8 @@ class Integration(Base, TimestampMixin):
     last_error_message: Mapped[str | None] = mapped_column(String(500))
 
     executions: Mapped[list["IntegrationExecution"]] = relationship("IntegrationExecution", back_populates="integration")
+    credentials: Mapped[list["IntegrationCredential"]] = relationship("IntegrationCredential", back_populates="integration")
+    oauth_states: Mapped[list["IntegrationOAuthState"]] = relationship("IntegrationOAuthState", back_populates="integration")
 
 
 class IntegrationExecution(Base):
@@ -56,3 +58,39 @@ class IntegrationExecution(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     integration: Mapped[Integration] = relationship("Integration", back_populates="executions")
+
+
+class IntegrationCredential(Base, TimestampMixin):
+    __tablename__ = "integration_credentials"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    integration_id: Mapped[int] = mapped_column(ForeignKey("integrations.id"), nullable=False)
+    credential_type: Mapped[str] = mapped_column(String(40), nullable=False)
+    encrypted_access_token: Mapped[str | None] = mapped_column(Text)
+    encrypted_refresh_token: Mapped[str | None] = mapped_column(Text)
+    token_type: Mapped[str | None] = mapped_column(String(40))
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    scopes: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    external_account_id: Mapped[str | None] = mapped_column(String(120))
+    external_account_email: Mapped[str | None] = mapped_column(String(255))
+    authorized_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_refresh_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_error_message: Mapped[str | None] = mapped_column(String(500))
+
+    integration: Mapped[Integration] = relationship("Integration", back_populates="credentials")
+
+
+class IntegrationOAuthState(Base):
+    __tablename__ = "integration_oauth_states"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    integration_id: Mapped[int] = mapped_column(ForeignKey("integrations.id"), nullable=False)
+    admin_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    provider: Mapped[IntegrationProvider] = mapped_column(Enum(IntegrationProvider, name="integration_provider"), nullable=False)
+    nonce_hash: Mapped[str] = mapped_column(String(128), nullable=False, unique=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    integration: Mapped[Integration] = relationship("Integration", back_populates="oauth_states")

@@ -13,8 +13,10 @@ from app.integrations.exceptions import (
     IntegrationError,
     IntegrationExecutionInProgressError,
     IntegrationNotFoundError,
+    IntegrationOperationUnsupportedError,
     IntegrationProviderUnsupportedError,
 )
+from app.integrations.google_oauth import GoogleOAuthService
 from app.models.audit_log import AuditLog
 from app.models.appointment import Appointment, AppointmentStatus
 from app.models.category import Category
@@ -37,6 +39,10 @@ from app.schemas.admin import (
 from app.schemas.appointments import AppointmentAdminRead, AppointmentHistoryRead, AppointmentMeetingRead, AppointmentStatusUpdate
 from app.schemas.categories import CategoryAdminRead, CategoryCreate, CategoryUpdate
 from app.schemas.integrations import (
+    GoogleOAuthAuthorizationUrlRead,
+    GoogleOAuthCallbackRead,
+    GoogleOAuthDisconnectRead,
+    GoogleOAuthStatusRead,
     IntegrationExecutionRead,
     IntegrationListResponse,
     IntegrationOperationResultRead,
@@ -191,6 +197,85 @@ def list_integration_executions(
     except IntegrationError as exc:
         raise _integration_http_error(exc) from exc
     return [IntegrationExecutionRead.model_validate(item) for item in items]
+
+
+@router.post("/integrations/{integration_id}/oauth/google/authorize", response_model=GoogleOAuthAuthorizationUrlRead)
+def authorize_google_oauth(
+    integration_id: int,
+    admin_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> GoogleOAuthAuthorizationUrlRead:
+    try:
+        authorization_url, expires_at = GoogleOAuthService(db).authorization_url(integration_id, admin_user)
+    except IntegrationError as exc:
+        raise _integration_http_error(exc) from exc
+    return GoogleOAuthAuthorizationUrlRead(authorization_url=authorization_url, state_expires_at=expires_at)
+
+
+@router.get("/integrations/oauth/google/callback", response_model=GoogleOAuthCallbackRead)
+def google_oauth_callback(code: str | None = None, state: str | None = None, db: Session = Depends(get_db)) -> GoogleOAuthCallbackRead:
+    if not code or not state:
+        return GoogleOAuthCallbackRead(
+            success=False,
+            status="error",
+            message="No pudimos completar la autorizacion.",
+            redirect_url="/dashboard/admin/integrations?google_oauth=error",
+        )
+    try:
+        GoogleOAuthService(db).callback(code=code, state=state)
+    except IntegrationError:
+        return GoogleOAuthCallbackRead(
+            success=False,
+            status="error",
+            message="No pudimos completar la autorizacion.",
+            redirect_url="/dashboard/admin/integrations?google_oauth=error",
+        )
+    return GoogleOAuthCallbackRead(
+        success=True,
+        status="connected",
+        message="Cuenta Google conectada correctamente.",
+        redirect_url="/dashboard/admin/integrations?google_oauth=connected",
+    )
+
+
+@router.get("/integrations/{integration_id}/oauth/status", response_model=GoogleOAuthStatusRead)
+def google_oauth_status(
+    integration_id: int,
+    admin_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> GoogleOAuthStatusRead:
+    try:
+        status_data = GoogleOAuthService(db).status(integration_id)
+    except IntegrationError as exc:
+        raise _integration_http_error(exc) from exc
+    return GoogleOAuthStatusRead(**status_data)
+
+
+@router.post("/integrations/{integration_id}/oauth/refresh", response_model=GoogleOAuthStatusRead)
+def refresh_google_oauth(
+    integration_id: int,
+    admin_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> GoogleOAuthStatusRead:
+    try:
+        GoogleOAuthService(db).refresh(integration_id, admin_user)
+        status_data = GoogleOAuthService(db).status(integration_id)
+    except IntegrationError as exc:
+        raise _integration_http_error(exc) from exc
+    return GoogleOAuthStatusRead(**status_data)
+
+
+@router.post("/integrations/{integration_id}/oauth/disconnect", response_model=GoogleOAuthDisconnectRead)
+def disconnect_google_oauth(
+    integration_id: int,
+    admin_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> GoogleOAuthDisconnectRead:
+    try:
+        GoogleOAuthService(db).disconnect(integration_id, admin_user)
+    except IntegrationError as exc:
+        raise _integration_http_error(exc) from exc
+    return GoogleOAuthDisconnectRead(success=True, status="revoked", message="Cuenta Google desconectada.")
 
 
 @router.get("/users", response_model=AdminUserListResponse)
@@ -438,7 +523,9 @@ def _integration_http_error(exc: IntegrationError) -> HTTPException:
         return HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=exc.message)
     if isinstance(exc, IntegrationConfigurationError):
         return HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=exc.message)
-    if isinstance(exc, (IntegrationProviderUnsupportedError, IntegrationDisabledError, IntegrationExecutionInProgressError)):
+    if isinstance(exc, (IntegrationProviderUnsupportedError, IntegrationDisabledError, IntegrationExecutionInProgressError, IntegrationOperationUnsupportedError)):
+        return HTTPException(status_code=status.HTTP_409_CONFLICT, detail=exc.message)
+    if getattr(exc, "code", "").startswith("google_oauth"):
         return HTTPException(status_code=status.HTTP_409_CONFLICT, detail=exc.message)
     return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Integration operation failed")
 

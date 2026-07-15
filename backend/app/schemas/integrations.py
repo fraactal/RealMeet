@@ -146,3 +146,35 @@ class IntegrationExecutionRead(ORMModel):
     started_at: datetime | None
     finished_at: datetime | None
     created_at: datetime
+
+
+class GoogleOAuthAuthorizationUrlRead(BaseModel):
+    authorization_url: str
+    state_expires_at: datetime
+
+
+class GoogleOAuthCallbackRead(BaseModel):
+    success: bool
+    status: str
+    message: str
+    redirect_url: str | None = None
+
+
+class GoogleOAuthStatusRead(BaseModel):
+    status: str
+    provider: IntegrationProvider
+    connected: bool
+    external_account_email: str | None = None
+    external_account_id: str | None = None
+    scopes: list[str] = Field(default_factory=list)
+    authorized_at: datetime | None = None
+    expires_at: datetime | None = None
+    last_refresh_at: datetime | None = None
+    revoked_at: datetime | None = None
+    last_error_message: str | None = None
+
+
+class GoogleOAuthDisconnectRead(BaseModel):
+    success: bool
+    status: str
+    message: str

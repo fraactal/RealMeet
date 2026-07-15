@@ -2,12 +2,16 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
+  createGoogleOAuthAuthorizationUrl,
   createAdminIntegration,
   disableAdminIntegration,
+  disconnectGoogleOAuth,
   enableAdminIntegration,
   fetchAdminIntegrationExecutions,
   fetchAdminIntegrations,
+  fetchGoogleOAuthStatus,
   healthCheckAdminIntegration,
+  refreshGoogleOAuth,
   testAdminIntegration,
   updateAdminIntegration,
   validateAdminIntegration,
@@ -24,6 +28,7 @@ import type {
   IntegrationStatus,
   IntegrationType,
   IntegrationUpdatePayload,
+  GoogleOAuthStatus,
 } from "../types";
 import { formatDateTime } from "../utils/dates";
 import {
@@ -47,6 +52,7 @@ const INTEGRATION_PROVIDERS: IntegrationProvider[] = [
 ];
 const INTEGRATION_STATUSES: IntegrationStatus[] = ["not_configured", "configured", "healthy", "error", "unsupported"];
 const SUPPORTED_PROVIDERS: IntegrationProvider[] = ["mock"];
+const CONFIGURABLE_PROVIDERS: IntegrationProvider[] = ["mock", "google_meet"];
 const PAGE_SIZE = 20;
 
 interface FormState {
@@ -104,11 +110,17 @@ export function AdminIntegrationsPage() {
     queryFn: () => fetchAdminIntegrationExecutions(selectedIntegration?.id ?? 0),
     enabled: Boolean(selectedIntegration?.id),
   });
+  const googleOAuthStatusQuery = useQuery({
+    queryKey: ["admin-google-oauth-status", selectedIntegration?.id],
+    queryFn: () => fetchGoogleOAuthStatus(selectedIntegration?.id ?? 0),
+    enabled: selectedIntegration?.provider === "google_meet",
+  });
 
   const refreshIntegrations = () => {
     void queryClient.invalidateQueries({ queryKey: ["admin-integrations"] });
     if (selectedIntegration?.id) {
       void queryClient.invalidateQueries({ queryKey: ["admin-integration-executions", selectedIntegration.id] });
+      void queryClient.invalidateQueries({ queryKey: ["admin-google-oauth-status", selectedIntegration.id] });
     }
   };
 
@@ -151,6 +163,20 @@ export function AdminIntegrationsPage() {
       setLastResult(result);
       refreshIntegrations();
     },
+  });
+  const googleAuthorizeMutation = useMutation({
+    mutationFn: (id: number) => createGoogleOAuthAuthorizationUrl(id),
+    onSuccess: (result) => {
+      window.location.assign(result.authorization_url);
+    },
+  });
+  const googleRefreshMutation = useMutation({
+    mutationFn: (id: number) => refreshGoogleOAuth(id),
+    onSuccess: () => refreshIntegrations(),
+  });
+  const googleDisconnectMutation = useMutation({
+    mutationFn: (id: number) => disconnectGoogleOAuth(id),
+    onSuccess: () => refreshIntegrations(),
   });
 
   const openCreate = () => {
@@ -206,7 +232,10 @@ export function AdminIntegrationsPage() {
     getMutationError(enableMutation.error) ??
     getMutationError(disableMutation.error) ??
     getMutationError(healthMutation.error) ??
-    getMutationError(testMutation.error);
+    getMutationError(testMutation.error) ??
+    getMutationError(googleAuthorizeMutation.error) ??
+    getMutationError(googleRefreshMutation.error) ??
+    getMutationError(googleDisconnectMutation.error);
 
   return (
     <div className="space-y-6">
@@ -214,7 +243,7 @@ export function AdminIntegrationsPage() {
 
       <SectionCard
         title="Integraciones configuradas"
-        description="Solo el proveedor mock esta disponible para ejecucion en esta etapa. Los demas proveedores se habilitaran en modulos posteriores."
+        description="Mock esta disponible para pruebas internas. Google Meet queda en preparacion OAuth y no crea reuniones reales en esta etapa."
         actions={<Button onClick={openCreate}>Crear integracion</Button>}
       >
         <div className="grid gap-4 md:grid-cols-4">
@@ -321,7 +350,10 @@ export function AdminIntegrationsPage() {
                 <InfoItem label="Ultimo exito" value={formatOptionalDate(selectedIntegration.last_success_at)} />
                 <InfoItem label="Ultimo error" value={selectedIntegration.last_error_message ?? "Sin errores"} />
               </div>
-              {!isSupportedProvider(selectedIntegration.provider) ? (
+              {selectedIntegration.provider === "google_meet" ? (
+                <p className="mt-4 rounded-md border border-slate-200 bg-white p-3 text-sm text-ink-600">Conexion Google en preparacion. La autorizacion OAuth queda lista para 12.2, pero RealMeet todavia no crea reuniones reales.</p>
+              ) : null}
+              {!isSupportedProvider(selectedIntegration.provider) && selectedIntegration.provider !== "google_meet" ? (
                 <p className="mt-4 rounded-md border border-slate-200 bg-white p-3 text-sm text-ink-600">Proveedor aun no soportado. Puedes revisar o editar su configuracion, pero no habilitarlo ni ejecutar pruebas.</p>
               ) : null}
               <div className="mt-4 flex flex-wrap gap-2">
@@ -333,6 +365,19 @@ export function AdminIntegrationsPage() {
                   </>
                 ) : null}
               </div>
+              {selectedIntegration.provider === "google_meet" ? (
+                <GoogleOAuthPanel
+                  integration={selectedIntegration}
+                  isAuthorizing={googleAuthorizeMutation.isPending}
+                  isDisconnecting={googleDisconnectMutation.isPending}
+                  isRefreshing={googleRefreshMutation.isPending}
+                  onAuthorize={() => googleAuthorizeMutation.mutate(selectedIntegration.id)}
+                  onDisconnect={() => window.confirm("Se desconectara localmente la cuenta Google. La integracion se conserva y no se borran ejecuciones.") && googleDisconnectMutation.mutate(selectedIntegration.id)}
+                  onRefresh={() => googleRefreshMutation.mutate(selectedIntegration.id)}
+                  status={googleOAuthStatusQuery.data}
+                  statusLoading={googleOAuthStatusQuery.isLoading}
+                />
+              ) : null}
             </div>
 
             <div className="rounded-lg border border-slate-200 bg-white p-4">
@@ -414,6 +459,16 @@ function isSupportedProvider(provider: IntegrationProvider): boolean {
   return SUPPORTED_PROVIDERS.includes(provider);
 }
 
+function isConfigurableProvider(provider: IntegrationProvider): boolean {
+  return CONFIGURABLE_PROVIDERS.includes(provider);
+}
+
+function providerStageText(provider: IntegrationProvider): string {
+  if (provider === "mock") return "Disponible para pruebas";
+  if (provider === "google_meet") return "Conexion Google en preparacion";
+  return "Proximamente";
+}
+
 function IntegrationStatusBadges({ integration }: { integration: Integration }) {
   const tone: "success" | "danger" | "neutral" | "warning" = integration.status === "healthy" || integration.status === "configured" ? "success" : integration.status === "error" ? "danger" : integration.status === "unsupported" ? "neutral" : "warning";
   return (
@@ -430,7 +485,7 @@ function IntegrationRow(props: IntegrationItemProps) {
     <tr className={isSelected ? "bg-brand-50/60" : "transition hover:bg-slate-50"}>
       <td className="px-4 py-4">
         <button className="text-left font-semibold text-ink-900 hover:text-brand-700" onClick={onSelect} type="button">{integration.name}</button>
-        <p className="mt-1 text-xs text-ink-500">{isSupportedProvider(integration.provider) ? "Disponible para pruebas" : "Proximamente"}</p>
+        <p className="mt-1 text-xs text-ink-500">{providerStageText(integration.provider)}</p>
       </td>
       <td className="px-4 py-4">{getIntegrationTypeLabel(integration.integration_type)}</td>
       <td className="px-4 py-4">{getIntegrationProviderLabel(integration.provider)}</td>
@@ -479,11 +534,72 @@ function IntegrationActions({ integration, loading, onDisable, onEdit, onEnable,
   return (
     <div className="flex flex-wrap justify-end gap-2">
       <Button onClick={onEdit} size="sm" variant="secondary">Editar</Button>
-      {supported ? <Button isLoading={loading} onClick={onValidate} size="sm" variant="secondary">Validar</Button> : <Button disabled size="sm" title="Proveedor aun no soportado" variant="secondary">Proximamente</Button>}
+      {supported || integration.provider === "google_meet" ? <Button isLoading={loading} onClick={onValidate} size="sm" variant="secondary">Validar</Button> : <Button disabled size="sm" title="Proveedor aun no soportado" variant="secondary">Proximamente</Button>}
       {supported && !integration.enabled ? <Button isLoading={loading} onClick={() => window.confirm("La integracion comenzara a estar disponible para operaciones futuras. En este modulo solo mock tiene ejecucion real.") && onEnable()} size="sm">Habilitar</Button> : null}
       {supported && integration.enabled ? <Button isLoading={loading} onClick={() => window.confirm("La configuracion se conservara, pero la integracion no podra ejecutar pruebas ni chequeos.") && onDisable()} size="sm" variant="secondary">Deshabilitar</Button> : null}
+      {integration.provider === "google_meet" ? <Button disabled size="sm" title="Google Meet todavia no crea reuniones reales" variant="secondary">OAuth</Button> : null}
     </div>
   );
+}
+
+function GoogleOAuthPanel({
+  integration,
+  isAuthorizing,
+  isDisconnecting,
+  isRefreshing,
+  onAuthorize,
+  onDisconnect,
+  onRefresh,
+  status,
+  statusLoading,
+}: {
+  integration: Integration;
+  isAuthorizing: boolean;
+  isDisconnecting: boolean;
+  isRefreshing: boolean;
+  onAuthorize: () => void;
+  onDisconnect: () => void;
+  onRefresh: () => void;
+  status?: GoogleOAuthStatus;
+  statusLoading: boolean;
+}) {
+  const connected = status?.connected ?? false;
+  return (
+    <div className="mt-4 rounded-lg border border-slate-200 bg-white p-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h3 className="text-base font-semibold text-ink-900">Conexion Google OAuth</h3>
+          <p className="mt-1 text-sm leading-6 text-ink-500">La autorizacion queda preparada, pero RealMeet todavia no crea reuniones reales en este submodulo.</p>
+        </div>
+        <Badge label={statusLoading ? "Revisando" : getGoogleOAuthStatusLabel(status?.status ?? "not_connected")} tone={connected ? "success" : status?.status === "error" ? "danger" : "warning"} />
+      </div>
+      <div className="mt-4 grid gap-3 text-sm text-ink-600 sm:grid-cols-2">
+        <InfoItem label="Cuenta autorizada" value={status?.external_account_email ?? "Sin cuenta conectada"} />
+        <InfoItem label="Expiracion token" value={formatOptionalDate(status?.expires_at)} />
+        <InfoItem label="Ultimo refresh" value={formatOptionalDate(status?.last_refresh_at)} />
+        <InfoItem label="Scopes" value={status?.scopes?.join(", ") || "Sin scopes conectados"} />
+      </div>
+      {status?.last_error_message ? <p className="mt-3 rounded-md border border-danger-200 bg-danger-50 p-3 text-sm text-danger-700">{status.last_error_message}</p> : null}
+      <div className="mt-4 flex flex-wrap gap-2">
+        {!connected ? <Button isLoading={isAuthorizing} onClick={onAuthorize}>Conectar con Google</Button> : null}
+        {connected ? <Button isLoading={isRefreshing} onClick={onRefresh} variant="secondary">Refrescar token</Button> : null}
+        {connected ? <Button isLoading={isDisconnecting} onClick={onDisconnect} variant="secondary">Desconectar</Button> : null}
+      </div>
+      <p className="mt-3 text-xs text-ink-500">Integracion #{integration.id}. No se muestran tokens, codigos OAuth ni secretos.</p>
+    </div>
+  );
+}
+
+function getGoogleOAuthStatusLabel(status: GoogleOAuthStatus["status"]): string {
+  const labels: Record<GoogleOAuthStatus["status"], string> = {
+    not_connected: "Sin conectar",
+    pending: "Pendiente",
+    connected: "Conectada",
+    expired: "Expirada",
+    revoked: "Revocada",
+    error: "Con error",
+  };
+  return labels[status];
 }
 
 function IntegrationFormModal({ form, isSaving, onChange, onClose, onSave }: { form: FormState; isSaving: boolean; onChange: (form: FormState) => void; onClose: () => void; onSave: () => void }) {
@@ -516,8 +632,16 @@ function IntegrationFormModal({ form, isSaving, onChange, onClose, onSave }: { f
             </Select>
           </Field>
           <Field label="Proveedor" id="integration-provider">
-            <Select id="integration-provider" disabled={editing} value={form.provider} onChange={(event) => onChange({ ...form, provider: event.target.value as IntegrationProvider })}>
-              {INTEGRATION_PROVIDERS.map((provider) => <option disabled={provider !== "mock"} key={provider} value={provider}>{getIntegrationProviderLabel(provider)}{provider !== "mock" ? " - Proximamente" : ""}</option>)}
+            <Select
+              id="integration-provider"
+              disabled={editing}
+              value={form.provider}
+              onChange={(event) => {
+                const provider = event.target.value as IntegrationProvider;
+                onChange({ ...form, provider, integration_type: provider === "google_meet" ? "meeting" : form.integration_type });
+              }}
+            >
+              {INTEGRATION_PROVIDERS.map((provider) => <option disabled={!isConfigurableProvider(provider)} key={provider} value={provider}>{getIntegrationProviderLabel(provider)}{provider === "google_meet" ? " - OAuth preparado" : !isConfigurableProvider(provider) ? " - Proximamente" : ""}</option>)}
             </Select>
           </Field>
           <Field label="Referencia de secreto" id="integration-secret">
@@ -545,7 +669,7 @@ function IntegrationFormModal({ form, isSaving, onChange, onClose, onSave }: { f
             </div>
           </div>
         ) : (
-          <p className="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-ink-600">La configuracion especifica de este proveedor estara disponible en una proxima etapa.</p>
+          <p className="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-ink-600">{form.provider === "google_meet" ? "Google Meet se conectara mediante OAuth administrativo. La creacion real de reuniones se habilitara en 12.2." : "La configuracion especifica de este proveedor estara disponible en una proxima etapa."}</p>
         )}
         <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <Button onClick={onClose} variant="secondary">Cancelar</Button>

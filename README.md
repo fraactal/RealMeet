@@ -407,6 +407,7 @@ Principales dependencias documentadas:
 - passlib - BSD
 - APScheduler - MIT
 - python-dotenv - BSD-3-Clause
+- cryptography - Apache-2.0/BSD, usado para cifrado autenticado de tokens OAuth recuperables.
 
 ### Frontend
 
@@ -441,6 +442,21 @@ Readiness:
 - Uso clinico real: no listo; requiere privacidad clinica, consentimiento, retencion, auditoria regulatoria y cumplimiento legal.
 
 Modulo 9 agrega hardening tecnico para staging: settings por entorno, rechazo de secretos inseguros en staging/production, headers HTTP, rate limiting basico, Swagger configurable, seed demo configurable, Docker no root cuando es viable y documentacion de backup/restauracion.
+
+## Integraciones Google OAuth
+
+El Modulo 12.1 prepara autorizacion OAuth administrativa para una integracion `google_meet`. La autorizacion OAuth queda preparada, pero RealMeet todavia no crea reuniones reales en este submodulo.
+
+Variables:
+
+- `GOOGLE_OAUTH_CLIENT_ID`: client ID de Google Cloud. Debe quedar vacio en Git.
+- `GOOGLE_OAUTH_CLIENT_SECRET`: client secret de Google Cloud. Debe quedar vacio en Git.
+- `GOOGLE_OAUTH_REDIRECT_URI`: callback backend, por defecto local `http://localhost:18000/api/v1/admin/integrations/oauth/google/callback`.
+- `GOOGLE_OAUTH_SCOPES`: scope minimo `https://www.googleapis.com/auth/calendar.events`.
+- `GOOGLE_OAUTH_STATE_TTL_SECONDS`: TTL del state firmado.
+- `GOOGLE_TOKEN_ENCRYPTION_KEY`: clave Fernet generada fuera del repositorio.
+
+Para crear credenciales en Google Cloud, configura una aplicacion OAuth web, registra el redirect URI exacto y solicita solo el scope de eventos de calendario. No agregues Gmail, Drive, contactos ni scopes amplios. Los tokens de la cuenta autorizada se guardan cifrados en base de datos y nunca se muestran en API ni frontend.
 
 ## Plan sugerido de commits
 

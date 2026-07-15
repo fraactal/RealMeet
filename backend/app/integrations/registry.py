@@ -2,6 +2,7 @@ from app.integrations.contracts import IntegrationProvider as IntegrationProvide
 from app.integrations.enums import IntegrationProvider
 from app.integrations.exceptions import IntegrationProviderUnsupportedError
 from app.integrations.providers.mock import MockIntegrationProvider
+from app.integrations.providers.google_meet import GoogleMeetIntegrationProvider
 
 
 class IntegrationProviderRegistry:
@@ -23,3 +24,4 @@ class IntegrationProviderRegistry:
 
 provider_registry = IntegrationProviderRegistry()
 provider_registry.register(IntegrationProvider.mock, MockIntegrationProvider())
+provider_registry.register(IntegrationProvider.google_meet, GoogleMeetIntegrationProvider())

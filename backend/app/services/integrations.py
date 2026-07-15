@@ -12,6 +12,7 @@ from app.integrations.exceptions import (
     IntegrationError,
     IntegrationExecutionInProgressError,
     IntegrationNotFoundError,
+    IntegrationOperationUnsupportedError,
     IntegrationProviderExecutionError,
     IntegrationProviderUnexpectedError,
 )
@@ -104,6 +105,8 @@ class IntegrationService:
 
     def enable_integration(self, integration_id: int, admin_user: User) -> Integration:
         integration = self.get_integration(integration_id)
+        if integration.provider == IntegrationProvider.google_meet:
+            raise IntegrationOperationUnsupportedError("Google Meet aun no puede habilitarse como proveedor operativo", code="google_meet_not_operational")
         self.validate_configuration(integration.id, admin_user)
         integration.enabled = True
         if integration.status == IntegrationStatus.not_configured:

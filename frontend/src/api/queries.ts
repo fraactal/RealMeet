@@ -23,6 +23,9 @@ import type {
   ClientSelfProfileUpdate,
   ClientRegisterPayload,
   ClientDashboard,
+  GoogleOAuthAuthorizationUrl,
+  GoogleOAuthDisconnectResult,
+  GoogleOAuthStatus,
   Integration,
   IntegrationCreatePayload,
   IntegrationExecution,
@@ -379,5 +382,25 @@ export async function testAdminIntegration(integrationId: number, payload: Integ
 
 export async function fetchAdminIntegrationExecutions(integrationId: number): Promise<IntegrationExecution[]> {
   const { data } = await api.get(`/admin/integrations/${integrationId}/executions`);
+  return data;
+}
+
+export async function fetchGoogleOAuthStatus(integrationId: number): Promise<GoogleOAuthStatus> {
+  const { data } = await api.get(`/admin/integrations/${integrationId}/oauth/status`);
+  return data;
+}
+
+export async function createGoogleOAuthAuthorizationUrl(integrationId: number): Promise<GoogleOAuthAuthorizationUrl> {
+  const { data } = await api.post(`/admin/integrations/${integrationId}/oauth/google/authorize`);
+  return data;
+}
+
+export async function refreshGoogleOAuth(integrationId: number): Promise<GoogleOAuthStatus> {
+  const { data } = await api.post(`/admin/integrations/${integrationId}/oauth/refresh`);
+  return data;
+}
+
+export async function disconnectGoogleOAuth(integrationId: number): Promise<GoogleOAuthDisconnectResult> {
+  const { data } = await api.post(`/admin/integrations/${integrationId}/oauth/disconnect`);
   return data;
 }

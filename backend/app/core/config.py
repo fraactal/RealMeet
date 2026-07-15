@@ -41,6 +41,15 @@ class Settings(BaseSettings):
     enable_demo_seed: bool | None = Field(default=None, alias="ENABLE_DEMO_SEED")
     backend_host: str = Field(default="0.0.0.0", alias="BACKEND_HOST")
     backend_port: int = Field(default=8000, alias="BACKEND_PORT")
+    google_oauth_client_id: str | None = Field(default=None, alias="GOOGLE_OAUTH_CLIENT_ID")
+    google_oauth_client_secret: str | None = Field(default=None, alias="GOOGLE_OAUTH_CLIENT_SECRET")
+    google_oauth_redirect_uri: str | None = Field(default=None, alias="GOOGLE_OAUTH_REDIRECT_URI")
+    google_oauth_scopes: Annotated[list[str], NoDecode] = Field(
+        default_factory=lambda: ["https://www.googleapis.com/auth/calendar.events"],
+        alias="GOOGLE_OAUTH_SCOPES",
+    )
+    google_oauth_state_ttl_seconds: int = Field(default=600, alias="GOOGLE_OAUTH_STATE_TTL_SECONDS")
+    google_token_encryption_key: str | None = Field(default=None, alias="GOOGLE_TOKEN_ENCRYPTION_KEY")
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -111,6 +120,39 @@ class Settings(BaseSettings):
             raise ValueError("Rate limit values must be positive")
         return value
 
+    @field_validator("google_oauth_scopes", mode="before")
+    @classmethod
+    def parse_google_oauth_scopes(cls, value: str | list[str]) -> list[str]:
+        if isinstance(value, str):
+            stripped = value.strip()
+            if not stripped:
+                return ["https://www.googleapis.com/auth/calendar.events"]
+            if stripped.startswith("["):
+                parsed = json.loads(stripped)
+                if not isinstance(parsed, list) or not all(isinstance(item, str) for item in parsed):
+                    raise ValueError("GOOGLE_OAUTH_SCOPES JSON must be an array of strings")
+                return [item.strip() for item in parsed if item.strip()]
+            return [item.strip() for item in stripped.split(",") if item.strip()]
+        return value
+
+    @field_validator("google_oauth_scopes")
+    @classmethod
+    def validate_google_oauth_scopes(cls, value: list[str]) -> list[str]:
+        allowed = {"https://www.googleapis.com/auth/calendar.events"}
+        if not value:
+            return ["https://www.googleapis.com/auth/calendar.events"]
+        invalid = sorted(set(value) - allowed)
+        if invalid:
+            raise ValueError(f"Unsupported GOOGLE_OAUTH_SCOPES entries: {', '.join(invalid)}")
+        return value
+
+    @field_validator("google_oauth_state_ttl_seconds")
+    @classmethod
+    def validate_google_state_ttl(cls, value: int) -> int:
+        if value < 60 or value > 3600:
+            raise ValueError("GOOGLE_OAUTH_STATE_TTL_SECONDS must be between 60 and 3600")
+        return value
+
     @model_validator(mode="after")
     def validate_environment_safety(self) -> "Settings":
         if self.app_env in STRICT_ENVS:
@@ -149,6 +191,17 @@ class Settings(BaseSettings):
         if self.app_env in {"production", "prod"} and self.demo_seed_enabled:
             errors.append("ENABLE_DEMO_SEED must be false in production")
         return errors
+
+    @property
+    def google_oauth_configured(self) -> bool:
+        return all(
+            [
+                self.google_oauth_client_id,
+                self.google_oauth_client_secret,
+                self.google_oauth_redirect_uri,
+                self.google_token_encryption_key,
+            ]
+        )
 
 
 @lru_cache

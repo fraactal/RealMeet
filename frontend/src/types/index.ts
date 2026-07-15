@@ -516,3 +516,28 @@ export interface IntegrationUpdatePayload {
 export interface IntegrationTestPayload {
   idempotency_key: string;
 }
+
+export interface GoogleOAuthAuthorizationUrl {
+  authorization_url: string;
+  state_expires_at: string;
+}
+
+export interface GoogleOAuthStatus {
+  status: "not_connected" | "pending" | "connected" | "expired" | "revoked" | "error";
+  provider: "google_meet";
+  connected: boolean;
+  external_account_email?: string | null;
+  external_account_id?: string | null;
+  scopes: string[];
+  authorized_at?: string | null;
+  expires_at?: string | null;
+  last_refresh_at?: string | null;
+  revoked_at?: string | null;
+  last_error_message?: string | null;
+}
+
+export interface GoogleOAuthDisconnectResult {
+  success: boolean;
+  status: string;
+  message: string;
+}
