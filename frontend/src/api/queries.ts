@@ -7,6 +7,7 @@ import type {
   AdminUserListResponse,
   AdminUserUpdate,
   Appointment,
+  AppointmentNotification,
   AppointmentCreate,
   AppointmentPrivateNotesUpdate,
   AppointmentProfessionalStatusUpdate,
@@ -40,12 +41,14 @@ import type {
   IntegrationType,
   IntegrationUpdatePayload,
   WhatsAppConsentCorrectionPayload,
+  WhatsAppConsentPurpose,
   WhatsAppConsentSummary,
   WhatsAppHealthCheckResult,
   WhatsAppIntegrationStatus,
   WhatsAppMessage,
   WhatsAppMessageSendPayload,
   WhatsAppMessageSendResult,
+  WhatsAppNotificationPolicy,
   WhatsAppTemplate,
   WhatsAppTemplateSyncResult,
   WhatsAppTemplateWrite,
@@ -521,6 +524,43 @@ export async function retryWhatsAppMessage(integrationId: number, messageId: num
   return data;
 }
 
+export async function fetchWhatsAppNotificationPolicy(integrationId: number): Promise<WhatsAppNotificationPolicy> {
+  const { data } = await api.get(`/admin/integrations/${integrationId}/whatsapp/notification-policy`);
+  return data;
+}
+
+export async function updateWhatsAppNotificationPolicy(integrationId: number, payload: WhatsAppNotificationPolicy): Promise<WhatsAppNotificationPolicy> {
+  const { data } = await api.patch(`/admin/integrations/${integrationId}/whatsapp/notification-policy`, {
+    notification_policy: payload.notification_policy,
+    fallback_channel: payload.fallback_channel,
+    reminder_enabled: payload.reminder_enabled,
+    reminder_minutes_before: payload.reminder_minutes_before,
+    default_language: payload.default_language,
+    template_mapping: payload.template_mapping,
+  });
+  return data;
+}
+
+export async function fetchAppointmentNotifications(params: { appointment_id?: number; limit?: number; offset?: number } = {}): Promise<AppointmentNotification[]> {
+  const { data } = await api.get("/admin/appointment-notifications", { params });
+  return data;
+}
+
+export async function retryAppointmentNotification(notificationId: number): Promise<AppointmentNotification> {
+  const { data } = await api.post(`/admin/appointment-notifications/${notificationId}/retry`);
+  return data;
+}
+
+export async function reconcileAppointmentNotification(notificationId: number): Promise<AppointmentNotification> {
+  const { data } = await api.post(`/admin/appointment-notifications/${notificationId}/reconcile`);
+  return data;
+}
+
+export async function cancelAppointmentNotification(notificationId: number): Promise<AppointmentNotification> {
+  const { data } = await api.post(`/admin/appointment-notifications/${notificationId}/cancel`);
+  return data;
+}
+
 export async function fetchWhatsAppConsents(): Promise<WhatsAppConsentSummary[]> {
   const { data } = await api.get("/admin/whatsapp/consents");
   return data;
@@ -528,5 +568,25 @@ export async function fetchWhatsAppConsents(): Promise<WhatsAppConsentSummary[]>
 
 export async function createWhatsAppConsentCorrection(payload: WhatsAppConsentCorrectionPayload): Promise<WhatsAppConsentSummary> {
   const { data } = await api.post("/admin/whatsapp/consents/corrections", payload);
+  return data;
+}
+
+export async function fetchMyWhatsAppConsents(): Promise<WhatsAppConsentSummary[]> {
+  const { data } = await api.get("/users/me/whatsapp-consents");
+  return data;
+}
+
+export async function grantMyWhatsAppConsent(payload: {
+  phone: string;
+  purpose: WhatsAppConsentPurpose;
+  consent_text_version: string;
+  explicit_confirmation: boolean;
+}): Promise<WhatsAppConsentSummary> {
+  const { data } = await api.post("/users/me/whatsapp-consents", payload);
+  return data;
+}
+
+export async function revokeMyWhatsAppConsent(purpose: WhatsAppConsentPurpose): Promise<WhatsAppConsentSummary> {
+  const { data } = await api.delete(`/users/me/whatsapp-consents/${purpose}`);
   return data;
 }

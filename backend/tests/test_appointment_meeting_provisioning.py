@@ -243,6 +243,9 @@ def _google_integration(db, *, policy: str, status: IntegrationStatus) -> Integr
 
 def _cleanup(db) -> None:
     appointments = list(db.scalars(select(Appointment.id).join(ClientProfile, Appointment.client_id == ClientProfile.id).join(User, ClientProfile.user_id == User.id).where(User.email.like("test-12-3-%"))))
+    user_ids = list(db.scalars(select(User.id).where(User.email.like("test-12-3-%"))))
+    if user_ids:
+        db.execute(delete(AuditLog).where(AuditLog.user_id.in_(user_ids)))
     if appointments:
         db.execute(delete(AppointmentMeeting).where(AppointmentMeeting.appointment_id.in_(appointments)))
         db.execute(delete(Appointment).where(Appointment.id.in_(appointments)))

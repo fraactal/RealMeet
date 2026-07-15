@@ -32,7 +32,7 @@ class WhatsAppSecretReferences(BaseModel):
 
 
 class WhatsAppIntegrationConfig(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="ignore")
 
     waba_id: str = Field(min_length=5, max_length=32)
     phone_number_id: str = Field(min_length=5, max_length=32)

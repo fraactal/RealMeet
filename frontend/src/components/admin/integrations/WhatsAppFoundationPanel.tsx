@@ -3,12 +3,15 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Badge, Button, EmptyState, ErrorState, Input, Label, LoadingState, Select } from "../../ui";
 import type {
   Integration,
+  AppointmentNotification,
   WhatsAppConsentCorrectionPayload,
   WhatsAppConsentPurpose,
   WhatsAppConsentSummary,
   WhatsAppIntegrationStatus,
   WhatsAppMessage,
   WhatsAppMessageSendPayload,
+  WhatsAppNotificationPolicy,
+  WhatsAppNotificationPolicyValue,
   WhatsAppTemplate,
   WhatsAppTemplatePurpose,
   WhatsAppTemplateVariable,
@@ -25,6 +28,9 @@ import {
   getWhatsAppTemplatePurposeLabel,
   getWhatsAppTemplateStatusLabel,
   getWhatsAppMessageStatusLabel,
+  getWhatsAppNotificationPolicyLabel,
+  getAppointmentNotificationEventLabel,
+  getAppointmentNotificationStatusLabel,
   getWhatsAppWebhookEventTypeLabel,
   getWhatsAppWebhookProcessingStatusLabel,
   whatsappVariableLabels,
@@ -62,6 +68,8 @@ interface WhatsAppFoundationPanelProps {
   consents: WhatsAppConsentSummary[];
   events: WhatsAppWebhookEvent[];
   messages: WhatsAppMessage[];
+  notificationPolicy?: WhatsAppNotificationPolicy;
+  appointmentNotifications: AppointmentNotification[];
   loading: boolean;
   error: boolean;
   validationResult?: WhatsAppValidationResult | null;
@@ -72,6 +80,8 @@ interface WhatsAppFoundationPanelProps {
   syncBusy: boolean;
   sendBusy: boolean;
   retryBusy: boolean;
+  policySaving: boolean;
+  notificationBusy: boolean;
   onValidate: () => void;
   onHealthCheck: () => void;
   onSyncTemplates: () => void;
@@ -80,6 +90,10 @@ interface WhatsAppFoundationPanelProps {
   onCreateConsentCorrection: (payload: WhatsAppConsentCorrectionPayload) => void;
   onSendMessage: (payload: WhatsAppMessageSendPayload) => void;
   onRetryMessage: (messageId: number) => void;
+  onUpdateNotificationPolicy: (payload: WhatsAppNotificationPolicy) => void;
+  onRetryNotification: (notificationId: number) => void;
+  onReconcileNotification: (notificationId: number) => void;
+  onCancelNotification: (notificationId: number) => void;
   onRefresh: () => void;
 }
 
@@ -132,6 +146,8 @@ export function WhatsAppFoundationPanel({
   consents,
   events,
   messages,
+  notificationPolicy,
+  appointmentNotifications,
   loading,
   error,
   validationResult,
@@ -142,6 +158,8 @@ export function WhatsAppFoundationPanel({
   syncBusy,
   sendBusy,
   retryBusy,
+  policySaving,
+  notificationBusy,
   onValidate,
   onHealthCheck,
   onSyncTemplates,
@@ -150,6 +168,10 @@ export function WhatsAppFoundationPanel({
   onCreateConsentCorrection,
   onSendMessage,
   onRetryMessage,
+  onUpdateNotificationPolicy,
+  onRetryNotification,
+  onReconcileNotification,
+  onCancelNotification,
   onRefresh,
 }: WhatsAppFoundationPanelProps) {
   const [templateForm, setTemplateForm] = useState<TemplateFormState | null>(null);
@@ -158,6 +180,7 @@ export function WhatsAppFoundationPanel({
   const [sendFormOpen, setSendFormOpen] = useState(false);
   const [sendForm, setSendForm] = useState<SendFormState>({ consent_id: "", template_id: "", idempotency_key: `manual:wa:${Date.now()}`, variables: {}, explicit_confirmation: false });
   const [selectedEvent, setSelectedEvent] = useState<WhatsAppWebhookEvent | null>(null);
+  const [policyDraft, setPolicyDraft] = useState<WhatsAppNotificationPolicy | null>(null);
   const secretReferences = integration.config.secret_references ?? {};
   const webhookUrl = webhookStatus?.public_url ?? "";
 
@@ -206,6 +229,7 @@ export function WhatsAppFoundationPanel({
   };
 
   const approvedTemplates = templates.filter((template) => template.status === "approved" && template.category === "utility");
+  const effectivePolicy = policyDraft ?? notificationPolicy;
   const selectedTemplate = approvedTemplates.find((template) => String(template.id) === sendForm.template_id);
   const sendVariableKeys = selectedTemplate?.components_schema.variables?.map((item) => item.key) ?? [];
   const saveSendMessage = () => {
@@ -252,6 +276,68 @@ export function WhatsAppFoundationPanel({
         </div>
         {approvedTemplates.length === 0 ? <p className="mt-3 text-sm text-ink-500">Sin plantillas utility aprobadas. Sincroniza plantillas o revisa el estado remoto antes de enviar.</p> : null}
         {consents.length === 0 ? <p className="mt-2 text-sm text-ink-500">Sin consentimientos activos visibles para seleccionar destinatario.</p> : null}
+      </Panel>
+
+      <Panel title="Politica transaccional de reservas">
+        {effectivePolicy ? (
+          <div className="space-y-4">
+            <p className="text-sm leading-6 text-ink-500">Afecta eventos futuros de reservas. No reprocesa notificaciones ya creadas. El fallback disponible en esta etapa es correo.</p>
+            <div className="grid gap-4 lg:grid-cols-3">
+              <Field id="wa-policy-value" label="Politica">
+                <Select
+                  id="wa-policy-value"
+                  value={effectivePolicy.notification_policy}
+                  onChange={(event) => setPolicyDraft({ ...effectivePolicy, notification_policy: event.target.value as WhatsAppNotificationPolicyValue })}
+                >
+                  <option value="email_only">Solo correo</option>
+                  <option value="whatsapp_preferred">Preferir WhatsApp y usar correo como respaldo</option>
+                  <option value="whatsapp_required">Solo WhatsApp</option>
+                  <option value="email_and_whatsapp">Correo y WhatsApp</option>
+                  <option value="notifications_disabled">Notificaciones deshabilitadas</option>
+                </Select>
+              </Field>
+              <Field id="wa-policy-language" label="Idioma">
+                <Input id="wa-policy-language" value={effectivePolicy.default_language} onChange={(event) => setPolicyDraft({ ...effectivePolicy, default_language: event.target.value })} />
+              </Field>
+              <Field id="wa-policy-reminder" label="Recordatorio minutos antes">
+                <Input id="wa-policy-reminder" min={15} max={10080} type="number" value={effectivePolicy.reminder_minutes_before} onChange={(event) => setPolicyDraft({ ...effectivePolicy, reminder_minutes_before: Number(event.target.value) })} />
+              </Field>
+              <label className="flex items-center gap-2 text-sm font-semibold text-ink-700">
+                <input checked={effectivePolicy.reminder_enabled} onChange={(event) => setPolicyDraft({ ...effectivePolicy, reminder_enabled: event.target.checked })} type="checkbox" />
+                Recordatorio activo
+              </label>
+            </div>
+            <div className="grid gap-3 lg:grid-cols-2">
+              {TEMPLATE_PURPOSES.map((purpose) => (
+                <Field id={`wa-template-map-${purpose}`} key={purpose} label={getWhatsAppTemplatePurposeLabel(purpose)}>
+                  <Select
+                    id={`wa-template-map-${purpose}`}
+                    value={effectivePolicy.template_mapping[purpose] ?? ""}
+                    onChange={(event) =>
+                      setPolicyDraft({
+                        ...effectivePolicy,
+                        template_mapping: { ...effectivePolicy.template_mapping, [purpose]: event.target.value ? Number(event.target.value) : undefined },
+                      })
+                    }
+                  >
+                    <option value="">Seleccion automatica aprobada</option>
+                    {approvedTemplates
+                      .filter((template) => template.purpose === purpose && template.language === effectivePolicy.default_language)
+                      .map((template) => (
+                        <option key={template.id} value={template.id}>{template.name}</option>
+                      ))}
+                  </Select>
+                </Field>
+              ))}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button isLoading={policySaving} onClick={() => onUpdateNotificationPolicy(effectivePolicy)}>Guardar politica</Button>
+              <Badge label={getWhatsAppNotificationPolicyLabel(effectivePolicy.notification_policy)} tone="info" />
+            </div>
+          </div>
+        ) : (
+          <EmptyState title="Politica no disponible" />
+        )}
       </Panel>
 
       {loading ? <LoadingState label="Cargando fundamento WhatsApp" /> : null}
@@ -403,6 +489,36 @@ export function WhatsAppFoundationPanel({
                 <Info label="Error" value={message.error_message ?? message.error_code ?? "Sin error"} />
               </div>
               {message.status === "failed" ? <Button className="mt-3" isLoading={retryBusy} onClick={() => onRetryMessage(message.id)} size="sm" variant="secondary">Reintentar</Button> : null}
+            </article>
+          ))}
+        </div>
+      </Panel>
+
+      <Panel title="Notificaciones de reservas">
+        {appointmentNotifications.length === 0 ? <EmptyState title="No hay notificaciones transaccionales registradas" /> : null}
+        <div className="grid gap-3 lg:grid-cols-2">
+          {appointmentNotifications.map((item) => (
+            <article className="rounded-lg border border-slate-200 bg-white p-4" key={item.id}>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <p className="font-semibold text-ink-900">Reserva #{item.appointment_id}</p>
+                  <p className="mt-1 text-sm text-ink-500">{getAppointmentNotificationEventLabel(item.event_type)} · {item.channel === "whatsapp" ? "WhatsApp" : "Correo"}</p>
+                </div>
+                <Badge label={getAppointmentNotificationStatusLabel(item.status)} tone={item.status === "failed" ? "danger" : item.status === "skipped" || item.status === "cancelled" ? "neutral" : "info"} />
+              </div>
+              <div className="mt-3 grid gap-2 text-sm text-ink-600 sm:grid-cols-2">
+                <Info label="Destinatario" value={item.recipient_masked ?? "No disponible"} />
+                <Info label="Fallback" value={item.fallback_used ? "Si" : "No"} />
+                <Info label="Intento" value={String(item.attempt)} />
+                <Info label="Programada" value={item.scheduled_for ? formatDateTime(item.scheduled_for) : "Inmediata"} />
+                <Info label="Enviada" value={item.sent_at ? formatDateTime(item.sent_at) : "Sin envio"} />
+                <Info label="Error" value={item.error_message ?? item.error_code ?? "Sin error"} />
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {item.status === "failed" || item.status === "processing" ? <Button isLoading={notificationBusy} onClick={() => onRetryNotification(item.id)} size="sm" variant="secondary">Reintentar</Button> : null}
+                {item.channel === "whatsapp" ? <Button isLoading={notificationBusy} onClick={() => onReconcileNotification(item.id)} size="sm" variant="ghost">Reconciliar</Button> : null}
+                {item.status === "pending" || item.status === "processing" ? <Button isLoading={notificationBusy} onClick={() => onCancelNotification(item.id)} size="sm" variant="ghost">Cancelar</Button> : null}
+              </div>
             </article>
           ))}
         </div>

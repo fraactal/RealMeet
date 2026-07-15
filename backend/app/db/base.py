@@ -1,4 +1,4 @@
-from app.models.appointment import Appointment, AppointmentHistory, AppointmentMeeting
+from app.models.appointment import Appointment, AppointmentHistory, AppointmentMeeting, AppointmentNotification
 from app.models.audit_log import AuditLog
 from app.models.availability import AvailabilityBlock, AvailabilityRule
 from app.models.category import Category
@@ -8,12 +8,13 @@ from app.models.professional_profile import ProfessionalProfile, ProfessionalSpe
 from app.models.specialty import Specialty
 from app.models.system_setting import SystemSetting
 from app.models.user import User
-from app.models.whatsapp import WhatsAppConsent, WhatsAppTemplate, WhatsAppWebhookEvent
+from app.models.whatsapp import WhatsAppConsent, WhatsAppMessage, WhatsAppTemplate, WhatsAppWebhookEvent
 
 __all__ = [
     "Appointment",
     "AppointmentHistory",
     "AppointmentMeeting",
+    "AppointmentNotification",
     "AuditLog",
     "AvailabilityBlock",
     "AvailabilityRule",
@@ -30,6 +31,7 @@ __all__ = [
     "SystemSetting",
     "User",
     "WhatsAppConsent",
+    "WhatsAppMessage",
     "WhatsAppTemplate",
     "WhatsAppWebhookEvent",
 ]

@@ -466,6 +466,11 @@ export interface IntegrationConfig {
   default_language?: string;
   country_code?: string;
   secret_references?: WhatsAppSecretReferences;
+  notification_policy?: WhatsAppNotificationPolicyValue;
+  fallback_channel?: "email";
+  reminder_enabled?: boolean;
+  reminder_minutes_before?: number;
+  template_mapping?: Partial<Record<WhatsAppTemplatePurpose, number>>;
 }
 
 export interface WhatsAppSecretReferences {
@@ -785,4 +790,45 @@ export interface WhatsAppMessageSendResult {
   message: string;
   skipped: boolean;
   data: WhatsAppMessage;
+}
+
+export type WhatsAppNotificationPolicyValue =
+  | "email_only"
+  | "whatsapp_preferred"
+  | "whatsapp_required"
+  | "email_and_whatsapp"
+  | "notifications_disabled";
+
+export interface WhatsAppNotificationPolicy {
+  integration_id: number;
+  notification_policy: WhatsAppNotificationPolicyValue;
+  fallback_channel: "email";
+  reminder_enabled: boolean;
+  reminder_minutes_before: number;
+  default_language: string;
+  template_mapping: Partial<Record<WhatsAppTemplatePurpose, number>>;
+}
+
+export interface AppointmentNotification {
+  id: number;
+  appointment_id: number;
+  user_id?: number | null;
+  event_type: "appointment_confirmed" | "appointment_updated" | "appointment_cancelled" | "appointment_reminder" | "meeting_ready";
+  channel: "email" | "whatsapp";
+  purpose: WhatsAppTemplatePurpose;
+  status: "pending" | "processing" | "accepted" | "sent" | "delivered" | "read" | "failed" | "skipped" | "cancelled" | "fallback_sent";
+  whatsapp_message_id?: number | null;
+  email_reference?: string | null;
+  template_id?: number | null;
+  recipient_masked?: string | null;
+  fallback_used: boolean;
+  idempotency_key: string;
+  attempt: number;
+  scheduled_for?: string | null;
+  sent_at?: string | null;
+  failed_at?: string | null;
+  error_code?: string | null;
+  error_message?: string | null;
+  created_at: string;
+  updated_at: string;
 }

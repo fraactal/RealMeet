@@ -336,3 +336,53 @@ class WhatsAppMessageSendRead(BaseModel):
     message: str
     skipped: bool = False
     data: WhatsAppMessageRead
+
+
+class WhatsAppNotificationPolicyUpdate(StrictBaseModel):
+    notification_policy: str = Field(pattern=r"^(email_only|whatsapp_preferred|whatsapp_required|email_and_whatsapp|notifications_disabled)$")
+    fallback_channel: str = Field(default="email", pattern=r"^email$")
+    reminder_enabled: bool = True
+    reminder_minutes_before: int = Field(default=1440, ge=15, le=10080)
+    default_language: str = Field(default="es_CL", min_length=2, max_length=10)
+    template_mapping: dict[WhatsAppTemplatePurpose, int | None] = Field(default_factory=dict)
+
+    @field_validator("default_language")
+    @classmethod
+    def normalize_policy_language(cls, value: str) -> str:
+        return value.replace("-", "_")
+
+
+class WhatsAppNotificationPolicyRead(BaseModel):
+    integration_id: int
+    notification_policy: str
+    fallback_channel: str
+    reminder_enabled: bool
+    reminder_minutes_before: int
+    default_language: str
+    template_mapping: dict[str, int]
+
+
+class AppointmentNotificationRead(BaseModel):
+    id: int
+    appointment_id: int
+    user_id: int | None
+    event_type: str
+    channel: str
+    purpose: str
+    status: str
+    whatsapp_message_id: int | None
+    email_reference: str | None
+    template_id: int | None
+    recipient_masked: str | None
+    fallback_used: bool
+    idempotency_key: str
+    attempt: int
+    scheduled_for: datetime | None
+    sent_at: datetime | None
+    failed_at: datetime | None
+    error_code: str | None
+    error_message: str | None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)

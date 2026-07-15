@@ -19,6 +19,7 @@ from app.integrations.exceptions import (
 from app.integrations.google_oauth import GoogleOAuthService
 from app.models.audit_log import AuditLog
 from app.models.appointment import Appointment, AppointmentStatus
+from app.models.integration import Integration
 from app.models.category import Category
 from app.models.professional_profile import ProfessionalProfile, ProfessionalSpecialty
 from app.models.specialty import Specialty
@@ -61,9 +62,11 @@ from app.services.appointments import AppointmentService
 from app.services.integrations import IntegrationService
 from app.services.google_meet import GoogleMeetService
 from app.services.meeting_provisioning import MeetingProvisioningService
+from app.notifications.service import AppointmentNotificationService
 from app.integrations.meeting_contracts import MeetingAttendee, MeetingCreateRequest
 from app.whatsapp.exceptions import WhatsAppError, WhatsAppNotFoundError, WhatsAppValidationError
 from app.whatsapp.schemas import (
+    AppointmentNotificationRead,
     WhatsAppConsentAdminCorrection,
     WhatsAppConsentRead,
     WhatsAppConsentSummary,
@@ -72,6 +75,8 @@ from app.whatsapp.schemas import (
     WhatsAppMessageRead,
     WhatsAppMessageSendRead,
     WhatsAppMessageSendRequest,
+    WhatsAppNotificationPolicyRead,
+    WhatsAppNotificationPolicyUpdate,
     WhatsAppTemplateCreate,
     WhatsAppTemplateRead,
     WhatsAppTemplateSyncRead,
@@ -397,6 +402,102 @@ def retry_whatsapp_message(
         return WhatsAppMessagingService(db).retry_message(integration, message_id, admin_user)
     except IntegrationError as exc:
         raise _integration_http_error(exc) from exc
+    except WhatsAppError as exc:
+        raise _whatsapp_http_error(exc) from exc
+
+
+@router.get("/integrations/{integration_id}/whatsapp/notification-policy", response_model=WhatsAppNotificationPolicyRead)
+def get_whatsapp_notification_policy(integration_id: int, db: Session = Depends(get_db)) -> WhatsAppNotificationPolicyRead:
+    integration = _integration(db, integration_id)
+    config = integration.config or {}
+    return _notification_policy_read(integration.id, config)
+
+
+@router.patch("/integrations/{integration_id}/whatsapp/notification-policy", response_model=WhatsAppNotificationPolicyRead)
+def update_whatsapp_notification_policy(
+    integration_id: int,
+    payload: WhatsAppNotificationPolicyUpdate,
+    db: Session = Depends(get_db),
+    admin_user: User = Depends(require_admin),
+) -> WhatsAppNotificationPolicyRead:
+    integration = _integration(db, integration_id)
+    if integration.provider != IntegrationProvider.whatsapp_cloud:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="La politica solo aplica a WhatsApp Cloud")
+    config = dict(integration.config or {})
+    config.update(
+        {
+            "notification_policy": payload.notification_policy,
+            "fallback_channel": payload.fallback_channel,
+            "reminder_enabled": payload.reminder_enabled,
+            "reminder_minutes_before": payload.reminder_minutes_before,
+            "default_language": payload.default_language,
+            "template_mapping": {key.value: value for key, value in payload.template_mapping.items() if value},
+        }
+    )
+    integration.config = config
+    _audit(
+        db,
+        admin_user.id,
+        "whatsapp_notification_policy_updated",
+        "Integration",
+        str(integration.id),
+        {"integration_id": integration.id, "provider": "whatsapp_cloud", "notification_policy": payload.notification_policy},
+    )
+    db.commit()
+    return _notification_policy_read(integration.id, config)
+
+
+@router.get("/appointment-notifications", response_model=list[AppointmentNotificationRead])
+def list_appointment_notifications(
+    appointment_id: int | None = Query(default=None),
+    limit: int = Query(default=100, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+) -> list[AppointmentNotificationRead]:
+    items = AppointmentNotificationService(db).list_notifications(appointment_id=appointment_id, limit=limit, offset=offset)
+    return [AppointmentNotificationRead.model_validate(item) for item in items]
+
+
+@router.get("/appointment-notifications/{notification_id}", response_model=AppointmentNotificationRead)
+def get_appointment_notification(notification_id: int, db: Session = Depends(get_db)) -> AppointmentNotificationRead:
+    item = AppointmentNotificationService(db).get_notification(notification_id)
+    if not item:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Notificacion no encontrada")
+    return AppointmentNotificationRead.model_validate(item)
+
+
+@router.post("/appointment-notifications/{notification_id}/retry", response_model=AppointmentNotificationRead)
+def retry_appointment_notification(
+    notification_id: int,
+    db: Session = Depends(get_db),
+    admin_user: User = Depends(require_admin),
+) -> AppointmentNotificationRead:
+    try:
+        return AppointmentNotificationRead.model_validate(AppointmentNotificationService(db).retry(notification_id, admin_user))
+    except WhatsAppError as exc:
+        raise _whatsapp_http_error(exc) from exc
+
+
+@router.post("/appointment-notifications/{notification_id}/reconcile", response_model=AppointmentNotificationRead)
+def reconcile_appointment_notification(
+    notification_id: int,
+    db: Session = Depends(get_db),
+    admin_user: User = Depends(require_admin),
+) -> AppointmentNotificationRead:
+    try:
+        return AppointmentNotificationRead.model_validate(AppointmentNotificationService(db).reconcile(notification_id, admin_user))
+    except WhatsAppError as exc:
+        raise _whatsapp_http_error(exc) from exc
+
+
+@router.post("/appointment-notifications/{notification_id}/cancel", response_model=AppointmentNotificationRead)
+def cancel_appointment_notification(
+    notification_id: int,
+    db: Session = Depends(get_db),
+    admin_user: User = Depends(require_admin),
+) -> AppointmentNotificationRead:
+    try:
+        return AppointmentNotificationRead.model_validate(AppointmentNotificationService(db).cancel_pending(notification_id, admin_user))
     except WhatsAppError as exc:
         raise _whatsapp_http_error(exc) from exc
 
@@ -912,6 +1013,26 @@ def _whatsapp_http_error(exc: WhatsAppError) -> HTTPException:
     if isinstance(exc, WhatsAppValidationError):
         return HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=exc.message)
     return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="WhatsApp operation failed")
+
+
+def _integration(db: Session, integration_id: int) -> Integration:
+    integration = db.get(Integration, integration_id)
+    if not integration:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Integration not found")
+    return integration
+
+
+def _notification_policy_read(integration_id: int, config: dict) -> WhatsAppNotificationPolicyRead:
+    mapping = config.get("template_mapping") if isinstance(config.get("template_mapping"), dict) else {}
+    return WhatsAppNotificationPolicyRead(
+        integration_id=integration_id,
+        notification_policy=str(config.get("notification_policy") or "email_only"),
+        fallback_channel=str(config.get("fallback_channel") or "email"),
+        reminder_enabled=bool(config.get("reminder_enabled", True)),
+        reminder_minutes_before=int(config.get("reminder_minutes_before") or 1440),
+        default_language=str(config.get("default_language") or "es_CL"),
+        template_mapping={str(key): int(value) for key, value in mapping.items() if str(value).isdigit() or isinstance(value, int)},
+    )
 
 
 def _serialize_user_item(user: User) -> AdminUserListItem:

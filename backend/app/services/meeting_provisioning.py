@@ -140,6 +140,8 @@ class MeetingProvisioningService:
             self._sync_appointment_fields(appointment, link)
             self._audit(actor, "appointment_meeting_reconciled", appointment, {"result": "succeeded", "provider": "google_meet"})
             self.db.commit()
+            if link.status == AppointmentMeetingStatus.ready:
+                self._notify_meeting_ready(appointment.id)
             return link
         except IntegrationError as exc:
             link.status = AppointmentMeetingStatus.failed
@@ -190,6 +192,7 @@ class MeetingProvisioningService:
             self._sync_appointment_fields(appointment, link)
             self._audit(actor, "appointment_meeting_provisioned", appointment, {"provider": "google_meet", "fallback": False})
             self.db.commit()
+            self._notify_meeting_ready(appointment.id)
             return link
         except IntegrationError as exc:
             if decision.policy == "google_preferred" and decision.fallback_allowed:
@@ -217,6 +220,7 @@ class MeetingProvisioningService:
         self._sync_appointment_fields(appointment, link)
         self._audit(actor, "appointment_meeting_provisioned", appointment, {"provider": "mock", "fallback": fallback_used, "reason": fallback_reason})
         self.db.commit()
+        self._notify_meeting_ready(appointment.id)
         return link
 
     def _mark_not_required(self, appointment: Appointment, actor: User) -> AppointmentMeeting:
@@ -336,3 +340,12 @@ class MeetingProvisioningService:
                 created_at=self._now(),
             )
         )
+
+    def _notify_meeting_ready(self, appointment_id: int) -> None:
+        try:
+            from app.notifications.service import AppointmentNotificationService
+
+            appointment = self._appointment(appointment_id)
+            AppointmentNotificationService(self.db).notify_meeting_ready(appointment)
+        except Exception as exc:  # noqa: BLE001 - notification failures must not affect meeting provisioning.
+            logger.warning("appointment_meeting_ready_notification_failed appointment_id=%s error=%s", appointment_id, exc.__class__.__name__)

@@ -10,6 +10,7 @@ import type {
   WhatsAppConsentSource,
   WhatsAppConsentStatus,
   WhatsAppMessageStatus,
+  WhatsAppNotificationPolicyValue,
   WhatsAppTemplatePurpose,
   WhatsAppTemplateStatus,
   WhatsAppWebhookEventType,
@@ -199,6 +200,35 @@ export const whatsappMessageStatusLabels: Record<WhatsAppMessageStatus, string> 
   skipped: "Omitido",
 };
 
+export const whatsappNotificationPolicyLabels: Record<WhatsAppNotificationPolicyValue, string> = {
+  email_only: "Solo correo",
+  whatsapp_preferred: "Preferir WhatsApp y usar correo como respaldo",
+  whatsapp_required: "Solo WhatsApp",
+  email_and_whatsapp: "Correo y WhatsApp",
+  notifications_disabled: "Notificaciones deshabilitadas",
+};
+
+export const appointmentNotificationEventLabels: Record<string, string> = {
+  appointment_confirmed: "Reserva confirmada",
+  appointment_updated: "Reserva actualizada",
+  appointment_cancelled: "Reserva cancelada",
+  appointment_reminder: "Recordatorio",
+  meeting_ready: "Enlace de reunion listo",
+};
+
+export const appointmentNotificationStatusLabels: Record<string, string> = {
+  pending: "Pendiente",
+  processing: "En proceso",
+  accepted: "Aceptada",
+  sent: "Enviada",
+  delivered: "Entregada",
+  read: "Leida",
+  failed: "Fallida",
+  skipped: "Omitida",
+  cancelled: "Cancelada",
+  fallback_sent: "Fallback enviado",
+};
+
 export const whatsappVariableLabels: Record<string, string> = {
   client_name: "Nombre del cliente",
   professional_name: "Nombre del profesional",
@@ -239,4 +269,16 @@ export function getWhatsAppWebhookProcessingStatusLabel(value: WhatsAppWebhookPr
 
 export function getWhatsAppMessageStatusLabel(value: WhatsAppMessageStatus | string): string {
   return whatsappMessageStatusLabels[value as WhatsAppMessageStatus] ?? value;
+}
+
+export function getWhatsAppNotificationPolicyLabel(value: WhatsAppNotificationPolicyValue | string): string {
+  return whatsappNotificationPolicyLabels[value as WhatsAppNotificationPolicyValue] ?? value;
+}
+
+export function getAppointmentNotificationEventLabel(value: string): string {
+  return appointmentNotificationEventLabels[value] ?? value;
+}
+
+export function getAppointmentNotificationStatusLabel(value: string): string {
+  return appointmentNotificationStatusLabels[value] ?? value;
 }

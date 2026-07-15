@@ -7,6 +7,7 @@ import {
   createAdminIntegration,
   createWhatsAppConsentCorrection,
   createWhatsAppTemplate,
+  cancelAppointmentNotification,
   cancelGoogleMeetMeeting,
   disableAdminIntegration,
   disconnectGoogleOAuth,
@@ -15,18 +16,23 @@ import {
   fetchAdminIntegrations,
   fetchGoogleOAuthStatus,
   fetchWhatsAppConsents,
+  fetchWhatsAppNotificationPolicy,
   fetchWhatsAppStatus,
   fetchWhatsAppTemplates,
   fetchWhatsAppWebhookEvents,
   fetchWhatsAppWebhookStatus,
   fetchWhatsAppMessages,
+  fetchAppointmentNotifications,
   healthCheckAdminIntegration,
   healthCheckWhatsApp,
   refreshGoogleOAuth,
   retryWhatsAppMessage,
+  retryAppointmentNotification,
+  reconcileAppointmentNotification,
   sendWhatsAppMessage,
   testAdminIntegration,
   updateAdminIntegration,
+  updateWhatsAppNotificationPolicy,
   updateWhatsAppTemplate,
   syncWhatsAppTemplates,
   validateAdminIntegration,
@@ -50,6 +56,8 @@ import type {
   GoogleMeetMeetingCreatePayload,
   WhatsAppConsentCorrectionPayload,
   WhatsAppMessageSendPayload,
+  WhatsAppNotificationPolicy,
+  WhatsAppNotificationPolicyValue,
   WhatsAppTemplateWrite,
   WhatsAppValidationResult,
 } from "../types";
@@ -102,6 +110,9 @@ interface FormState {
   whatsapp_app_secret_ref: string;
   whatsapp_verify_token_ref: string;
   whatsapp_phone_hmac_key_ref: string;
+  notification_policy: WhatsAppNotificationPolicyValue;
+  reminder_enabled: boolean;
+  reminder_minutes_before: number;
 }
 
 const emptyForm: FormState = {
@@ -127,6 +138,9 @@ const emptyForm: FormState = {
   whatsapp_app_secret_ref: "",
   whatsapp_verify_token_ref: "",
   whatsapp_phone_hmac_key_ref: "",
+  notification_policy: "email_only",
+  reminder_enabled: true,
+  reminder_minutes_before: 1440,
 };
 
 export function AdminIntegrationsPage() {
@@ -201,6 +215,16 @@ export function AdminIntegrationsPage() {
     queryFn: () => fetchWhatsAppMessages(selectedIntegration?.id ?? 0),
     enabled: whatsappEnabled,
   });
+  const whatsappPolicyQuery = useQuery({
+    queryKey: ["admin-whatsapp-notification-policy", selectedIntegration?.id],
+    queryFn: () => fetchWhatsAppNotificationPolicy(selectedIntegration?.id ?? 0),
+    enabled: whatsappEnabled,
+  });
+  const appointmentNotificationsQuery = useQuery({
+    queryKey: ["admin-appointment-notifications", selectedIntegration?.id],
+    queryFn: () => fetchAppointmentNotifications({ limit: 50 }),
+    enabled: whatsappEnabled,
+  });
 
   const refreshIntegrations = () => {
     void queryClient.invalidateQueries({ queryKey: ["admin-integrations"] });
@@ -213,6 +237,8 @@ export function AdminIntegrationsPage() {
       void queryClient.invalidateQueries({ queryKey: ["admin-whatsapp-templates", selectedIntegration.id] });
       void queryClient.invalidateQueries({ queryKey: ["admin-whatsapp-consents"] });
       void queryClient.invalidateQueries({ queryKey: ["admin-whatsapp-messages", selectedIntegration.id] });
+      void queryClient.invalidateQueries({ queryKey: ["admin-whatsapp-notification-policy", selectedIntegration.id] });
+      void queryClient.invalidateQueries({ queryKey: ["admin-appointment-notifications", selectedIntegration.id] });
     }
   };
 
@@ -320,6 +346,22 @@ export function AdminIntegrationsPage() {
     mutationFn: ({ id, messageId }: { id: number; messageId: number }) => retryWhatsAppMessage(id, messageId),
     onSuccess: () => refreshIntegrations(),
   });
+  const whatsappPolicyMutation = useMutation({
+    mutationFn: ({ id, payload }: { id: number; payload: WhatsAppNotificationPolicy }) => updateWhatsAppNotificationPolicy(id, payload),
+    onSuccess: () => refreshIntegrations(),
+  });
+  const retryNotificationMutation = useMutation({
+    mutationFn: (notificationId: number) => retryAppointmentNotification(notificationId),
+    onSuccess: () => refreshIntegrations(),
+  });
+  const reconcileNotificationMutation = useMutation({
+    mutationFn: (notificationId: number) => reconcileAppointmentNotification(notificationId),
+    onSuccess: () => refreshIntegrations(),
+  });
+  const cancelNotificationMutation = useMutation({
+    mutationFn: (notificationId: number) => cancelAppointmentNotification(notificationId),
+    onSuccess: () => refreshIntegrations(),
+  });
 
   const openCreate = () => {
     setForm(emptyForm);
@@ -351,6 +393,9 @@ export function AdminIntegrationsPage() {
       whatsapp_app_secret_ref: integration.config.secret_references?.app_secret ?? "",
       whatsapp_verify_token_ref: integration.config.secret_references?.verify_token ?? "",
       whatsapp_phone_hmac_key_ref: integration.config.secret_references?.phone_hmac_key ?? "",
+      notification_policy: integration.config.notification_policy ?? "email_only",
+      reminder_enabled: integration.config.reminder_enabled ?? true,
+      reminder_minutes_before: integration.config.reminder_minutes_before ?? 1440,
     });
     setFormOpen(true);
   };
@@ -402,7 +447,11 @@ export function AdminIntegrationsPage() {
     getMutationError(whatsappHealthMutation.error) ??
     getMutationError(whatsappSyncTemplatesMutation.error) ??
     getMutationError(whatsappSendMessageMutation.error) ??
-    getMutationError(whatsappRetryMessageMutation.error);
+    getMutationError(whatsappRetryMessageMutation.error) ??
+    getMutationError(whatsappPolicyMutation.error) ??
+    getMutationError(retryNotificationMutation.error) ??
+    getMutationError(reconcileNotificationMutation.error) ??
+    getMutationError(cancelNotificationMutation.error);
 
   return (
     <div className="space-y-6">
@@ -563,8 +612,10 @@ export function AdminIntegrationsPage() {
                   consents={whatsappConsentsQuery.data ?? []}
                   events={whatsappWebhookEventsQuery.data ?? []}
                   messages={whatsappMessagesQuery.data ?? []}
-                  loading={whatsappStatusQuery.isLoading || whatsappWebhookStatusQuery.isLoading || whatsappTemplatesQuery.isLoading || whatsappConsentsQuery.isLoading || whatsappWebhookEventsQuery.isLoading || whatsappMessagesQuery.isLoading}
-                  error={whatsappStatusQuery.isError || whatsappWebhookStatusQuery.isError || whatsappTemplatesQuery.isError || whatsappConsentsQuery.isError || whatsappWebhookEventsQuery.isError || whatsappMessagesQuery.isError}
+                  notificationPolicy={whatsappPolicyQuery.data}
+                  appointmentNotifications={appointmentNotificationsQuery.data ?? []}
+                  loading={whatsappStatusQuery.isLoading || whatsappWebhookStatusQuery.isLoading || whatsappTemplatesQuery.isLoading || whatsappConsentsQuery.isLoading || whatsappWebhookEventsQuery.isLoading || whatsappMessagesQuery.isLoading || whatsappPolicyQuery.isLoading || appointmentNotificationsQuery.isLoading}
+                  error={whatsappStatusQuery.isError || whatsappWebhookStatusQuery.isError || whatsappTemplatesQuery.isError || whatsappConsentsQuery.isError || whatsappWebhookEventsQuery.isError || whatsappMessagesQuery.isError || whatsappPolicyQuery.isError || appointmentNotificationsQuery.isError}
                   validationResult={whatsappValidationResult}
                   validating={whatsappValidateMutation.isPending}
                   templateSaving={createWhatsAppTemplateMutation.isPending || updateWhatsAppTemplateMutation.isPending}
@@ -573,6 +624,8 @@ export function AdminIntegrationsPage() {
                   syncBusy={whatsappSyncTemplatesMutation.isPending}
                   sendBusy={whatsappSendMessageMutation.isPending}
                   retryBusy={whatsappRetryMessageMutation.isPending}
+                  policySaving={whatsappPolicyMutation.isPending}
+                  notificationBusy={retryNotificationMutation.isPending || reconcileNotificationMutation.isPending || cancelNotificationMutation.isPending}
                   onValidate={() => whatsappValidateMutation.mutate(selectedIntegration.id)}
                   onHealthCheck={() => whatsappHealthMutation.mutate(selectedIntegration.id)}
                   onSyncTemplates={() => whatsappSyncTemplatesMutation.mutate(selectedIntegration.id)}
@@ -581,6 +634,10 @@ export function AdminIntegrationsPage() {
                   onCreateConsentCorrection={(payload) => createWhatsAppConsentCorrectionMutation.mutate(payload)}
                   onSendMessage={(payload) => whatsappSendMessageMutation.mutate({ id: selectedIntegration.id, payload })}
                   onRetryMessage={(messageId) => whatsappRetryMessageMutation.mutate({ id: selectedIntegration.id, messageId })}
+                  onUpdateNotificationPolicy={(payload) => whatsappPolicyMutation.mutate({ id: selectedIntegration.id, payload })}
+                  onRetryNotification={(notificationId) => retryNotificationMutation.mutate(notificationId)}
+                  onReconcileNotification={(notificationId) => reconcileNotificationMutation.mutate(notificationId)}
+                  onCancelNotification={(notificationId) => cancelNotificationMutation.mutate(notificationId)}
                   onRefresh={refreshIntegrations}
                 />
               ) : null}
@@ -675,6 +732,10 @@ function buildConfig(form: FormState): IntegrationConfig {
         verify_token: form.whatsapp_verify_token_ref.trim() || null,
         phone_hmac_key: form.whatsapp_phone_hmac_key_ref.trim() || null,
       },
+      notification_policy: form.notification_policy,
+      fallback_channel: "email",
+      reminder_enabled: form.reminder_enabled,
+      reminder_minutes_before: Number(form.reminder_minutes_before) || 1440,
     };
   }
   if (form.provider !== "mock") {
@@ -698,7 +759,7 @@ function isConfigurableProvider(provider: IntegrationProvider): boolean {
 function providerStageText(provider: IntegrationProvider): string {
   if (provider === "mock") return "Disponible para pruebas";
   if (provider === "google_meet") return "Disponible para OAuth y reservas segun politica";
-  if (provider === "whatsapp_cloud") return "Fundacion configurada sin envio";
+  if (provider === "whatsapp_cloud") return "Mensajeria transaccional segun consentimiento";
   return "Proximamente";
 }
 
@@ -1054,6 +1115,22 @@ function IntegrationFormModal({ form, isSaving, onChange, onClose, onSave }: { f
               <Field label="Ref. phone HMAC key" id="wa-hmac-key-ref">
                 <Input id="wa-hmac-key-ref" value={form.whatsapp_phone_hmac_key_ref} onChange={(event) => onChange({ ...form, whatsapp_phone_hmac_key_ref: event.target.value })} placeholder="WHATSAPP_PHONE_HMAC_KEY" />
               </Field>
+              <Field label="Politica de notificaciones" id="wa-notification-policy">
+                <Select id="wa-notification-policy" value={form.notification_policy} onChange={(event) => onChange({ ...form, notification_policy: event.target.value as WhatsAppNotificationPolicyValue })}>
+                  <option value="email_only">Solo correo</option>
+                  <option value="whatsapp_preferred">Preferir WhatsApp y usar correo como respaldo</option>
+                  <option value="whatsapp_required">Solo WhatsApp</option>
+                  <option value="email_and_whatsapp">Correo y WhatsApp</option>
+                  <option value="notifications_disabled">Notificaciones deshabilitadas</option>
+                </Select>
+              </Field>
+              <Field label="Minutos antes del recordatorio" id="wa-reminder-minutes">
+                <Input id="wa-reminder-minutes" min={15} max={10080} type="number" value={form.reminder_minutes_before} onChange={(event) => onChange({ ...form, reminder_minutes_before: Number(event.target.value) })} />
+              </Field>
+              <label className="flex items-center gap-2 text-sm font-semibold text-ink-700 sm:col-span-2">
+                <input checked={form.reminder_enabled} onChange={(event) => onChange({ ...form, reminder_enabled: event.target.checked })} type="checkbox" />
+                Activar recordatorio transaccional automatico
+              </label>
             </div>
             <p className="mt-3 text-sm font-semibold text-warning-700">No pegues tokens ni credenciales reales. Usa solo nombres de variables de entorno.</p>
           </div>

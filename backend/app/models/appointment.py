@@ -1,7 +1,7 @@
 import enum
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.session import Base
@@ -32,6 +32,32 @@ class AppointmentMeetingStatus(str, enum.Enum):
     fallback_ready = "fallback_ready"
     cancelled = "cancelled"
     not_required = "not_required"
+
+
+class AppointmentNotificationEvent(str, enum.Enum):
+    appointment_confirmed = "appointment_confirmed"
+    appointment_updated = "appointment_updated"
+    appointment_cancelled = "appointment_cancelled"
+    appointment_reminder = "appointment_reminder"
+    meeting_ready = "meeting_ready"
+
+
+class AppointmentNotificationChannel(str, enum.Enum):
+    email = "email"
+    whatsapp = "whatsapp"
+
+
+class AppointmentNotificationStatus(str, enum.Enum):
+    pending = "pending"
+    processing = "processing"
+    accepted = "accepted"
+    sent = "sent"
+    delivered = "delivered"
+    read = "read"
+    failed = "failed"
+    skipped = "skipped"
+    cancelled = "cancelled"
+    fallback_sent = "fallback_sent"
 
 
 class Appointment(Base, TimestampMixin):
@@ -87,6 +113,50 @@ class AppointmentMeeting(Base, TimestampMixin):
     cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     appointment: Mapped[Appointment] = relationship("Appointment", back_populates="meeting_link")
+
+
+class AppointmentNotification(Base, TimestampMixin):
+    __tablename__ = "appointment_notifications"
+    __table_args__ = (
+        UniqueConstraint("idempotency_key", name="uq_appointment_notifications_idempotency_key"),
+        Index("ix_appointment_notifications_appointment_event", "appointment_id", "event_type"),
+        Index("ix_appointment_notifications_status_scheduled", "status", "scheduled_for"),
+        Index("ix_appointment_notifications_whatsapp_message", "whatsapp_message_id"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    appointment_id: Mapped[int] = mapped_column(ForeignKey("appointments.id", ondelete="CASCADE"), nullable=False)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    event_type: Mapped[AppointmentNotificationEvent] = mapped_column(
+        Enum(AppointmentNotificationEvent, name="appointment_notification_event"),
+        nullable=False,
+    )
+    channel: Mapped[AppointmentNotificationChannel] = mapped_column(
+        Enum(AppointmentNotificationChannel, name="appointment_notification_channel"),
+        nullable=False,
+    )
+    purpose: Mapped[str] = mapped_column(String(80), nullable=False)
+    status: Mapped[AppointmentNotificationStatus] = mapped_column(
+        Enum(AppointmentNotificationStatus, name="appointment_notification_status"),
+        default=AppointmentNotificationStatus.pending,
+        nullable=False,
+    )
+    whatsapp_message_id: Mapped[int | None] = mapped_column(ForeignKey("whatsapp_messages.id", ondelete="SET NULL"))
+    email_reference: Mapped[str | None] = mapped_column(String(180))
+    template_id: Mapped[int | None] = mapped_column(ForeignKey("whatsapp_templates.id"))
+    recipient_masked: Mapped[str | None] = mapped_column(String(80))
+    fallback_used: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(String(220), nullable=False)
+    attempt: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    scheduled_for: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    failed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    error_code: Mapped[str | None] = mapped_column(String(100))
+    error_message: Mapped[str | None] = mapped_column(String(300))
+
+    appointment: Mapped[Appointment] = relationship("Appointment")
+    whatsapp_message = relationship("WhatsAppMessage")
+    template = relationship("WhatsAppTemplate")
 
 
 class AppointmentHistory(Base):

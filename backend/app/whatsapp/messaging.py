@@ -239,6 +239,12 @@ class WhatsAppMessagingService:
             message.failed_at = message.failed_at or now
             message.error_code = error_code
             message.error_message = error_message
+        try:
+            from app.notifications.service import AppointmentNotificationService
+
+            AppointmentNotificationService(self.db).sync_whatsapp_status(message.id, message.status.value, message.error_code, message.error_message)
+        except Exception:
+            pass
         self.db.flush()
 
     def _ready_config(self, integration: Integration):
