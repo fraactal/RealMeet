@@ -39,6 +39,16 @@ import type {
   IntegrationTestPayload,
   IntegrationType,
   IntegrationUpdatePayload,
+  WhatsAppConsentCorrectionPayload,
+  WhatsAppConsentSummary,
+  WhatsAppIntegrationStatus,
+  WhatsAppTemplate,
+  WhatsAppTemplateWrite,
+  WhatsAppValidationResult,
+  WhatsAppWebhookEvent,
+  WhatsAppWebhookEventType,
+  WhatsAppWebhookProcessingStatus,
+  WhatsAppWebhookStatus,
   ProfessionalMetrics,
   ProfessionalAppointment,
   ProfessionalPublicProfile,
@@ -435,5 +445,58 @@ export async function fetchGoogleMeetMeeting(integrationId: number, externalEven
 
 export async function cancelGoogleMeetMeeting(integrationId: number, externalEventId: string, payload: GoogleMeetMeetingCancelPayload): Promise<GoogleMeetMeeting> {
   const { data } = await api.delete(`/admin/integrations/${integrationId}/meetings/${encodeURIComponent(externalEventId)}`, { data: payload });
+  return data;
+}
+
+export async function fetchWhatsAppStatus(integrationId: number): Promise<WhatsAppIntegrationStatus> {
+  const { data } = await api.get(`/admin/integrations/${integrationId}/whatsapp/status`);
+  return data;
+}
+
+export async function validateWhatsAppConfiguration(integrationId: number): Promise<WhatsAppValidationResult> {
+  const { data } = await api.post(`/admin/integrations/${integrationId}/whatsapp/validate`);
+  return data;
+}
+
+export async function fetchWhatsAppWebhookStatus(integrationId: number): Promise<WhatsAppWebhookStatus> {
+  const { data } = await api.get(`/admin/integrations/${integrationId}/whatsapp/webhook-status`);
+  return data;
+}
+
+export async function fetchWhatsAppWebhookEvents(
+  integrationId: number,
+  params: { event_type?: WhatsAppWebhookEventType; processing_status?: WhatsAppWebhookProcessingStatus; duplicate?: boolean; limit?: number } = {},
+): Promise<WhatsAppWebhookEvent[]> {
+  const { data } = await api.get(`/admin/integrations/${integrationId}/whatsapp/webhook-events`, { params });
+  return data;
+}
+
+export async function fetchWhatsAppWebhookEvent(integrationId: number, eventId: number): Promise<WhatsAppWebhookEvent> {
+  const { data } = await api.get(`/admin/integrations/${integrationId}/whatsapp/webhook-events/${eventId}`);
+  return data;
+}
+
+export async function fetchWhatsAppTemplates(integrationId: number): Promise<WhatsAppTemplate[]> {
+  const { data } = await api.get(`/admin/integrations/${integrationId}/whatsapp/templates`);
+  return data;
+}
+
+export async function createWhatsAppTemplate(integrationId: number, payload: Required<WhatsAppTemplateWrite>): Promise<WhatsAppTemplate> {
+  const { data } = await api.post(`/admin/integrations/${integrationId}/whatsapp/templates`, payload);
+  return data;
+}
+
+export async function updateWhatsAppTemplate(integrationId: number, templateId: number, payload: WhatsAppTemplateWrite): Promise<WhatsAppTemplate> {
+  const { data } = await api.patch(`/admin/integrations/${integrationId}/whatsapp/templates/${templateId}`, payload);
+  return data;
+}
+
+export async function fetchWhatsAppConsents(): Promise<WhatsAppConsentSummary[]> {
+  const { data } = await api.get("/admin/whatsapp/consents");
+  return data;
+}
+
+export async function createWhatsAppConsentCorrection(payload: WhatsAppConsentCorrectionPayload): Promise<WhatsAppConsentSummary> {
+  const { data } = await api.post("/admin/whatsapp/consents/corrections", payload);
   return data;
 }

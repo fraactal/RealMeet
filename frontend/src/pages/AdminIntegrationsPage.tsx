@@ -5,6 +5,8 @@ import {
   createGoogleOAuthAuthorizationUrl,
   createGoogleMeetMeeting,
   createAdminIntegration,
+  createWhatsAppConsentCorrection,
+  createWhatsAppTemplate,
   cancelGoogleMeetMeeting,
   disableAdminIntegration,
   disconnectGoogleOAuth,
@@ -12,12 +14,20 @@ import {
   fetchAdminIntegrationExecutions,
   fetchAdminIntegrations,
   fetchGoogleOAuthStatus,
+  fetchWhatsAppConsents,
+  fetchWhatsAppStatus,
+  fetchWhatsAppTemplates,
+  fetchWhatsAppWebhookEvents,
+  fetchWhatsAppWebhookStatus,
   healthCheckAdminIntegration,
   refreshGoogleOAuth,
   testAdminIntegration,
   updateAdminIntegration,
+  updateWhatsAppTemplate,
   validateAdminIntegration,
+  validateWhatsAppConfiguration,
 } from "../api/queries";
+import { WhatsAppFoundationPanel } from "../components/admin/integrations/WhatsAppFoundationPanel";
 import { Badge, Button, EmptyState, ErrorState, Input, Label, LoadingState, PageHeader, SectionCard, Select } from "../components/ui";
 import type {
   Integration,
@@ -33,6 +43,9 @@ import type {
   GoogleOAuthStatus,
   GoogleMeetMeeting,
   GoogleMeetMeetingCreatePayload,
+  WhatsAppConsentCorrectionPayload,
+  WhatsAppTemplateWrite,
+  WhatsAppValidationResult,
 } from "../types";
 import { formatDateTime } from "../utils/dates";
 import {
@@ -56,7 +69,7 @@ const INTEGRATION_PROVIDERS: IntegrationProvider[] = [
 ];
 const INTEGRATION_STATUSES: IntegrationStatus[] = ["not_configured", "configured", "healthy", "error", "unsupported"];
 const SUPPORTED_PROVIDERS: IntegrationProvider[] = ["mock"];
-const CONFIGURABLE_PROVIDERS: IntegrationProvider[] = ["mock", "google_meet"];
+const CONFIGURABLE_PROVIDERS: IntegrationProvider[] = ["mock", "google_meet", "whatsapp_cloud"];
 const PAGE_SIZE = 20;
 
 interface FormState {
@@ -73,6 +86,16 @@ interface FormState {
   send_updates: "none" | "all" | "externalOnly";
   appointment_policy: "mock_only" | "google_preferred" | "google_required" | "disabled";
   include_appointment_attendees: boolean;
+  waba_id: string;
+  phone_number_id: string;
+  display_phone_number_masked: string;
+  graph_api_version: string;
+  default_language: string;
+  country_code: string;
+  whatsapp_access_token_ref: string;
+  whatsapp_app_secret_ref: string;
+  whatsapp_verify_token_ref: string;
+  whatsapp_phone_hmac_key_ref: string;
 }
 
 const emptyForm: FormState = {
@@ -88,6 +111,16 @@ const emptyForm: FormState = {
   send_updates: "none",
   appointment_policy: "mock_only",
   include_appointment_attendees: false,
+  waba_id: "",
+  phone_number_id: "",
+  display_phone_number_masked: "",
+  graph_api_version: "v20.0",
+  default_language: "es_CL",
+  country_code: "CL",
+  whatsapp_access_token_ref: "",
+  whatsapp_app_secret_ref: "",
+  whatsapp_verify_token_ref: "",
+  whatsapp_phone_hmac_key_ref: "",
 };
 
 export function AdminIntegrationsPage() {
@@ -102,6 +135,7 @@ export function AdminIntegrationsPage() {
   const [testKeyById, setTestKeyById] = useState<Record<number, string>>({});
   const [lastResult, setLastResult] = useState<IntegrationOperationResult | null>(null);
   const [googleMeetingResult, setGoogleMeetingResult] = useState<GoogleMeetMeeting | null>(null);
+  const [whatsappValidationResult, setWhatsappValidationResult] = useState<WhatsAppValidationResult | null>(null);
 
   const integrationsQuery = useQuery({
     queryKey: ["admin-integrations", typeFilter, providerFilter, enabledFilter, statusFilter],
@@ -130,12 +164,43 @@ export function AdminIntegrationsPage() {
     queryFn: () => fetchGoogleOAuthStatus(selectedIntegration?.id ?? 0),
     enabled: selectedIntegration?.provider === "google_meet",
   });
+  const whatsappEnabled = selectedIntegration?.provider === "whatsapp_cloud";
+  const whatsappStatusQuery = useQuery({
+    queryKey: ["admin-whatsapp-status", selectedIntegration?.id],
+    queryFn: () => fetchWhatsAppStatus(selectedIntegration?.id ?? 0),
+    enabled: whatsappEnabled,
+  });
+  const whatsappWebhookStatusQuery = useQuery({
+    queryKey: ["admin-whatsapp-webhook-status", selectedIntegration?.id],
+    queryFn: () => fetchWhatsAppWebhookStatus(selectedIntegration?.id ?? 0),
+    enabled: whatsappEnabled,
+  });
+  const whatsappWebhookEventsQuery = useQuery({
+    queryKey: ["admin-whatsapp-webhook-events", selectedIntegration?.id],
+    queryFn: () => fetchWhatsAppWebhookEvents(selectedIntegration?.id ?? 0, { limit: 20 }),
+    enabled: whatsappEnabled,
+  });
+  const whatsappTemplatesQuery = useQuery({
+    queryKey: ["admin-whatsapp-templates", selectedIntegration?.id],
+    queryFn: () => fetchWhatsAppTemplates(selectedIntegration?.id ?? 0),
+    enabled: whatsappEnabled,
+  });
+  const whatsappConsentsQuery = useQuery({
+    queryKey: ["admin-whatsapp-consents"],
+    queryFn: () => fetchWhatsAppConsents(),
+    enabled: whatsappEnabled,
+  });
 
   const refreshIntegrations = () => {
     void queryClient.invalidateQueries({ queryKey: ["admin-integrations"] });
     if (selectedIntegration?.id) {
       void queryClient.invalidateQueries({ queryKey: ["admin-integration-executions", selectedIntegration.id] });
       void queryClient.invalidateQueries({ queryKey: ["admin-google-oauth-status", selectedIntegration.id] });
+      void queryClient.invalidateQueries({ queryKey: ["admin-whatsapp-status", selectedIntegration.id] });
+      void queryClient.invalidateQueries({ queryKey: ["admin-whatsapp-webhook-status", selectedIntegration.id] });
+      void queryClient.invalidateQueries({ queryKey: ["admin-whatsapp-webhook-events", selectedIntegration.id] });
+      void queryClient.invalidateQueries({ queryKey: ["admin-whatsapp-templates", selectedIntegration.id] });
+      void queryClient.invalidateQueries({ queryKey: ["admin-whatsapp-consents"] });
     }
   };
 
@@ -208,6 +273,25 @@ export function AdminIntegrationsPage() {
       refreshIntegrations();
     },
   });
+  const whatsappValidateMutation = useMutation({
+    mutationFn: (id: number) => validateWhatsAppConfiguration(id),
+    onSuccess: (result) => {
+      setWhatsappValidationResult(result);
+      refreshIntegrations();
+    },
+  });
+  const createWhatsAppTemplateMutation = useMutation({
+    mutationFn: ({ id, payload }: { id: number; payload: Required<WhatsAppTemplateWrite> }) => createWhatsAppTemplate(id, payload),
+    onSuccess: () => refreshIntegrations(),
+  });
+  const updateWhatsAppTemplateMutation = useMutation({
+    mutationFn: ({ id, templateId, payload }: { id: number; templateId: number; payload: WhatsAppTemplateWrite }) => updateWhatsAppTemplate(id, templateId, payload),
+    onSuccess: () => refreshIntegrations(),
+  });
+  const createWhatsAppConsentCorrectionMutation = useMutation({
+    mutationFn: (payload: WhatsAppConsentCorrectionPayload) => createWhatsAppConsentCorrection(payload),
+    onSuccess: () => refreshIntegrations(),
+  });
 
   const openCreate = () => {
     setForm(emptyForm);
@@ -229,6 +313,16 @@ export function AdminIntegrationsPage() {
       send_updates: integration.config.send_updates ?? "none",
       appointment_policy: integration.config.appointment_policy ?? "mock_only",
       include_appointment_attendees: integration.config.include_appointment_attendees ?? false,
+      waba_id: integration.config.waba_id ?? "",
+      phone_number_id: integration.config.phone_number_id ?? "",
+      display_phone_number_masked: integration.config.display_phone_number_masked ?? "",
+      graph_api_version: integration.config.graph_api_version ?? "v20.0",
+      default_language: integration.config.default_language ?? "es_CL",
+      country_code: integration.config.country_code ?? "CL",
+      whatsapp_access_token_ref: integration.config.secret_references?.access_token ?? "",
+      whatsapp_app_secret_ref: integration.config.secret_references?.app_secret ?? "",
+      whatsapp_verify_token_ref: integration.config.secret_references?.verify_token ?? "",
+      whatsapp_phone_hmac_key_ref: integration.config.secret_references?.phone_hmac_key ?? "",
     });
     setFormOpen(true);
   };
@@ -272,7 +366,11 @@ export function AdminIntegrationsPage() {
     getMutationError(googleRefreshMutation.error) ??
     getMutationError(googleDisconnectMutation.error) ??
     getMutationError(createGoogleMeetingMutation.error) ??
-    getMutationError(cancelGoogleMeetingMutation.error);
+    getMutationError(cancelGoogleMeetingMutation.error) ??
+    getMutationError(whatsappValidateMutation.error) ??
+    getMutationError(createWhatsAppTemplateMutation.error) ??
+    getMutationError(updateWhatsAppTemplateMutation.error) ??
+    getMutationError(createWhatsAppConsentCorrectionMutation.error);
 
   return (
     <div className="space-y-6">
@@ -390,7 +488,10 @@ export function AdminIntegrationsPage() {
               {selectedIntegration.provider === "google_meet" ? (
                 <p className="mt-4 rounded-md border border-slate-200 bg-white p-3 text-sm text-ink-600">Conexion Google en preparacion. La autorizacion OAuth queda lista para 12.2, pero RealMeet todavia no crea reuniones reales.</p>
               ) : null}
-              {!isSupportedProvider(selectedIntegration.provider) && selectedIntegration.provider !== "google_meet" ? (
+              {selectedIntegration.provider === "whatsapp_cloud" ? (
+                <p className="mt-4 rounded-md border border-slate-200 bg-white p-3 text-sm text-ink-600">WhatsApp queda preparado para configuracion, webhooks, plantillas y consentimiento. El envio real se habilitara en un submodulo posterior.</p>
+              ) : null}
+              {!isSupportedProvider(selectedIntegration.provider) && selectedIntegration.provider !== "google_meet" && selectedIntegration.provider !== "whatsapp_cloud" ? (
                 <p className="mt-4 rounded-md border border-slate-200 bg-white p-3 text-sm text-ink-600">Proveedor aun no soportado. Puedes revisar o editar su configuracion, pero no habilitarlo ni ejecutar pruebas.</p>
               ) : null}
               <div className="mt-4 flex flex-wrap gap-2">
@@ -419,6 +520,27 @@ export function AdminIntegrationsPage() {
                   meetingBusy={createGoogleMeetingMutation.isPending || cancelGoogleMeetingMutation.isPending}
                   status={googleOAuthStatusQuery.data}
                   statusLoading={googleOAuthStatusQuery.isLoading}
+                />
+              ) : null}
+              {selectedIntegration.provider === "whatsapp_cloud" ? (
+                <WhatsAppFoundationPanel
+                  integration={selectedIntegration}
+                  status={whatsappStatusQuery.data}
+                  webhookStatus={whatsappWebhookStatusQuery.data}
+                  templates={whatsappTemplatesQuery.data ?? []}
+                  consents={whatsappConsentsQuery.data ?? []}
+                  events={whatsappWebhookEventsQuery.data ?? []}
+                  loading={whatsappStatusQuery.isLoading || whatsappWebhookStatusQuery.isLoading || whatsappTemplatesQuery.isLoading || whatsappConsentsQuery.isLoading || whatsappWebhookEventsQuery.isLoading}
+                  error={whatsappStatusQuery.isError || whatsappWebhookStatusQuery.isError || whatsappTemplatesQuery.isError || whatsappConsentsQuery.isError || whatsappWebhookEventsQuery.isError}
+                  validationResult={whatsappValidationResult}
+                  validating={whatsappValidateMutation.isPending}
+                  templateSaving={createWhatsAppTemplateMutation.isPending || updateWhatsAppTemplateMutation.isPending}
+                  correctionSaving={createWhatsAppConsentCorrectionMutation.isPending}
+                  onValidate={() => whatsappValidateMutation.mutate(selectedIntegration.id)}
+                  onCreateTemplate={(payload) => createWhatsAppTemplateMutation.mutate({ id: selectedIntegration.id, payload })}
+                  onUpdateTemplate={(templateId, payload) => updateWhatsAppTemplateMutation.mutate({ id: selectedIntegration.id, templateId, payload })}
+                  onCreateConsentCorrection={(payload) => createWhatsAppConsentCorrectionMutation.mutate(payload)}
+                  onRefresh={refreshIntegrations}
                 />
               ) : null}
             </div>
@@ -498,6 +620,22 @@ function buildConfig(form: FormState): IntegrationConfig {
       include_appointment_attendees: form.include_appointment_attendees,
     };
   }
+  if (form.provider === "whatsapp_cloud") {
+    return {
+      waba_id: form.waba_id.trim(),
+      phone_number_id: form.phone_number_id.trim(),
+      display_phone_number_masked: form.display_phone_number_masked.trim(),
+      graph_api_version: form.graph_api_version.trim() || "v20.0",
+      default_language: form.default_language.trim() || "es_CL",
+      country_code: form.country_code.trim().toUpperCase() || "CL",
+      secret_references: {
+        access_token: form.whatsapp_access_token_ref.trim() || null,
+        app_secret: form.whatsapp_app_secret_ref.trim() || null,
+        verify_token: form.whatsapp_verify_token_ref.trim() || null,
+        phone_hmac_key: form.whatsapp_phone_hmac_key_ref.trim() || null,
+      },
+    };
+  }
   if (form.provider !== "mock") {
     return {};
   }
@@ -519,6 +657,7 @@ function isConfigurableProvider(provider: IntegrationProvider): boolean {
 function providerStageText(provider: IntegrationProvider): string {
   if (provider === "mock") return "Disponible para pruebas";
   if (provider === "google_meet") return "Disponible para OAuth y reservas segun politica";
+  if (provider === "whatsapp_cloud") return "Fundacion configurada sin envio";
   return "Proximamente";
 }
 
@@ -775,10 +914,10 @@ function IntegrationFormModal({ form, isSaving, onChange, onClose, onSave }: { f
               value={form.provider}
               onChange={(event) => {
                 const provider = event.target.value as IntegrationProvider;
-                onChange({ ...form, provider, integration_type: provider === "google_meet" ? "meeting" : form.integration_type });
+                onChange({ ...form, provider, integration_type: provider === "google_meet" ? "meeting" : provider === "whatsapp_cloud" ? "messaging" : form.integration_type });
               }}
             >
-              {INTEGRATION_PROVIDERS.map((provider) => <option disabled={!isConfigurableProvider(provider)} key={provider} value={provider}>{getIntegrationProviderLabel(provider)}{provider === "google_meet" ? " - OAuth y reservas" : !isConfigurableProvider(provider) ? " - Proximamente" : ""}</option>)}
+              {INTEGRATION_PROVIDERS.map((provider) => <option disabled={!isConfigurableProvider(provider)} key={provider} value={provider}>{getIntegrationProviderLabel(provider)}{provider === "google_meet" ? " - OAuth y reservas" : provider === "whatsapp_cloud" ? " - Fundacion sin envio" : !isConfigurableProvider(provider) ? " - Proximamente" : ""}</option>)}
             </Select>
           </Field>
           <Field label="Referencia de secreto" id="integration-secret">
@@ -838,6 +977,44 @@ function IntegrationFormModal({ form, isSaving, onChange, onClose, onSave }: { f
               </label>
             </div>
             {form.send_updates !== "none" ? <p className="mt-3 text-sm font-semibold text-warning-700">Esta opcion puede enviar invitaciones reales desde Google Calendar.</p> : null}
+          </div>
+        ) : form.provider === "whatsapp_cloud" ? (
+          <div className="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-4">
+            <h3 className="text-sm font-semibold text-ink-900">Configuracion local WhatsApp</h3>
+            <p className="mt-1 text-sm leading-6 text-ink-500">Estos campos preparan WhatsApp Cloud sin conectar Meta ni enviar mensajes reales.</p>
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <Field label="WABA ID" id="wa-waba-id">
+                <Input id="wa-waba-id" value={form.waba_id} onChange={(event) => onChange({ ...form, waba_id: event.target.value })} placeholder="123456789012345" />
+              </Field>
+              <Field label="Phone number ID" id="wa-phone-id">
+                <Input id="wa-phone-id" value={form.phone_number_id} onChange={(event) => onChange({ ...form, phone_number_id: event.target.value })} placeholder="987654321098765" />
+              </Field>
+              <Field label="Telefono visible enmascarado" id="wa-display-phone">
+                <Input id="wa-display-phone" value={form.display_phone_number_masked} onChange={(event) => onChange({ ...form, display_phone_number_masked: event.target.value })} placeholder="+56 9 **** 5678" />
+              </Field>
+              <Field label="Graph API version" id="wa-graph-version">
+                <Input id="wa-graph-version" value={form.graph_api_version} onChange={(event) => onChange({ ...form, graph_api_version: event.target.value })} placeholder="v20.0" />
+              </Field>
+              <Field label="Idioma por defecto" id="wa-language">
+                <Input id="wa-language" value={form.default_language} onChange={(event) => onChange({ ...form, default_language: event.target.value })} placeholder="es_CL" />
+              </Field>
+              <Field label="Pais" id="wa-country">
+                <Input id="wa-country" maxLength={2} value={form.country_code} onChange={(event) => onChange({ ...form, country_code: event.target.value.toUpperCase() })} placeholder="CL" />
+              </Field>
+              <Field label="Ref. access token" id="wa-access-token-ref">
+                <Input id="wa-access-token-ref" value={form.whatsapp_access_token_ref} onChange={(event) => onChange({ ...form, whatsapp_access_token_ref: event.target.value })} placeholder="WHATSAPP_ACCESS_TOKEN" />
+              </Field>
+              <Field label="Ref. app secret" id="wa-app-secret-ref">
+                <Input id="wa-app-secret-ref" value={form.whatsapp_app_secret_ref} onChange={(event) => onChange({ ...form, whatsapp_app_secret_ref: event.target.value })} placeholder="WHATSAPP_APP_SECRET" />
+              </Field>
+              <Field label="Ref. verify token" id="wa-verify-token-ref">
+                <Input id="wa-verify-token-ref" value={form.whatsapp_verify_token_ref} onChange={(event) => onChange({ ...form, whatsapp_verify_token_ref: event.target.value })} placeholder="WHATSAPP_VERIFY_TOKEN" />
+              </Field>
+              <Field label="Ref. phone HMAC key" id="wa-hmac-key-ref">
+                <Input id="wa-hmac-key-ref" value={form.whatsapp_phone_hmac_key_ref} onChange={(event) => onChange({ ...form, whatsapp_phone_hmac_key_ref: event.target.value })} placeholder="WHATSAPP_PHONE_HMAC_KEY" />
+              </Field>
+            </div>
+            <p className="mt-3 text-sm font-semibold text-warning-700">No pegues tokens ni credenciales reales. Usa solo nombres de variables de entorno.</p>
           </div>
         ) : form.provider !== "mock" ? (
           <p className="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-ink-600">La configuracion especifica de este proveedor estara disponible en una proxima etapa.</p>

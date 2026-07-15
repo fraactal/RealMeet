@@ -223,6 +223,7 @@ class WhatsAppWebhookEventRead(BaseModel):
 
 class WhatsAppWebhookStatusRead(BaseModel):
     integration_id: int
+    public_url: str | None = None
     public_url_configured: bool
     verify_token_configured: bool
     app_secret_configured: bool

@@ -1,4 +1,19 @@
-import type { AppointmentStatus, ConsultationMode, IntegrationExecutionStatus, IntegrationProvider, IntegrationStatus, IntegrationType, UserRole } from "../types";
+import type {
+  AppointmentStatus,
+  ConsultationMode,
+  IntegrationExecutionStatus,
+  IntegrationProvider,
+  IntegrationStatus,
+  IntegrationType,
+  UserRole,
+  WhatsAppConsentPurpose,
+  WhatsAppConsentSource,
+  WhatsAppConsentStatus,
+  WhatsAppTemplatePurpose,
+  WhatsAppTemplateStatus,
+  WhatsAppWebhookEventType,
+  WhatsAppWebhookProcessingStatus,
+} from "../types";
 
 export type MeetingStatus = "active" | "inactive" | "pending" | "provisioning" | "ready" | "failed" | "fallback_ready" | "cancelled" | "not_required" | "unknown";
 
@@ -115,4 +130,97 @@ export function getIntegrationStatusLabel(value: IntegrationStatus | string): st
 
 export function getIntegrationExecutionStatusLabel(value: IntegrationExecutionStatus | string): string {
   return integrationExecutionStatusLabels[value as IntegrationExecutionStatus] ?? value;
+}
+
+export const whatsappConsentStatusLabels: Record<WhatsAppConsentStatus, string> = {
+  not_granted: "No otorgado",
+  granted: "Otorgado",
+  revoked: "Revocado",
+};
+
+export const whatsappConsentPurposeLabels: Record<WhatsAppConsentPurpose, string> = {
+  appointment_transactional: "Mensajes transaccionales",
+  appointment_reminders: "Recordatorios",
+  appointment_updates: "Actualizaciones de reserva",
+};
+
+export const whatsappConsentSourceLabels: Record<WhatsAppConsentSource, string> = {
+  self_service: "Otorgado por el usuario",
+  admin_correction: "Correccion administrativa",
+  imported: "Importado",
+  system_migration: "Migracion del sistema",
+};
+
+export const whatsappTemplateStatusLabels: Record<WhatsAppTemplateStatus, string> = {
+  draft: "Borrador",
+  pending: "Pendiente",
+  approved: "Aprobada",
+  rejected: "Rechazada",
+  paused: "Pausada",
+  disabled: "Deshabilitada",
+  unknown: "Desconocida",
+};
+
+export const whatsappTemplatePurposeLabels: Record<WhatsAppTemplatePurpose, string> = {
+  appointment_confirmation: "Confirmacion de reserva",
+  appointment_reminder: "Recordatorio de reserva",
+  appointment_updated: "Reserva actualizada",
+  appointment_cancelled: "Reserva cancelada",
+  meeting_ready: "Enlace de reunion listo",
+};
+
+export const whatsappWebhookEventTypeLabels: Record<WhatsAppWebhookEventType, string> = {
+  inbound_message: "Mensaje entrante",
+  message_sent: "Mensaje enviado",
+  message_delivered: "Entregado",
+  message_read: "Leido",
+  message_failed: "Fallido",
+  template_status: "Estado de plantilla",
+  unknown: "Desconocido",
+};
+
+export const whatsappWebhookProcessingStatusLabels: Record<WhatsAppWebhookProcessingStatus, string> = {
+  received: "Recibido",
+  classified: "Clasificado",
+  ignored: "Ignorado",
+  duplicate: "Duplicado",
+  failed: "Fallido",
+};
+
+export const whatsappVariableLabels: Record<string, string> = {
+  client_name: "Nombre del cliente",
+  professional_name: "Nombre del profesional",
+  appointment_date: "Fecha de la reserva",
+  appointment_time: "Hora de la reserva",
+  appointment_modality: "Modalidad",
+  meeting_url: "Enlace de reunion",
+  platform_name: "Nombre de la plataforma",
+};
+
+export function getWhatsAppConsentStatusLabel(value: WhatsAppConsentStatus | string): string {
+  return whatsappConsentStatusLabels[value as WhatsAppConsentStatus] ?? value;
+}
+
+export function getWhatsAppConsentPurposeLabel(value: WhatsAppConsentPurpose | string): string {
+  return whatsappConsentPurposeLabels[value as WhatsAppConsentPurpose] ?? value;
+}
+
+export function getWhatsAppConsentSourceLabel(value: WhatsAppConsentSource | string): string {
+  return whatsappConsentSourceLabels[value as WhatsAppConsentSource] ?? value;
+}
+
+export function getWhatsAppTemplateStatusLabel(value: WhatsAppTemplateStatus | string): string {
+  return whatsappTemplateStatusLabels[value as WhatsAppTemplateStatus] ?? value;
+}
+
+export function getWhatsAppTemplatePurposeLabel(value: WhatsAppTemplatePurpose | string): string {
+  return whatsappTemplatePurposeLabels[value as WhatsAppTemplatePurpose] ?? value;
+}
+
+export function getWhatsAppWebhookEventTypeLabel(value: WhatsAppWebhookEventType | string): string {
+  return whatsappWebhookEventTypeLabels[value as WhatsAppWebhookEventType] ?? value;
+}
+
+export function getWhatsAppWebhookProcessingStatusLabel(value: WhatsAppWebhookProcessingStatus | string): string {
+  return whatsappWebhookProcessingStatusLabels[value as WhatsAppWebhookProcessingStatus] ?? value;
 }

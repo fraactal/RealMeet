@@ -328,6 +328,7 @@ class WhatsAppWebhookService:
         last_error = next((item.error_message for item in events if item.error_message), None)
         return {
             "integration_id": integration_id,
+            "public_url": settings.whatsapp_webhook_public_url,
             "public_url_configured": bool(settings.whatsapp_webhook_public_url),
             "verify_token_configured": bool(settings.whatsapp_webhook_verify_token),
             "app_secret_configured": bool(settings.whatsapp_app_secret),

@@ -30,6 +30,7 @@ def webhook_settings(monkeypatch) -> None:
     monkeypatch.setattr(settings, "whatsapp_webhook_require_signature", True)
     monkeypatch.setattr(settings, "whatsapp_webhook_max_body_bytes", 4096)
     monkeypatch.setattr(settings, "whatsapp_webhook_event_retention_days", 30)
+    monkeypatch.setattr(settings, "whatsapp_webhook_public_url", "https://example.test/api/v1/integrations/whatsapp/webhook")
     monkeypatch.setattr(settings, "whatsapp_phone_hmac_key", "PHONE_HMAC_TEST")
     monkeypatch.setattr(settings, "whatsapp_default_country_code", "CL")
 
@@ -301,6 +302,8 @@ def test_admin_webhook_event_api_is_protected_and_safe(api_client: TestClient, d
 
     status_response = api_client.get(f"/api/v1/admin/integrations/{integration.id}/whatsapp/webhook-status", headers=_auth_headers(admin))
     assert status_response.status_code == 200
+    assert status_response.json()["public_url"] == "https://example.test/api/v1/integrations/whatsapp/webhook"
+    assert status_response.json()["public_url_configured"] is True
     assert status_response.json()["app_secret_configured"] is True
     assert "APP_SECRET_TEST" not in status_response.text
 

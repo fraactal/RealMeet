@@ -459,6 +459,20 @@ export interface IntegrationConfig {
   appointment_policy?: "mock_only" | "google_preferred" | "google_required" | "disabled";
   fallback_provider?: "mock";
   include_appointment_attendees?: boolean;
+  waba_id?: string;
+  phone_number_id?: string;
+  display_phone_number_masked?: string;
+  graph_api_version?: string;
+  default_language?: string;
+  country_code?: string;
+  secret_references?: WhatsAppSecretReferences;
+}
+
+export interface WhatsAppSecretReferences {
+  access_token?: string | null;
+  app_secret?: string | null;
+  verify_token?: string | null;
+  phone_hmac_key?: string | null;
 }
 
 export interface Integration {
@@ -580,4 +594,127 @@ export interface GoogleMeetMeetingCreatePayload {
 export interface GoogleMeetMeetingCancelPayload {
   idempotency_key: string;
   send_updates: "none" | "all" | "externalOnly";
+}
+
+export type WhatsAppConsentStatus = "not_granted" | "granted" | "revoked";
+export type WhatsAppConsentPurpose = "appointment_transactional" | "appointment_reminders" | "appointment_updates";
+export type WhatsAppConsentSource = "self_service" | "admin_correction" | "imported" | "system_migration";
+export type WhatsAppTemplateStatus = "draft" | "pending" | "approved" | "rejected" | "paused" | "disabled" | "unknown";
+export type WhatsAppTemplateCategory = "utility" | "authentication" | "marketing" | "unknown";
+export type WhatsAppTemplatePurpose = "appointment_confirmation" | "appointment_reminder" | "appointment_updated" | "appointment_cancelled" | "meeting_ready";
+export type WhatsAppWebhookEventType = "inbound_message" | "message_sent" | "message_delivered" | "message_read" | "message_failed" | "template_status" | "unknown";
+export type WhatsAppWebhookProcessingStatus = "received" | "classified" | "ignored" | "duplicate" | "failed";
+
+export interface WhatsAppIntegrationStatus {
+  integration_id: number;
+  provider: string;
+  status: string;
+  enabled: boolean;
+  locally_configured: boolean;
+  operational_for_sending: boolean;
+  message: string;
+  waba_id_partial: string;
+  phone_number_id_partial: string;
+  display_phone_number_masked: string;
+  graph_api_version: string;
+  default_language: string;
+  country_code: string;
+}
+
+export interface WhatsAppValidationResult {
+  success: boolean;
+  code: string;
+  message: string;
+  metadata: Record<string, string | number | boolean | string[] | null>;
+}
+
+export interface WhatsAppWebhookStatus {
+  integration_id: number;
+  public_url?: string | null;
+  public_url_configured: boolean;
+  verify_token_configured: boolean;
+  app_secret_configured: boolean;
+  signature_required: boolean;
+  max_body_bytes: number;
+  retention_days: number;
+  last_received_at?: string | null;
+  recent_total: number;
+  last_error?: string | null;
+}
+
+export interface WhatsAppWebhookEvent {
+  id: number;
+  integration_id?: number | null;
+  event_key_partial: string;
+  payload_hash_partial: string;
+  object_type?: string | null;
+  field?: string | null;
+  event_type: WhatsAppWebhookEventType;
+  external_message_id_partial?: string | null;
+  phone_number_id_masked?: string | null;
+  status?: string | null;
+  occurred_at?: string | null;
+  received_at: string;
+  last_received_at?: string | null;
+  processed_at?: string | null;
+  processing_status: WhatsAppWebhookProcessingStatus;
+  signature_valid: boolean;
+  duplicate: boolean;
+  received_count: number;
+  safe_metadata: Record<string, string | number | boolean | null | string[]>;
+  error_code?: string | null;
+  error_message?: string | null;
+}
+
+export interface WhatsAppTemplateVariable {
+  key: "client_name" | "professional_name" | "appointment_date" | "appointment_time" | "appointment_modality" | "meeting_url" | "platform_name";
+  required: boolean;
+  sensitive: false;
+}
+
+export interface WhatsAppTemplateComponentsSchema {
+  variables: WhatsAppTemplateVariable[];
+}
+
+export interface WhatsAppTemplate {
+  id: number;
+  integration_id: number;
+  name: string;
+  language: string;
+  category: WhatsAppTemplateCategory;
+  status: WhatsAppTemplateStatus;
+  purpose: WhatsAppTemplatePurpose;
+  components_schema: WhatsAppTemplateComponentsSchema;
+  external_template_id?: string | null;
+  last_synced_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WhatsAppTemplateWrite {
+  name?: string;
+  language?: string;
+  category?: "utility";
+  purpose?: WhatsAppTemplatePurpose;
+  components_schema?: WhatsAppTemplateComponentsSchema;
+}
+
+export interface WhatsAppConsentSummary {
+  id: number;
+  user_id: number;
+  phone_masked: string;
+  status: WhatsAppConsentStatus;
+  purpose: WhatsAppConsentPurpose;
+  source: WhatsAppConsentSource;
+  granted_at?: string | null;
+  revoked_at?: string | null;
+  created_at: string;
+}
+
+export interface WhatsAppConsentCorrectionPayload {
+  user_id: number;
+  phone: string;
+  purpose: WhatsAppConsentPurpose;
+  consent_text_version: string;
+  reason: string;
 }
