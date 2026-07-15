@@ -1,9 +1,9 @@
 from collections.abc import Sequence
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.integrations.enums import IntegrationProvider, IntegrationType
+from app.integrations.enums import IntegrationProvider, IntegrationStatus, IntegrationType
 from app.models.integration import Integration
 from app.schemas.integrations import IntegrationCreate, IntegrationUpdate
 
@@ -24,6 +24,33 @@ class IntegrationRepository:
     def list(self) -> Sequence[Integration]:
         return self.db.scalars(select(Integration).order_by(Integration.created_at.desc(), Integration.id.desc())).all()
 
+    def list_filtered(
+        self,
+        *,
+        integration_type: IntegrationType | None = None,
+        provider: IntegrationProvider | None = None,
+        enabled: bool | None = None,
+        status: IntegrationStatus | None = None,
+        offset: int = 0,
+        limit: int = 20,
+    ) -> Sequence[Integration]:
+        query = self._filtered_query(integration_type=integration_type, provider=provider, enabled=enabled, status=status)
+        return self.db.scalars(query.order_by(Integration.created_at.desc(), Integration.id.desc()).offset(offset).limit(limit)).all()
+
+    def count_filtered(
+        self,
+        *,
+        integration_type: IntegrationType | None = None,
+        provider: IntegrationProvider | None = None,
+        enabled: bool | None = None,
+        status: IntegrationStatus | None = None,
+    ) -> int:
+        query = select(func.count(Integration.id))
+        conditions = self._conditions(integration_type=integration_type, provider=provider, enabled=enabled, status=status)
+        if conditions:
+            query = query.where(*conditions)
+        return self.db.scalar(query) or 0
+
     def list_by_type(self, integration_type: IntegrationType) -> Sequence[Integration]:
         return self.db.scalars(select(Integration).where(Integration.integration_type == integration_type)).all()
 
@@ -37,3 +64,36 @@ class IntegrationRepository:
                 setattr(integration, field, values[field])
         self.db.flush()
         return integration
+
+    @staticmethod
+    def _conditions(
+        *,
+        integration_type: IntegrationType | None,
+        provider: IntegrationProvider | None,
+        enabled: bool | None,
+        status: IntegrationStatus | None,
+    ) -> list:
+        conditions = []
+        if integration_type is not None:
+            conditions.append(Integration.integration_type == integration_type)
+        if provider is not None:
+            conditions.append(Integration.provider == provider)
+        if enabled is not None:
+            conditions.append(Integration.enabled.is_(enabled))
+        if status is not None:
+            conditions.append(Integration.status == status)
+        return conditions
+
+    def _filtered_query(
+        self,
+        *,
+        integration_type: IntegrationType | None,
+        provider: IntegrationProvider | None,
+        enabled: bool | None,
+        status: IntegrationStatus | None,
+    ):
+        query = select(Integration)
+        conditions = self._conditions(integration_type=integration_type, provider=provider, enabled=enabled, status=status)
+        if conditions:
+            query = query.where(*conditions)
+        return query

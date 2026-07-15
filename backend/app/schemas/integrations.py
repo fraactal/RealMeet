@@ -78,6 +78,32 @@ class IntegrationRead(ORMModel):
     updated_at: datetime
 
 
+class IntegrationPageMeta(BaseModel):
+    page: int
+    page_size: int
+    total: int
+    total_pages: int
+
+
+class IntegrationListResponse(BaseModel):
+    items: list[IntegrationRead]
+    meta: IntegrationPageMeta
+
+
+class IntegrationOperationResultRead(BaseModel):
+    success: bool
+    code: str
+    message: str
+    skipped: bool = False
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    execution_id: int | None = None
+    duration_ms: int = 0
+
+
+class IntegrationTestRequest(StrictBaseModel):
+    idempotency_key: str = Field(min_length=1, max_length=180)
+
+
 class IntegrationExecutionCreate(StrictBaseModel):
     integration_id: int
     operation: str = Field(min_length=1, max_length=120)

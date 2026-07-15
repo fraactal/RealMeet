@@ -1,11 +1,20 @@
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.core.deps import require_admin
 from app.db.session import get_db
+from app.integrations.enums import IntegrationProvider, IntegrationStatus, IntegrationType
+from app.integrations.exceptions import (
+    IntegrationConfigurationError,
+    IntegrationDisabledError,
+    IntegrationError,
+    IntegrationExecutionInProgressError,
+    IntegrationNotFoundError,
+    IntegrationProviderUnsupportedError,
+)
 from app.models.audit_log import AuditLog
 from app.models.appointment import Appointment, AppointmentStatus
 from app.models.category import Category
@@ -27,11 +36,161 @@ from app.schemas.admin import (
 )
 from app.schemas.appointments import AppointmentAdminRead, AppointmentHistoryRead, AppointmentMeetingRead, AppointmentStatusUpdate
 from app.schemas.categories import CategoryAdminRead, CategoryCreate, CategoryUpdate
+from app.schemas.integrations import (
+    IntegrationExecutionRead,
+    IntegrationListResponse,
+    IntegrationOperationResultRead,
+    IntegrationPageMeta,
+    IntegrationRead,
+    IntegrationTestRequest,
+    IntegrationCreate,
+    IntegrationUpdate,
+)
 from app.schemas.specialties import SpecialtyAdminRead, SpecialtyCreate, SpecialtyUpdate
 from app.services.catalog import CatalogService
 from app.services.appointments import AppointmentService
+from app.services.integrations import IntegrationService
 
 router = APIRouter(dependencies=[Depends(require_admin)])
+
+
+@router.get("/integrations", response_model=IntegrationListResponse)
+def list_integrations(
+    integration_type: IntegrationType | None = Query(default=None),
+    provider: IntegrationProvider | None = Query(default=None),
+    enabled: bool | None = Query(default=None),
+    integration_status: IntegrationStatus | None = Query(default=None, alias="status"),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    db: Session = Depends(get_db),
+) -> IntegrationListResponse:
+    items, total = IntegrationService(db).list_integrations(
+        integration_type=integration_type,
+        provider=provider,
+        enabled=enabled,
+        status=integration_status,
+        page=page,
+        page_size=page_size,
+    )
+    return IntegrationListResponse(
+        items=[IntegrationRead.model_validate(item) for item in items],
+        meta=_integration_page_meta(page, page_size, total),
+    )
+
+
+@router.post("/integrations", response_model=IntegrationRead)
+def create_integration(
+    payload: IntegrationCreate,
+    admin_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> IntegrationRead:
+    try:
+        item = IntegrationService(db).create_integration(payload, admin_user)
+    except IntegrationError as exc:
+        raise _integration_http_error(exc) from exc
+    return IntegrationRead.model_validate(item)
+
+
+@router.get("/integrations/{integration_id}", response_model=IntegrationRead)
+def get_integration(integration_id: int, db: Session = Depends(get_db)) -> IntegrationRead:
+    try:
+        item = IntegrationService(db).get_integration(integration_id)
+    except IntegrationError as exc:
+        raise _integration_http_error(exc) from exc
+    return IntegrationRead.model_validate(item)
+
+
+@router.patch("/integrations/{integration_id}", response_model=IntegrationRead)
+def update_integration(
+    integration_id: int,
+    payload: IntegrationUpdate,
+    admin_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> IntegrationRead:
+    try:
+        item = IntegrationService(db).update_integration(integration_id, payload, admin_user)
+    except IntegrationError as exc:
+        raise _integration_http_error(exc) from exc
+    return IntegrationRead.model_validate(item)
+
+
+@router.post("/integrations/{integration_id}/validate", response_model=IntegrationOperationResultRead)
+def validate_integration(
+    integration_id: int,
+    admin_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> IntegrationOperationResultRead:
+    try:
+        result = IntegrationService(db).validate_configuration(integration_id, admin_user)
+    except IntegrationError as exc:
+        raise _integration_http_error(exc) from exc
+    return _operation_result(result)
+
+
+@router.post("/integrations/{integration_id}/enable", response_model=IntegrationRead)
+def enable_integration(
+    integration_id: int,
+    admin_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> IntegrationRead:
+    try:
+        item = IntegrationService(db).enable_integration(integration_id, admin_user)
+    except IntegrationError as exc:
+        raise _integration_http_error(exc) from exc
+    return IntegrationRead.model_validate(item)
+
+
+@router.post("/integrations/{integration_id}/disable", response_model=IntegrationRead)
+def disable_integration(
+    integration_id: int,
+    admin_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> IntegrationRead:
+    try:
+        item = IntegrationService(db).disable_integration(integration_id, admin_user)
+    except IntegrationError as exc:
+        raise _integration_http_error(exc) from exc
+    return IntegrationRead.model_validate(item)
+
+
+@router.post("/integrations/{integration_id}/health-check", response_model=IntegrationOperationResultRead)
+def health_check_integration(
+    integration_id: int,
+    admin_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> IntegrationOperationResultRead:
+    try:
+        result = IntegrationService(db).health_check(integration_id, admin_user)
+    except IntegrationError as exc:
+        raise _integration_http_error(exc) from exc
+    return _operation_result(result)
+
+
+@router.post("/integrations/{integration_id}/test", response_model=IntegrationOperationResultRead)
+def test_integration(
+    integration_id: int,
+    payload: IntegrationTestRequest,
+    admin_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> IntegrationOperationResultRead:
+    try:
+        result = IntegrationService(db).test_integration(integration_id, admin_user, idempotency_key=payload.idempotency_key)
+    except IntegrationError as exc:
+        raise _integration_http_error(exc) from exc
+    return _operation_result(result)
+
+
+@router.get("/integrations/{integration_id}/executions", response_model=list[IntegrationExecutionRead])
+def list_integration_executions(
+    integration_id: int,
+    limit: int = Query(default=20, ge=1, le=100),
+    db: Session = Depends(get_db),
+) -> list[IntegrationExecutionRead]:
+    try:
+        items = IntegrationService(db).list_executions(integration_id, limit=limit)
+    except IntegrationError as exc:
+        raise _integration_http_error(exc) from exc
+    return [IntegrationExecutionRead.model_validate(item) for item in items]
 
 
 @router.get("/users", response_model=AdminUserListResponse)
@@ -255,6 +414,33 @@ def update_appointment_status(
     db.commit()
     db.refresh(item)
     return _serialize_admin_appointment(item, service)
+
+
+def _integration_page_meta(page: int, page_size: int, total: int) -> IntegrationPageMeta:
+    total_pages = max((total + page_size - 1) // page_size, 1)
+    return IntegrationPageMeta(page=page, page_size=page_size, total=total, total_pages=total_pages)
+
+
+def _operation_result(result) -> IntegrationOperationResultRead:
+    return IntegrationOperationResultRead(
+        success=result.success,
+        code=result.code,
+        message=result.message,
+        skipped=result.skipped,
+        metadata=result.metadata,
+        execution_id=result.execution_id,
+        duration_ms=result.duration_ms,
+    )
+
+
+def _integration_http_error(exc: IntegrationError) -> HTTPException:
+    if isinstance(exc, IntegrationNotFoundError):
+        return HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=exc.message)
+    if isinstance(exc, IntegrationConfigurationError):
+        return HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=exc.message)
+    if isinstance(exc, (IntegrationProviderUnsupportedError, IntegrationDisabledError, IntegrationExecutionInProgressError)):
+        return HTTPException(status_code=status.HTTP_409_CONFLICT, detail=exc.message)
+    return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Integration operation failed")
 
 
 def _serialize_user_item(user: User) -> AdminUserListItem:
