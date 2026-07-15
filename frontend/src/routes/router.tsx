@@ -15,9 +15,13 @@ import { ProfessionalAppointmentsPage } from "../pages/ProfessionalAppointmentsP
 import { ProfessionalCatalogPage } from "../pages/ProfessionalCatalogPage";
 import { ProfessionalMetricsPage } from "../pages/ProfessionalMetricsPage";
 import { ProfessionalsPage } from "../pages/ProfessionalsPage";
+import { DesignSystemPage } from "../pages/DesignSystemPage";
 import { RequireAuth } from "./RequireAuth";
 
+const internalDevelopmentRoutes = import.meta.env.DEV ? [{ path: "/internal/design-system", element: <DesignSystemPage /> }] : [];
+
 export const router = createBrowserRouter([
+  ...internalDevelopmentRoutes,
   {
     element: <PublicLayout />,
     children: [
