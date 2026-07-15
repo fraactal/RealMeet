@@ -131,6 +131,13 @@ class AppointmentNotificationService:
         ]
         if appointment.status == AppointmentStatus.cancelled and appointment.cancellation_reason:
             lines.append(f"Motivo de cancelacion: {appointment.cancellation_reason}")
-        if include_meeting and appointment.meeting_url and appointment.status != AppointmentStatus.cancelled:
-            lines.extend(["", "Reunion de demostracion:", appointment.meeting_url])
+        if include_meeting and appointment.status != AppointmentStatus.cancelled:
+            meeting_link = getattr(appointment, "meeting_link", None)
+            if appointment.meeting_url:
+                provider = getattr(appointment, "meeting_provider", None)
+                provider_value = getattr(provider, "value", provider)
+                label = "Reunion simulada para entorno de prueba:" if getattr(meeting_link, "fallback_used", False) or str(provider_value) == "mock" else "Reunion:"
+                lines.extend(["", label, appointment.meeting_url])
+            elif meeting_link and getattr(meeting_link, "status", None):
+                lines.extend(["", "El enlace de reunion todavia esta siendo preparado."])
         return "\n".join(lines)

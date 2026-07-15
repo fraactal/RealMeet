@@ -32,6 +32,9 @@ class GoogleMeetConfig(BaseModel):
     calendar_id: str = Field(default="primary", min_length=1, max_length=255)
     send_updates: str = "none"
     default_timezone: str = DEFAULT_TIMEZONE
+    appointment_policy: str = "mock_only"
+    fallback_provider: str = "mock"
+    include_appointment_attendees: bool = False
 
 
 class GoogleMeetService:
@@ -217,6 +220,10 @@ class GoogleMeetService:
         _validate_calendar_id(config.calendar_id)
         _validate_send_updates(config.send_updates)
         _validate_timezone(config.default_timezone)
+        if config.appointment_policy not in {"mock_only", "google_preferred", "google_required", "disabled"}:
+            raise IntegrationConfigurationError("Politica de reuniones invalida", code="google_meet_policy_invalid")
+        if config.fallback_provider != "mock":
+            raise IntegrationConfigurationError("Proveedor fallback invalido", code="google_meet_fallback_invalid")
         return config
 
     def _validate_request(self, request: MeetingCreateRequest) -> None:
@@ -276,9 +283,12 @@ class GoogleMeetService:
 
     def _upsert_external_meeting(self, integration: Integration, calendar_id: str, event: CalendarEventResult, meeting_url: str, request: MeetingCreateRequest) -> ExternalMeeting:
         meeting = self.db.scalar(select(ExternalMeeting).where(ExternalMeeting.integration_id == integration.id, ExternalMeeting.external_event_id == event.event_id, ExternalMeeting.provider == IntegrationProvider.google_meet))
+        appointment_id = int(request.entity_id) if request.entity_type == "appointment" and request.entity_id and request.entity_id.isdigit() else None
         if not meeting:
-            meeting = ExternalMeeting(integration_id=integration.id, provider=IntegrationProvider.google_meet, external_event_id=event.event_id, external_calendar_id=calendar_id, starts_at=event.start_at, ends_at=event.end_at)
+            meeting = ExternalMeeting(integration_id=integration.id, provider=IntegrationProvider.google_meet, external_event_id=event.event_id, appointment_id=appointment_id, external_calendar_id=calendar_id, starts_at=event.start_at, ends_at=event.end_at)
             self.db.add(meeting)
+        elif appointment_id:
+            meeting.appointment_id = appointment_id
         meeting.conference_id = event.conference_id
         meeting.meeting_url = meeting_url
         meeting.html_link = _safe_google_url(event.html_link)

@@ -1,4 +1,4 @@
-from app.models.appointment import Appointment, AppointmentHistory
+from app.models.appointment import Appointment, AppointmentHistory, AppointmentMeeting
 from app.models.audit_log import AuditLog
 from app.models.availability import AvailabilityBlock, AvailabilityRule
 from app.models.category import Category
@@ -12,6 +12,7 @@ from app.models.user import User
 __all__ = [
     "Appointment",
     "AppointmentHistory",
+    "AppointmentMeeting",
     "AuditLog",
     "AvailabilityBlock",
     "AvailabilityRule",

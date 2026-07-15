@@ -249,9 +249,13 @@ export interface AppointmentCreate {
 }
 
 export interface AppointmentMeeting {
-  provider: string;
+  provider?: string | null;
   join_url?: string | null;
-  status: "active" | "inactive" | "unknown";
+  status: "active" | "inactive" | "unknown" | "pending" | "provisioning" | "ready" | "failed" | "fallback_ready" | "cancelled" | "not_required";
+  fallback_used?: boolean;
+  message?: string | null;
+  error_code?: string | null;
+  error_message?: string | null;
 }
 
 export interface Appointment {
@@ -449,6 +453,12 @@ export interface IntegrationConfig {
   simulate_error?: boolean;
   health?: "healthy" | "error";
   response_delay_ms?: number;
+  calendar_id?: string;
+  default_timezone?: string;
+  send_updates?: "none" | "all" | "externalOnly";
+  appointment_policy?: "mock_only" | "google_preferred" | "google_required" | "disabled";
+  fallback_provider?: "mock";
+  include_appointment_attendees?: boolean;
 }
 
 export interface Integration {

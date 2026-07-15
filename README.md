@@ -449,6 +449,15 @@ El Modulo 12.1 prepara autorizacion OAuth administrativa para una integracion `g
 
 El Modulo 12.2 agrega un proveedor Google Meet controlado desde backoffice admin para pruebas manuales: crea eventos de Google Calendar con `conferenceDataVersion=1`, solicita conferencia `hangoutsMeet`, persiste referencias reducidas en RealMeet y permite consultar/cancelar reuniones conocidas. Este flujo no se conecta todavia a las reservas; las reservas siguen usando el provider mock hasta el submodulo 12.3.
 
+El Modulo 12.3 conecta la provision de reuniones con reservas confirmadas mediante una politica operativa configurada en la integracion `google_meet`. Google Meet puede integrarse con nuevas reservas segun la politica configurada. No existen reintentos automaticos ni sincronizacion bidireccional en este submodulo.
+
+Politicas disponibles:
+
+- `mock_only`: crea siempre una reunion mock.
+- `google_preferred`: intenta Google Meet y usa mock como fallback controlado.
+- `google_required`: exige Google Meet; si falla, la reserva permanece y la reunion queda pendiente de resolucion administrativa.
+- `disabled`: no crea reunion automatica.
+
 Variables:
 
 - `GOOGLE_OAUTH_CLIENT_ID`: client ID de Google Cloud. Debe quedar vacio en Git.
@@ -466,6 +475,8 @@ Notas operativas:
 - La operacion admin usa idempotency key para evitar crear dos eventos por doble ejecucion.
 - `sendUpdates` queda en `none` por defecto; otros modos deben elegirse de forma explicita.
 - No ingreses tokens, client secrets ni credenciales reales en el formulario de integraciones.
+- La cancelacion de reserva intenta cancelar la reunion externa, pero nunca revierte la cancelacion de la reserva si Google falla.
+- Los administradores pueden reintentar creacion, reintentar cancelacion y reconciliar manualmente desde el backoffice de reservas.
 
 ## Plan sugerido de commits
 

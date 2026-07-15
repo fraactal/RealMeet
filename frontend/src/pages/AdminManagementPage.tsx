@@ -5,6 +5,9 @@ import {
   fetchAdminAppointments,
   fetchAdminProfessionals,
   fetchAdminUsers,
+  reconcileAdminAppointmentMeeting,
+  retryAdminAppointmentMeetingCancel,
+  retryAdminAppointmentMeetingCreate,
   updateAdminProfessional,
   updateAdminUser,
 } from "../api/queries";
@@ -12,7 +15,7 @@ import { AdminAppointmentCard } from "../components/admin/AdminAppointmentCard";
 import { AdminPagination } from "../components/admin/AdminPagination";
 import { AdminStatusPill } from "../components/admin/AdminStatusPill";
 import { Badge, Button, EmptyState, ErrorState, Input, Label, LoadingState, PageHeader, SectionCard, Select, StatusBadge } from "../components/ui";
-import type { AppointmentStatus, UserRole } from "../types";
+import type { Appointment, AppointmentStatus, UserRole } from "../types";
 import { formatDateTime } from "../utils/dates";
 import { getAppointmentStatusLabel, getConsultationModeLabel, getRoleLabel } from "../utils/labels";
 
@@ -66,6 +69,14 @@ export function AdminManagementPage() {
     mutationFn: ({ id, is_public, user_is_active }: { id: number; is_public?: boolean; user_is_active?: boolean }) =>
       updateAdminProfessional(id, { is_public, user_is_active }),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["admin-professionals"] }),
+  });
+  const meetingOperationMutation = useMutation({
+    mutationFn: ({ id, operation }: { id: number; operation: "retry-create" | "retry-cancel" | "reconcile" }) => {
+      if (operation === "retry-create") return retryAdminAppointmentMeetingCreate(id);
+      if (operation === "retry-cancel") return retryAdminAppointmentMeetingCancel(id);
+      return reconcileAdminAppointmentMeeting(id);
+    },
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["admin-appointments"] }),
   });
 
   const resetFilters = () => {
@@ -338,8 +349,10 @@ export function AdminManagementPage() {
                 <th className="px-4 py-3">Fecha</th>
                 <th className="px-4 py-3">Modalidad</th>
                 <th className="px-4 py-3">Estado</th>
+                <th className="px-4 py-3">Reunion</th>
                 <th className="px-4 py-3">Cliente</th>
                 <th className="px-4 py-3">Profesional</th>
+                <th className="px-4 py-3 text-right">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 bg-white">
@@ -350,8 +363,12 @@ export function AdminManagementPage() {
                   <td className="px-4 py-4">
                     <StatusBadge status={appointment.status} />
                   </td>
+                  <td className="px-4 py-4 text-ink-500">{appointment.meeting?.message ?? "Sin reunion"}</td>
                   <td className="px-4 py-4 text-ink-500">Cliente registrado</td>
                   <td className="px-4 py-4 text-ink-500">Profesional registrado</td>
+                  <td className="px-4 py-4">
+                    <MeetingAdminActions appointment={appointment} isLoading={meetingOperationMutation.isPending && meetingOperationMutation.variables?.id === appointment.id} onRun={(operation) => meetingOperationMutation.mutate({ id: appointment.id, operation })} />
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -360,11 +377,48 @@ export function AdminManagementPage() {
 
         <div className="space-y-3 lg:hidden">
           {appointmentsQuery.data?.items.map((appointment) => (
-            <AdminAppointmentCard appointment={appointment} key={appointment.id} />
+            <div className="space-y-2" key={appointment.id}>
+              <AdminAppointmentCard appointment={appointment} />
+              <MeetingAdminActions appointment={appointment} isLoading={meetingOperationMutation.isPending && meetingOperationMutation.variables?.id === appointment.id} onRun={(operation) => meetingOperationMutation.mutate({ id: appointment.id, operation })} />
+            </div>
           ))}
         </div>
         <AdminPagination meta={appointmentsQuery.data?.meta} onPageChange={setAppointmentsPage} />
       </SectionCard>
+    </div>
+  );
+}
+
+function MeetingAdminActions({
+  appointment,
+  isLoading,
+  onRun,
+}: {
+  appointment: Appointment;
+  isLoading: boolean;
+  onRun: (operation: "retry-create" | "retry-cancel" | "reconcile") => void;
+}) {
+  const meeting = appointment.meeting;
+  const canRetryCreate = appointment.status !== "cancelled" && (!meeting || meeting.status === "failed" || meeting.status === "pending");
+  const canRetryCancel = appointment.status === "cancelled" && meeting && meeting.status !== "cancelled" && meeting.status !== "not_required";
+  const canReconcile = Boolean(meeting);
+
+  return (
+    <div className="flex flex-wrap justify-end gap-2">
+      {meeting?.join_url ? (
+        <Button onClick={() => window.open(meeting.join_url ?? "", "_blank", "noopener,noreferrer")} size="sm" variant="secondary">
+          Abrir
+        </Button>
+      ) : null}
+      <Button disabled={!canRetryCreate || isLoading} isLoading={isLoading} onClick={() => onRun("retry-create")} size="sm" variant="secondary">
+        Reintentar enlace
+      </Button>
+      <Button disabled={!canRetryCancel || isLoading} isLoading={isLoading} onClick={() => onRun("retry-cancel")} size="sm" variant="secondary">
+        Reintentar cancelacion
+      </Button>
+      <Button disabled={!canReconcile || isLoading} isLoading={isLoading} onClick={() => onRun("reconcile")} size="sm" variant="secondary">
+        Reconciliar
+      </Button>
     </div>
   );
 }

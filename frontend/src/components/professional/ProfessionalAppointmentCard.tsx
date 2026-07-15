@@ -45,7 +45,7 @@ export function ProfessionalAppointmentCard({ actions, appointment, detail }: Pr
             </p>
           </div>
           <p className="text-sm text-ink-500">
-            {hasMeeting(appointment) ? "Cliente registrado" : getAppointmentStatusLabel(appointment.status)}
+            {meeting?.message ?? (hasMeeting(appointment) ? "Cliente registrado" : getAppointmentStatusLabel(appointment.status))}
           </p>
         </div>
         {actions ? <div className="flex flex-wrap gap-2 lg:justify-end">{actions}</div> : null}

@@ -21,11 +21,11 @@ function getMeetingLabel(appointment: ClientAppointment): string {
     return appointment.consultation_mode === "presencial" ? "Atencion presencial" : "Reunion pendiente";
   }
 
-  return getMeetingStatusLabel(appointment.meeting.status);
+  return appointment.meeting.message || getMeetingStatusLabel(appointment.meeting.status);
 }
 
 export function ClientAppointmentCard({ actions, appointment, emphasis = false, showMeeting = true }: ClientAppointmentCardProps) {
-  const hasMeetingLink = "meeting" in appointment && appointment.meeting?.status === "active" && appointment.meeting.join_url;
+  const hasMeetingLink = "meeting" in appointment && Boolean(appointment.meeting?.join_url);
 
   return (
     <article

@@ -68,6 +68,11 @@ interface FormState {
   simulate_error: boolean;
   health: "healthy" | "error";
   response_delay_ms: number;
+  calendar_id: string;
+  default_timezone: string;
+  send_updates: "none" | "all" | "externalOnly";
+  appointment_policy: "mock_only" | "google_preferred" | "google_required" | "disabled";
+  include_appointment_attendees: boolean;
 }
 
 const emptyForm: FormState = {
@@ -78,6 +83,11 @@ const emptyForm: FormState = {
   simulate_error: false,
   health: "healthy",
   response_delay_ms: 0,
+  calendar_id: "primary",
+  default_timezone: "America/Santiago",
+  send_updates: "none",
+  appointment_policy: "mock_only",
+  include_appointment_attendees: false,
 };
 
 export function AdminIntegrationsPage() {
@@ -214,6 +224,11 @@ export function AdminIntegrationsPage() {
       simulate_error: integration.config.simulate_error ?? false,
       health: integration.config.health ?? "healthy",
       response_delay_ms: integration.config.response_delay_ms ?? 0,
+      calendar_id: integration.config.calendar_id ?? "primary",
+      default_timezone: integration.config.default_timezone ?? "America/Santiago",
+      send_updates: integration.config.send_updates ?? "none",
+      appointment_policy: integration.config.appointment_policy ?? "mock_only",
+      include_appointment_attendees: integration.config.include_appointment_attendees ?? false,
     });
     setFormOpen(true);
   };
@@ -473,6 +488,16 @@ function useOperationMutation(
 }
 
 function buildConfig(form: FormState): IntegrationConfig {
+  if (form.provider === "google_meet") {
+    return {
+      calendar_id: form.calendar_id || "primary",
+      default_timezone: form.default_timezone || "America/Santiago",
+      send_updates: form.send_updates,
+      appointment_policy: form.appointment_policy,
+      fallback_provider: "mock",
+      include_appointment_attendees: form.include_appointment_attendees,
+    };
+  }
   if (form.provider !== "mock") {
     return {};
   }
@@ -493,7 +518,7 @@ function isConfigurableProvider(provider: IntegrationProvider): boolean {
 
 function providerStageText(provider: IntegrationProvider): string {
   if (provider === "mock") return "Disponible para pruebas";
-  if (provider === "google_meet") return "Conexion Google en preparacion";
+  if (provider === "google_meet") return "Disponible para OAuth y reservas segun politica";
   return "Proximamente";
 }
 
@@ -753,7 +778,7 @@ function IntegrationFormModal({ form, isSaving, onChange, onClose, onSave }: { f
                 onChange({ ...form, provider, integration_type: provider === "google_meet" ? "meeting" : form.integration_type });
               }}
             >
-              {INTEGRATION_PROVIDERS.map((provider) => <option disabled={!isConfigurableProvider(provider)} key={provider} value={provider}>{getIntegrationProviderLabel(provider)}{provider === "google_meet" ? " - OAuth preparado" : !isConfigurableProvider(provider) ? " - Proximamente" : ""}</option>)}
+              {INTEGRATION_PROVIDERS.map((provider) => <option disabled={!isConfigurableProvider(provider)} key={provider} value={provider}>{getIntegrationProviderLabel(provider)}{provider === "google_meet" ? " - OAuth y reservas" : !isConfigurableProvider(provider) ? " - Proximamente" : ""}</option>)}
             </Select>
           </Field>
           <Field label="Referencia de secreto" id="integration-secret">
@@ -780,9 +805,43 @@ function IntegrationFormModal({ form, isSaving, onChange, onClose, onSave }: { f
               </Field>
             </div>
           </div>
-        ) : (
-          <p className="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-ink-600">{form.provider === "google_meet" ? "Google Meet se conectara mediante OAuth administrativo. La creacion real de reuniones se habilitara en 12.2." : "La configuracion especifica de este proveedor estara disponible en una proxima etapa."}</p>
-        )}
+        ) : null}
+        {form.provider === "google_meet" ? (
+          <div className="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-4">
+            <h3 className="text-sm font-semibold text-ink-900">Politica de reuniones para nuevas reservas</h3>
+            <p className="mt-1 text-sm leading-6 text-ink-500">Cambiar esta politica afecta nuevas reservas confirmadas. No reprocesa automaticamente reservas anteriores.</p>
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <Field label="Politica" id="google-policy">
+                <Select id="google-policy" value={form.appointment_policy} onChange={(event) => onChange({ ...form, appointment_policy: event.target.value as FormState["appointment_policy"] })}>
+                  <option value="mock_only">Solo simulacion</option>
+                  <option value="google_preferred">Preferir Google Meet con fallback</option>
+                  <option value="google_required">Exigir Google Meet</option>
+                  <option value="disabled">No crear reunion automaticamente</option>
+                </Select>
+              </Field>
+              <Field label="Calendar ID" id="google-calendar-id">
+                <Input id="google-calendar-id" value={form.calendar_id} onChange={(event) => onChange({ ...form, calendar_id: event.target.value })} />
+              </Field>
+              <Field label="Zona horaria" id="google-default-timezone">
+                <Input id="google-default-timezone" value={form.default_timezone} onChange={(event) => onChange({ ...form, default_timezone: event.target.value })} />
+              </Field>
+              <Field label="Notificaciones Google" id="google-send-updates-config">
+                <Select id="google-send-updates-config" value={form.send_updates} onChange={(event) => onChange({ ...form, send_updates: event.target.value as FormState["send_updates"] })}>
+                  <option value="none">No enviar invitaciones</option>
+                  <option value="externalOnly">Solo externos</option>
+                  <option value="all">Enviar a todos</option>
+                </Select>
+              </Field>
+              <label className="flex items-center gap-2 text-sm font-semibold text-ink-700 sm:col-span-2">
+                <input checked={form.include_appointment_attendees} onChange={(event) => onChange({ ...form, include_appointment_attendees: event.target.checked })} type="checkbox" />
+                Incluir emails de cliente y profesional en el evento Google
+              </label>
+            </div>
+            {form.send_updates !== "none" ? <p className="mt-3 text-sm font-semibold text-warning-700">Esta opcion puede enviar invitaciones reales desde Google Calendar.</p> : null}
+          </div>
+        ) : form.provider !== "mock" ? (
+          <p className="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-ink-600">La configuracion especifica de este proveedor estara disponible en una proxima etapa.</p>
+        ) : null}
         <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <Button onClick={onClose} variant="secondary">Cancelar</Button>
           <Button disabled={!form.name.trim()} isLoading={isSaving} onClick={onSave}>{editing ? "Guardar cambios" : "Crear integracion"}</Button>

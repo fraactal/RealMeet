@@ -37,9 +37,13 @@ class AppointmentHistoryRead(ORMModel):
 
 
 class AppointmentMeetingRead(BaseModel):
-    provider: str
+    provider: str | None
     join_url: str | None
     status: str
+    fallback_used: bool = False
+    message: str | None = None
+    error_code: str | None = None
+    error_message: str | None = None
 
 
 class AppointmentBaseRead(ORMModel):

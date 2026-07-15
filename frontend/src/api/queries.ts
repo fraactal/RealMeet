@@ -331,6 +331,21 @@ export async function fetchAdminAppointments(params: {
   return data;
 }
 
+export async function retryAdminAppointmentMeetingCreate(appointmentId: number): Promise<Appointment> {
+  const { data } = await api.post(`/admin/appointments/${appointmentId}/meeting/retry-create`);
+  return data;
+}
+
+export async function retryAdminAppointmentMeetingCancel(appointmentId: number): Promise<Appointment> {
+  const { data } = await api.post(`/admin/appointments/${appointmentId}/meeting/retry-cancel`);
+  return data;
+}
+
+export async function reconcileAdminAppointmentMeeting(appointmentId: number): Promise<Appointment> {
+  const { data } = await api.post(`/admin/appointments/${appointmentId}/meeting/reconcile`);
+  return data;
+}
+
 export async function fetchAdminIntegrations(params: {
   integration_type?: IntegrationType;
   provider?: IntegrationProvider;

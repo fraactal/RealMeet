@@ -1,6 +1,6 @@
 import type { Appointment, DashboardAppointment } from "../../types";
 import { formatDateTime, formatTime } from "../../utils/dates";
-import { getConsultationModeLabel } from "../../utils/labels";
+import { getConsultationModeLabel, getIntegrationProviderLabel, getMeetingStatusLabel } from "../../utils/labels";
 import { Icon, StatusBadge } from "../ui";
 
 type AdminAppointment = Appointment | DashboardAppointment;
@@ -10,6 +10,8 @@ interface AdminAppointmentCardProps {
 }
 
 export function AdminAppointmentCard({ appointment }: AdminAppointmentCardProps) {
+  const meeting = "meeting" in appointment ? appointment.meeting : null;
+
   return (
     <article className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
@@ -35,6 +37,17 @@ export function AdminAppointmentCard({ appointment }: AdminAppointmentCardProps)
             <dt className="font-semibold text-ink-700">Profesional</dt>
             <dd>Profesional registrado</dd>
           </div>
+          {meeting ? (
+            <div className="sm:col-span-2">
+              <dt className="font-semibold text-ink-700">Reunion</dt>
+              <dd>
+                {getMeetingStatusLabel(meeting.status)}
+                {meeting.provider ? ` - ${getIntegrationProviderLabel(meeting.provider)}` : ""}
+                {meeting.fallback_used ? " - fallback" : ""}
+              </dd>
+              {meeting.error_message ? <dd className="text-danger-600">{meeting.error_message}</dd> : null}
+            </div>
+          ) : null}
         </dl>
       </div>
     </article>

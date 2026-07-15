@@ -105,6 +105,7 @@ class ExternalMeeting(Base, TimestampMixin):
     integration_id: Mapped[int] = mapped_column(ForeignKey("integrations.id"), nullable=False)
     provider: Mapped[IntegrationProvider] = mapped_column(Enum(IntegrationProvider, name="integration_provider"), nullable=False)
     external_event_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    appointment_id: Mapped[int | None] = mapped_column(ForeignKey("appointments.id"))
     external_calendar_id: Mapped[str] = mapped_column(String(255), nullable=False)
     conference_id: Mapped[str | None] = mapped_column(String(120))
     meeting_url: Mapped[str | None] = mapped_column(String(500))

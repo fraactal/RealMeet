@@ -1,6 +1,6 @@
 import type { AppointmentStatus, ConsultationMode, IntegrationExecutionStatus, IntegrationProvider, IntegrationStatus, IntegrationType, UserRole } from "../types";
 
-export type MeetingStatus = "active" | "inactive" | "pending" | "unknown";
+export type MeetingStatus = "active" | "inactive" | "pending" | "provisioning" | "ready" | "failed" | "fallback_ready" | "cancelled" | "not_required" | "unknown";
 
 export const appointmentStatusLabels: Record<AppointmentStatus, string> = {
   pending: "Pendiente",
@@ -27,6 +27,12 @@ export const meetingStatusLabels: Record<MeetingStatus, string> = {
   active: "Reunion disponible",
   inactive: "Reunion inactiva",
   pending: "Reunion pendiente",
+  provisioning: "Preparando enlace",
+  ready: "Reunion lista",
+  failed: "Enlace pendiente",
+  fallback_ready: "Reunion simulada",
+  cancelled: "Reunion cancelada",
+  not_required: "Sin reunion automatica",
   unknown: "Estado de reunion no disponible",
 };
 

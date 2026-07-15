@@ -60,6 +60,7 @@ from app.services.catalog import CatalogService
 from app.services.appointments import AppointmentService
 from app.services.integrations import IntegrationService
 from app.services.google_meet import GoogleMeetService
+from app.services.meeting_provisioning import MeetingProvisioningService
 from app.integrations.meeting_contracts import MeetingAttendee, MeetingCreateRequest
 
 router = APIRouter(dependencies=[Depends(require_admin)])
@@ -564,6 +565,48 @@ def update_appointment_status(
     return _serialize_admin_appointment(item, service)
 
 
+@router.post("/appointments/{appointment_id}/meeting/retry-create", response_model=AppointmentAdminRead)
+def retry_appointment_meeting_create(
+    appointment_id: int,
+    user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> AppointmentAdminRead:
+    appointment = db.get(Appointment, appointment_id)
+    if not appointment:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+    MeetingProvisioningService(db).retry_create(appointment_id, user)
+    db.refresh(appointment)
+    return _serialize_admin_appointment(appointment, AppointmentService(db))
+
+
+@router.post("/appointments/{appointment_id}/meeting/retry-cancel", response_model=AppointmentAdminRead)
+def retry_appointment_meeting_cancel(
+    appointment_id: int,
+    user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> AppointmentAdminRead:
+    appointment = db.get(Appointment, appointment_id)
+    if not appointment:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+    MeetingProvisioningService(db).retry_cancel(appointment_id, user)
+    db.refresh(appointment)
+    return _serialize_admin_appointment(appointment, AppointmentService(db))
+
+
+@router.post("/appointments/{appointment_id}/meeting/reconcile", response_model=AppointmentAdminRead)
+def reconcile_appointment_meeting(
+    appointment_id: int,
+    user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> AppointmentAdminRead:
+    appointment = db.get(Appointment, appointment_id)
+    if not appointment:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+    MeetingProvisioningService(db).reconcile(appointment_id, user)
+    db.refresh(appointment)
+    return _serialize_admin_appointment(appointment, AppointmentService(db))
+
+
 def _integration_page_meta(page: int, page_size: int, total: int) -> IntegrationPageMeta:
     total_pages = max((total + page_size - 1) // page_size, 1)
     return IntegrationPageMeta(page=page, page_size=page_size, total=total, total_pages=total_pages)
@@ -665,7 +708,7 @@ def _audit(db: Session, user_id: int, action: str, entity_name: str, entity_id: 
 
 
 def _serialize_admin_appointment(appointment: Appointment, service: AppointmentService) -> AppointmentAdminRead:
-    meeting = _serialize_meeting(appointment)
+    meeting = _serialize_meeting(appointment, is_admin=True)
     return AppointmentAdminRead(
         id=appointment.id,
         professional_id=appointment.professional_id,
@@ -685,7 +728,19 @@ def _serialize_admin_appointment(appointment: Appointment, service: AppointmentS
     )
 
 
-def _serialize_meeting(appointment: Appointment) -> AppointmentMeetingRead | None:
+def _serialize_meeting(appointment: Appointment, *, is_admin: bool = False) -> AppointmentMeetingRead | None:
+    link = getattr(appointment, "meeting_link", None)
+    if link:
+        join_url = link.meeting_url if link.status.value in {"ready", "fallback_ready"} and appointment.status != AppointmentStatus.cancelled else None
+        return AppointmentMeetingRead(
+            provider=link.provider.value if link.provider else None,
+            join_url=join_url,
+            status=link.status.value,
+            fallback_used=link.fallback_used,
+            message=_meeting_message(link.status.value, link.fallback_used),
+            error_code=link.error_code if is_admin else None,
+            error_message=link.error_message if is_admin else None,
+        )
     if not appointment.meeting_provider:
         return None
     is_cancelled = appointment.status == AppointmentStatus.cancelled
@@ -693,4 +748,21 @@ def _serialize_meeting(appointment: Appointment) -> AppointmentMeetingRead | Non
         provider=appointment.meeting_provider.value,
         join_url=None if is_cancelled else appointment.meeting_url,
         status="inactive" if is_cancelled else "active",
+        message="Reunion lista." if not is_cancelled else "Reunion cancelada.",
     )
+
+
+def _meeting_message(status_value: str, fallback_used: bool) -> str:
+    if status_value == "ready":
+        return "Reunion lista."
+    if status_value == "fallback_ready":
+        return "Reunion simulada para entorno de prueba." if fallback_used else "Reunion lista."
+    if status_value in {"pending", "provisioning"}:
+        return "El enlace de reunion todavia esta siendo preparado."
+    if status_value == "failed":
+        return "No pudimos preparar el enlace todavia."
+    if status_value == "cancelled":
+        return "Reunion cancelada."
+    if status_value == "not_required":
+        return "No se requiere reunion automatica."
+    return "Estado de reunion no disponible."

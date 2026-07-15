@@ -26,7 +26,7 @@ AppointmentActorRead = AppointmentClientRead | AppointmentProfessionalRead | App
 
 def serialize_appointment_for_user(appointment, user, service: AppointmentService) -> AppointmentActorRead:
     history = [AppointmentHistoryRead.model_validate(item) for item in service.list_history(appointment.id)]
-    meeting = serialize_meeting(appointment)
+    meeting = serialize_meeting(appointment, is_admin=user.role == UserRole.admin)
     data = {
         "id": appointment.id,
         "professional_id": appointment.professional_id,
@@ -51,15 +51,46 @@ def serialize_appointment_for_user(appointment, user, service: AppointmentServic
     return AppointmentClientRead(**data)
 
 
-def serialize_meeting(appointment) -> AppointmentMeetingRead | None:
+def serialize_meeting(appointment, *, is_admin: bool = False) -> AppointmentMeetingRead | None:
+    link = getattr(appointment, "meeting_link", None)
+    if link:
+        join_url = link.meeting_url if link.status.value in {"ready", "fallback_ready"} and appointment.status != AppointmentStatus.cancelled else None
+        return AppointmentMeetingRead(
+            provider=link.provider.value if link.provider else None,
+            join_url=join_url,
+            status=link.status.value,
+            fallback_used=link.fallback_used,
+            message=_meeting_message(link.status.value, link.fallback_used),
+            error_code=link.error_code if is_admin else None,
+            error_message=link.error_message if is_admin else None,
+        )
     if not appointment.meeting_provider:
+        if appointment.consultation_mode.value in {"online", "hybrid"} and appointment.status == AppointmentStatus.confirmed:
+            return AppointmentMeetingRead(provider=None, join_url=None, status="pending", message="El enlace de reunion todavia esta siendo preparado.")
         return None
     is_cancelled = appointment.status == AppointmentStatus.cancelled
     return AppointmentMeetingRead(
         provider=appointment.meeting_provider.value,
         join_url=None if is_cancelled else appointment.meeting_url,
         status="inactive" if is_cancelled else "active",
+        message="Reunion lista." if not is_cancelled else "Reunion cancelada.",
     )
+
+
+def _meeting_message(status_value: str, fallback_used: bool) -> str:
+    if status_value == "ready":
+        return "Reunion lista."
+    if status_value == "fallback_ready":
+        return "Reunion simulada para entorno de prueba." if fallback_used else "Reunion lista."
+    if status_value in {"pending", "provisioning"}:
+        return "El enlace de reunion todavia esta siendo preparado."
+    if status_value == "failed":
+        return "No pudimos preparar el enlace todavia."
+    if status_value == "cancelled":
+        return "Reunion cancelada."
+    if status_value == "not_required":
+        return "No se requiere reunion automatica."
+    return "Estado de reunion no disponible."
 
 
 @router.post("", response_model=AppointmentClientRead, dependencies=[Depends(require_client)])

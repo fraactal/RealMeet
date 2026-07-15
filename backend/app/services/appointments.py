@@ -56,8 +56,6 @@ class AppointmentService:
         self._ensure_no_active_overlap(professional.id, client_profile.id, start_datetime, end_datetime)
         self._ensure_available_slot(professional, start_datetime, end_datetime)
 
-        meeting_payload = self._create_meeting_payload(professional, start_datetime)
-
         appointment = Appointment(
             professional_id=professional.id,
             client_id=client_profile.id,
@@ -66,10 +64,6 @@ class AppointmentService:
             start_datetime=start_datetime,
             end_datetime=end_datetime,
             consultation_mode=professional.consultation_mode,
-            meeting_provider=meeting_payload.provider if meeting_payload else None,
-            meeting_url=meeting_payload.url if meeting_payload else None,
-            external_meeting_id=meeting_payload.external_id if meeting_payload else None,
-            calendar_event_id=meeting_payload.calendar_event_id if meeting_payload else None,
             client_notes=payload.client_notes,
         )
         self.db.add(appointment)
@@ -168,8 +162,16 @@ class AppointmentService:
         self.db.commit()
         self.db.refresh(appointment)
         if new_status == AppointmentStatus.confirmed:
+            from app.services.meeting_provisioning import MeetingProvisioningService
+
+            MeetingProvisioningService(self.db).provision_for_appointment(appointment, user)
+            self.db.refresh(appointment)
             AppointmentNotificationService(self.db).notify_confirmed(appointment)
         if new_status == AppointmentStatus.cancelled:
+            from app.services.meeting_provisioning import MeetingProvisioningService
+
+            MeetingProvisioningService(self.db).cancel_for_appointment(appointment, user)
+            self.db.refresh(appointment)
             AppointmentNotificationService(self.db).notify_cancelled(appointment)
         return appointment
 
