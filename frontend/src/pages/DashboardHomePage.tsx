@@ -5,18 +5,13 @@ import { fetchClientDashboard, fetchProfessionalMetrics } from "../api/queries";
 import { useAuthStore } from "../store/auth";
 import { Card } from "../components/ui/Card";
 import { Button, EmptyState, ErrorState, LoadingState, PageHeader, SectionCard } from "../components/ui";
+import { ClientAppointmentCard } from "../components/client/ClientAppointmentCard";
+import { ClientQuickActions } from "../components/client/ClientQuickActions";
+import { ClientStatSummary } from "../components/client/ClientStatSummary";
 import { ProfessionalAppointmentCard } from "../components/professional/ProfessionalAppointmentCard";
 import { ProfessionalConfigStatus, ProfessionalStatCard } from "../components/professional/ProfessionalStatCard";
 import { ProfessionalQuickActions } from "../components/professional/ProfessionalQuickActions";
 import { formatLongDate } from "../utils/dates";
-
-function Metric({ label, value }: { label: string; value: number | string }) {
-  return (
-    <Card title={label}>
-      <p className="text-3xl font-semibold text-ink">{value}</p>
-    </Card>
-  );
-}
 
 export function DashboardHomePage() {
   const { user } = useAuthStore();
@@ -33,55 +28,73 @@ export function DashboardHomePage() {
 
   if (user?.role === "client") {
     const data = clientDashboardQuery.data;
+
+    if (clientDashboardQuery.isLoading) {
+      return <LoadingState label="Cargando tus reservas" />;
+    }
+
+    if (clientDashboardQuery.isError || !data) {
+      return <ErrorState title="No pudimos cargar tu inicio" message="Intenta nuevamente en unos minutos." />;
+    }
+
+    const nextAppointment = data.next_appointments[0];
+    const recentAppointments = data.recent_appointments.slice(0, 3);
+
     return (
       <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-semibold tracking-tight text-ink">Resumen cliente</h1>
-          <p className="text-slate-600">Tus reservas y proximas atenciones.</p>
+        <PageHeader
+          title={`Hola, ${user.first_name}`}
+          description={`${formatLongDate(new Date())}. Revisa tu proxima reserva o busca un profesional para agendar una nueva hora.`}
+          actions={
+            <Link to="/dashboard/professionals">
+              <Button>Buscar profesionales</Button>
+            </Link>
+          }
+        />
+
+        <div className="grid gap-5 lg:grid-cols-[1.35fr_0.8fr]">
+          <SectionCard
+            title="Proxima reserva"
+            description="Tu siguiente hora confirmada o pendiente aparece primero para que tengas claro que viene."
+            actions={
+              <Link className="text-sm font-semibold text-brand-700 hover:text-brand-600" to="/dashboard/appointments">
+                Ver todas
+              </Link>
+            }
+          >
+            {nextAppointment ? (
+              <ClientAppointmentCard appointment={nextAppointment} emphasis />
+            ) : (
+              <EmptyState
+                title="Aun no tienes reservas proximas"
+                description="Cuando agendes una hora, veras aqui la fecha, el estado y la informacion disponible."
+              >
+                <Link to="/dashboard/professionals">
+                  <Button className="mt-5">Buscar profesionales</Button>
+                </Link>
+              </EmptyState>
+            )}
+          </SectionCard>
+
+          <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
+            <ClientStatSummary icon="calendar" label="Reservas futuras" value={data.upcoming_reservations} />
+            <ClientStatSummary icon="clock" label="Pendientes" value={data.status_counts.pending} />
+            <ClientStatSummary icon="check" label="Completadas" value={data.status_counts.completed} />
+          </div>
         </div>
-        {clientDashboardQuery.isLoading ? <p className="text-slate-500">Cargando resumen...</p> : null}
-        {clientDashboardQuery.isError ? <p className="text-red-600">No fue posible obtener tu resumen.</p> : null}
-        {data ? (
-          <>
-            <div className="grid gap-5 md:grid-cols-5">
-              <Metric label="Proximas" value={data.upcoming_reservations} />
-              <Metric label="Pendientes" value={data.status_counts.pending} />
-              <Metric label="Confirmadas" value={data.status_counts.confirmed} />
-              <Metric label="Completadas" value={data.status_counts.completed} />
-              <Metric label="Canceladas" value={data.status_counts.cancelled} />
-            </div>
-            <div className="grid gap-5 lg:grid-cols-2">
-              <Card title="Proximas reservas">
-                <div className="space-y-3 text-sm">
-                  {data.next_appointments.map((item) => (
-                    <p key={item.id} className="rounded-xl border border-slate-100 p-3">
-                      {new Date(item.start_datetime).toLocaleString()} - {item.status}
-                    </p>
-                  ))}
-                  {data.next_appointments.length === 0 ? <p className="text-slate-500">No tienes proximas reservas.</p> : null}
-                </div>
-              </Card>
-              <Card title="Ultimas reservas">
-                <div className="space-y-3 text-sm">
-                  {data.recent_appointments.map((item) => (
-                    <p key={item.id} className="rounded-xl border border-slate-100 p-3">
-                      {new Date(item.start_datetime).toLocaleString()} - {item.status}
-                    </p>
-                  ))}
-                  {data.recent_appointments.length === 0 ? <p className="text-slate-500">Todavia no hay reservas.</p> : null}
-                </div>
-              </Card>
-            </div>
-            <div className="flex flex-wrap gap-3">
-              <Link className="rounded-xl bg-ink px-4 py-2 text-sm font-semibold text-white" to="/professionals">
-                Buscar profesionales
-              </Link>
-              <Link className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700" to="/dashboard/appointments">
-                Ver reservas
-              </Link>
-            </div>
-          </>
-        ) : null}
+
+        <ClientQuickActions />
+
+        <SectionCard title="Actividad reciente" description="Ultimas reservas registradas en tu cuenta.">
+          <div className="space-y-3">
+            {recentAppointments.map((appointment) => (
+              <ClientAppointmentCard appointment={appointment} key={appointment.id} showMeeting={false} />
+            ))}
+            {recentAppointments.length === 0 ? (
+              <EmptyState title="Todavia no hay historial" description="Tus reservas pasadas o canceladas apareceran en esta seccion." />
+            ) : null}
+          </div>
+        </SectionCard>
       </div>
     );
   }

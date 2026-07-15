@@ -21,10 +21,10 @@ export const authenticatedNavigation: NavigationItem[] = [
   },
   {
     label: "Buscar profesionales",
-    path: "/professionals",
+    path: "/dashboard/professionals",
     icon: "search",
     roles: ["client"],
-    matchPaths: ["/professionals"],
+    matchPaths: ["/dashboard/professionals"],
     description: "Catalogo publico",
   },
   {

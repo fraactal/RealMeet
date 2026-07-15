@@ -10,10 +10,13 @@ import {
   fetchProfessionals,
   fetchSpecialties,
 } from "../api/queries";
-import { Badge } from "../components/ui/Badge";
-import { Card } from "../components/ui/Card";
+import { ProfessionalSearchCard } from "../components/client/ProfessionalSearchCard";
+import { SlotPicker } from "../components/client/SlotPicker";
+import { Avatar, Badge, Button, EmptyState, ErrorState, Input, Label, LoadingState, PageHeader, SectionCard, Select } from "../components/ui";
 import { useAuthStore } from "../store/auth";
 import type { AvailableSlot, ConsultationMode, ProfessionalSearchParams } from "../types";
+import { formatLongDate, formatTime } from "../utils/dates";
+import { getConsultationModeLabel } from "../utils/labels";
 
 const PAGE_SIZE = 6;
 const today = new Date().toISOString().slice(0, 10);
@@ -28,6 +31,7 @@ export function ProfessionalsPage() {
   const [page, setPage] = useState(1);
   const [selectedProfessionalId, setSelectedProfessionalId] = useState<number | null>(null);
   const [availabilityDate, setAvailabilityDate] = useState(today);
+  const [selectedSlot, setSelectedSlot] = useState<AvailableSlot | null>(null);
   const [bookingMessage, setBookingMessage] = useState<string | null>(null);
 
   const filters = useMemo<ProfessionalSearchParams>(
@@ -77,8 +81,10 @@ export function ProfessionalsPage() {
         start_datetime: slot.start_datetime,
       }),
     onSuccess: () => {
-      setBookingMessage("Reserva creada correctamente.");
+      setBookingMessage("Reserva creada correctamente. Puedes revisarla en Mis reservas.");
+      setSelectedSlot(null);
       void queryClient.invalidateQueries({ queryKey: ["my-appointments"] });
+      void queryClient.invalidateQueries({ queryKey: ["client-dashboard"] });
       void queryClient.invalidateQueries({ queryKey: ["professional-availability", selectedProfessionalId, availabilityDate] });
     },
     onError: (error) => {
@@ -86,9 +92,15 @@ export function ProfessionalsPage() {
     },
   });
 
+  const resetSelection = () => {
+    setSelectedProfessionalId(null);
+    setSelectedSlot(null);
+    setBookingMessage(null);
+  };
+
   const resetPage = () => {
     setPage(1);
-    setSelectedProfessionalId(null);
+    resetSelection();
   };
 
   const clearFilters = () => {
@@ -99,42 +111,46 @@ export function ProfessionalsPage() {
     resetPage();
   };
 
-  const apiError = professionalsQuery.isError ? normalizeApiError(professionalsQuery.error) : null;
   const data = professionalsQuery.data;
   const canBook = user?.role === "client";
+  const selectedProfessional = detailQuery.data;
+  const selectedFullName = selectedProfessional
+    ? `${selectedProfessional.user.first_name} ${selectedProfessional.user.last_name}`
+    : "Profesional seleccionado";
+  const selectedLocation = selectedProfessional ? [selectedProfessional.city, selectedProfessional.country].filter(Boolean).join(", ") : "";
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-semibold tracking-tight text-ink">Profesionales disponibles</h1>
-        <p className="text-slate-600">Busca por nombre, especialidad, categoria o modalidad de atencion.</p>
-      </div>
+      <PageHeader
+        title="Buscar profesionales"
+        description="Encuentra profesionales publicados, revisa su informacion disponible y elige un horario para reservar."
+      />
 
-      <Card>
+      <SectionCard title="Filtros" description="Ajusta la busqueda con los filtros disponibles actualmente.">
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-          <label className="space-y-1 text-sm font-medium text-slate-700 xl:col-span-2">
-            Busqueda
-            <input
-              value={search}
+          <div className="space-y-1 xl:col-span-2">
+            <Label htmlFor="professional-search">Busqueda</Label>
+            <Input
+              id="professional-search"
               onChange={(event) => {
                 setSearch(event.target.value);
                 resetPage();
               }}
-              placeholder="Nombre, titulo o bio"
-              className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-brand"
+              placeholder="Nombre, titulo o presentacion"
+              value={search}
             />
-          </label>
+          </div>
 
-          <label className="space-y-1 text-sm font-medium text-slate-700">
-            Categoria
-            <select
-              value={categoryId}
+          <div className="space-y-1">
+            <Label htmlFor="category-filter">Categoria</Label>
+            <Select
+              id="category-filter"
               onChange={(event) => {
                 setCategoryId(event.target.value);
                 setSpecialtyId("");
                 resetPage();
               }}
-              className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-brand"
+              value={categoryId}
             >
               <option value="">Todas</option>
               {categoriesQuery.data?.map((category) => (
@@ -142,18 +158,18 @@ export function ProfessionalsPage() {
                   {category.name}
                 </option>
               ))}
-            </select>
-          </label>
+            </Select>
+          </div>
 
-          <label className="space-y-1 text-sm font-medium text-slate-700">
-            Especialidad
-            <select
-              value={specialtyId}
+          <div className="space-y-1">
+            <Label htmlFor="specialty-filter">Especialidad</Label>
+            <Select
+              id="specialty-filter"
               onChange={(event) => {
                 setSpecialtyId(event.target.value);
                 resetPage();
               }}
-              className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-brand"
+              value={specialtyId}
             >
               <option value="">Todas</option>
               {specialtiesQuery.data?.map((specialty) => (
@@ -161,190 +177,227 @@ export function ProfessionalsPage() {
                   {specialty.name}
                 </option>
               ))}
-            </select>
-          </label>
+            </Select>
+          </div>
 
-          <label className="space-y-1 text-sm font-medium text-slate-700">
-            Modalidad
-            <select
-              value={consultationMode}
+          <div className="space-y-1">
+            <Label htmlFor="mode-filter">Modalidad</Label>
+            <Select
+              id="mode-filter"
               onChange={(event) => {
                 setConsultationMode(event.target.value);
                 resetPage();
               }}
-              className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-brand"
+              value={consultationMode}
             >
               <option value="">Todas</option>
               <option value="online">Online</option>
               <option value="presencial">Presencial</option>
               <option value="hybrid">Hibrida</option>
-            </select>
-          </label>
+            </Select>
+          </div>
         </div>
-        <div className="mt-4 flex items-center justify-between gap-3">
-          <p className="text-sm text-slate-500">{data ? `${data.total} resultados` : "Cargando resultados"}</p>
-          <button className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700" onClick={clearFilters}>
+        <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-ink-500">{data ? `${data.total} profesionales encontrados` : "Buscando profesionales"}</p>
+          <Button onClick={clearFilters} variant="secondary">
             Limpiar filtros
-          </button>
+          </Button>
         </div>
-      </Card>
+      </SectionCard>
 
-      {apiError ? (
-        <div className="space-y-4 rounded-xl border border-red-100 bg-red-50 p-4">
-          <p className="text-sm font-medium text-red-700">{apiError.message}</p>
-          <button className="rounded-xl bg-ink px-4 py-2 text-sm font-semibold text-white" onClick={() => void professionalsQuery.refetch()}>
-            Reintentar
-          </button>
-        </div>
+      {professionalsQuery.isError ? (
+        <ErrorState title="No pudimos cargar los profesionales" message="Intenta ajustar la busqueda o reintentar en unos minutos." />
       ) : null}
 
-      {professionalsQuery.isPending ? <p className="text-slate-500">Cargando profesionales...</p> : null}
+      {professionalsQuery.isPending ? <LoadingState label="Cargando profesionales" /> : null}
 
       {!professionalsQuery.isPending && data?.items.length === 0 ? (
-        <div className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-600">
-          No se encontraron profesionales con esos filtros.
-        </div>
+        <EmptyState title="No encontramos profesionales con esos filtros" description="Intenta ampliar la busqueda o limpiar los filtros." />
       ) : null}
 
       <div className="grid gap-5 lg:grid-cols-2">
         {data?.items.map((professional) => (
-          <Card key={professional.id}>
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <h2 className="text-xl font-semibold text-ink">
-                  {professional.user.first_name} {professional.user.last_name}
-                </h2>
-                <p className="text-sm text-slate-500">{professional.title ?? "Profesional registrado"}</p>
-              </div>
-              <Badge label={professional.consultation_mode} />
-            </div>
-            <p className="mt-4 line-clamp-3 text-sm text-slate-600">{professional.bio ?? "Sin biografia publicada."}</p>
-            <div className="mt-4 flex flex-wrap gap-2">
-              {professional.specialties.map((specialty) => (
-                <span key={specialty.id} className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
-                  {specialty.name}
-                </span>
-              ))}
-            </div>
-            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4 text-sm text-slate-500">
-              <span>{professional.category.name}</span>
-              <span>
-                {professional.city ?? "Remoto"}
-                {professional.country ? `, ${professional.country}` : ""}
-              </span>
-            </div>
-            <button
-              className="mt-4 rounded-xl bg-ink px-4 py-2 text-sm font-semibold text-white"
-              onClick={() => {
-                setSelectedProfessionalId(professional.id);
-                setAvailabilityDate(today);
-              }}
-            >
-              Ver detalle
-            </button>
-          </Card>
+          <ProfessionalSearchCard
+            key={professional.id}
+            onSelect={() => {
+              setSelectedProfessionalId(professional.id);
+              setAvailabilityDate(today);
+              setSelectedSlot(null);
+              setBookingMessage(null);
+            }}
+            professional={professional}
+          />
         ))}
       </div>
 
       {data && data.total_pages > 1 ? (
-        <div className="flex items-center justify-center gap-3">
-          <button
-            className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50"
-            disabled={page <= 1}
-            onClick={() => setPage((current) => Math.max(current - 1, 1))}
-          >
+        <div className="flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
+          <Button disabled={page <= 1} onClick={() => setPage((current) => Math.max(current - 1, 1))} variant="secondary">
             Anterior
-          </button>
-          <span className="text-sm text-slate-600">
+          </Button>
+          <span className="text-center text-sm text-ink-500">
             Pagina {data.page} de {data.total_pages}
           </span>
-          <button
-            className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50"
-            disabled={page >= data.total_pages}
-            onClick={() => setPage((current) => current + 1)}
-          >
+          <Button disabled={page >= data.total_pages} onClick={() => setPage((current) => current + 1)} variant="secondary">
             Siguiente
-          </button>
+          </Button>
         </div>
       ) : null}
 
       {selectedProfessionalId !== null ? (
-        <Card title="Detalle profesional">
-          {detailQuery.isPending ? <p className="text-sm text-slate-500">Cargando detalle...</p> : null}
-          {detailQuery.isError ? <p className="text-sm text-red-600">{normalizeApiError(detailQuery.error).message}</p> : null}
-          {detailQuery.data ? (
-            <div className="space-y-4">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <h2 className="text-2xl font-semibold text-ink">
-                    {detailQuery.data.user.first_name} {detailQuery.data.user.last_name}
-                  </h2>
-                  <p className="text-slate-500">{detailQuery.data.title}</p>
+        <SectionCard
+          title="Perfil profesional"
+          description="Revisa la informacion publica antes de seleccionar un horario."
+          actions={
+            <Button onClick={resetSelection} variant="secondary">
+              Cerrar
+            </Button>
+          }
+        >
+          {detailQuery.isPending ? <LoadingState label="Cargando perfil profesional" /> : null}
+          {detailQuery.isError ? (
+            <ErrorState title="No pudimos cargar el perfil" message="Intenta seleccionar nuevamente al profesional." />
+          ) : null}
+          {selectedProfessional ? (
+            <div className="space-y-6">
+              <div className="flex flex-col gap-4 border-b border-slate-100 pb-5 md:flex-row md:items-start md:justify-between">
+                <div className="flex gap-4">
+                  <Avatar name={selectedFullName} />
+                  <div>
+                    <h2 className="text-2xl font-semibold text-ink-900">{selectedFullName}</h2>
+                    <p className="mt-1 text-sm text-ink-500">{selectedProfessional.title ?? "Profesional registrado"}</p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <Badge label={selectedProfessional.category.name} tone="neutral" />
+                      <Badge label={getConsultationModeLabel(selectedProfessional.consultation_mode)} tone="info" />
+                    </div>
+                  </div>
                 </div>
-                <button className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700" onClick={() => setSelectedProfessionalId(null)}>
-                  Cerrar
-                </button>
+                <dl className="grid gap-3 text-sm text-ink-500 sm:grid-cols-3 md:text-right">
+                  <div>
+                    <dt className="font-semibold text-ink-700">Duracion</dt>
+                    <dd>{selectedProfessional.session_duration_minutes} min</dd>
+                  </div>
+                  <div>
+                    <dt className="font-semibold text-ink-700">Experiencia</dt>
+                    <dd>{selectedProfessional.years_experience ? `${selectedProfessional.years_experience} anos` : "No publicada"}</dd>
+                  </div>
+                  <div>
+                    <dt className="font-semibold text-ink-700">Ubicacion</dt>
+                    <dd>{selectedLocation || "No publicada"}</dd>
+                  </div>
+                </dl>
               </div>
-              <p className="text-sm leading-6 text-slate-600">{detailQuery.data.bio ?? "Sin biografia publicada."}</p>
-              <dl className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
-                <div>
-                  <dt className="font-semibold text-slate-700">Categoria</dt>
-                  <dd className="text-slate-600">{detailQuery.data.category.name}</dd>
+
+              <div className="grid gap-6 lg:grid-cols-[1fr_0.9fr]">
+                <div className="space-y-5">
+                  <div>
+                    <h3 className="text-base font-semibold text-ink-900">Presentacion</h3>
+                    <p className="mt-2 text-sm leading-6 text-ink-600">
+                      {selectedProfessional.bio ?? "Este profesional aun no publico una presentacion."}
+                    </p>
+                  </div>
+                  <div>
+                    <h3 className="text-base font-semibold text-ink-900">Especialidades</h3>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {selectedProfessional.specialties.map((specialty) => (
+                        <Badge key={specialty.id} label={specialty.name} tone="success" />
+                      ))}
+                      {selectedProfessional.specialties.length === 0 ? <p className="text-sm text-ink-500">Sin especialidades publicadas.</p> : null}
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <dt className="font-semibold text-slate-700">Modalidad</dt>
-                  <dd className="text-slate-600">{detailQuery.data.consultation_mode}</dd>
-                </div>
-                <div>
-                  <dt className="font-semibold text-slate-700">Duracion</dt>
-                  <dd className="text-slate-600">{detailQuery.data.session_duration_minutes} min</dd>
-                </div>
-                <div>
-                  <dt className="font-semibold text-slate-700">Experiencia</dt>
-                  <dd className="text-slate-600">{detailQuery.data.years_experience ?? "No publicada"}</dd>
-                </div>
-              </dl>
-              <div className="border-t border-slate-100 pt-4">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-                  <label className="space-y-1 text-sm font-medium text-slate-700">
-                    Fecha
-                    <input
-                      type="date"
-                      min={today}
-                      value={availabilityDate}
-                      onChange={(event) => setAvailabilityDate(event.target.value)}
-                      className="block rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-brand"
-                    />
-                  </label>
-                  <p className="text-sm text-slate-500">
-                    {canBook ? "Selecciona un horario disponible para reservar." : "Inicia sesion como cliente para reservar un horario."}
-                  </p>
-                </div>
-                {bookingMessage ? <p className="mt-4 text-sm font-medium text-slate-700">{bookingMessage}</p> : null}
-                {availabilityQuery.isPending ? <p className="mt-4 text-sm text-slate-500">Cargando horarios...</p> : null}
-                {availabilityQuery.isError ? <p className="mt-4 text-sm text-red-600">{normalizeApiError(availabilityQuery.error).message}</p> : null}
-                {availabilityQuery.data && availabilityQuery.data.slots.length === 0 ? (
-                  <p className="mt-4 text-sm text-slate-500">No hay horarios disponibles para esta fecha.</p>
-                ) : null}
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {availabilityQuery.data?.slots.map((slot) => (
-                    <button
-                      key={slot.start_datetime}
-                      className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50"
-                      disabled={!canBook || bookingMutation.isPending}
-                      onClick={() => {
-                        setBookingMessage(null);
-                        bookingMutation.mutate(slot);
-                      }}
-                    >
-                      {new Date(slot.start_datetime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                    </button>
-                  ))}
+
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                    <div className="space-y-1">
+                      <Label htmlFor="availability-date">Fecha</Label>
+                      <Input
+                        id="availability-date"
+                        min={today}
+                        onChange={(event) => {
+                          setAvailabilityDate(event.target.value);
+                          setSelectedSlot(null);
+                          setBookingMessage(null);
+                        }}
+                        type="date"
+                        value={availabilityDate}
+                      />
+                    </div>
+                    <p className="text-sm text-ink-500">
+                      {canBook ? "Elige un horario disponible." : "Inicia sesion como cliente para reservar."}
+                    </p>
+                  </div>
+
+                  <div className="mt-5 space-y-4">
+                    {availabilityQuery.isPending ? <LoadingState label="Cargando horarios disponibles" /> : null}
+                    {availabilityQuery.isError ? (
+                      <ErrorState title="No pudimos cargar los horarios" message="Intenta seleccionar otra fecha." />
+                    ) : null}
+                    {availabilityQuery.data && availabilityQuery.data.slots.length === 0 ? (
+                      <EmptyState title="No hay horarios disponibles" description="Prueba con otra fecha para revisar nuevas opciones." />
+                    ) : null}
+                    {availabilityQuery.data && availabilityQuery.data.slots.length > 0 ? (
+                      <SlotPicker
+                        disabled={!canBook}
+                        isPending={bookingMutation.isPending}
+                        onSelect={(slot) => {
+                          setSelectedSlot(slot);
+                          setBookingMessage(null);
+                        }}
+                        selectedSlotStart={selectedSlot?.start_datetime}
+                        slots={availabilityQuery.data.slots}
+                      />
+                    ) : null}
+                  </div>
+
+                  {selectedSlot ? (
+                    <div className="mt-5 rounded-lg border border-brand-200 bg-white p-4">
+                      <h3 className="text-base font-semibold text-ink-900">Confirma tu reserva</h3>
+                      <dl className="mt-3 space-y-2 text-sm text-ink-600">
+                        <div className="flex justify-between gap-4">
+                          <dt className="font-semibold text-ink-800">Profesional</dt>
+                          <dd className="text-right">{selectedFullName}</dd>
+                        </div>
+                        <div className="flex justify-between gap-4">
+                          <dt className="font-semibold text-ink-800">Fecha</dt>
+                          <dd className="text-right">{formatLongDate(selectedSlot.start_datetime)}</dd>
+                        </div>
+                        <div className="flex justify-between gap-4">
+                          <dt className="font-semibold text-ink-800">Hora</dt>
+                          <dd className="text-right">
+                            {formatTime(selectedSlot.start_datetime)} a {formatTime(selectedSlot.end_datetime)}
+                          </dd>
+                        </div>
+                        <div className="flex justify-between gap-4">
+                          <dt className="font-semibold text-ink-800">Modalidad</dt>
+                          <dd className="text-right">{getConsultationModeLabel(selectedProfessional.consultation_mode)}</dd>
+                        </div>
+                      </dl>
+                      <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                        <Button
+                          className="w-full sm:w-auto"
+                          disabled={!canBook}
+                          isLoading={bookingMutation.isPending}
+                          onClick={() => {
+                            setBookingMessage(null);
+                            bookingMutation.mutate(selectedSlot);
+                          }}
+                        >
+                          Confirmar reserva
+                        </Button>
+                        <Button className="w-full sm:w-auto" onClick={() => setSelectedSlot(null)} variant="secondary">
+                          Elegir otro horario
+                        </Button>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {bookingMessage ? <p className="mt-4 text-sm font-semibold text-ink-700">{bookingMessage}</p> : null}
                 </div>
               </div>
             </div>
           ) : null}
-        </Card>
+        </SectionCard>
       ) : null}
     </div>
   );

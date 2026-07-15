@@ -39,6 +39,14 @@ export const router = createBrowserRouter([
         element: <DashboardLayout />,
         children: [
           { index: true, element: <DashboardHomePage /> },
+          {
+            path: "professionals",
+            element: (
+              <RequireAuth allowedRoles={["client"]}>
+                <ProfessionalsPage />
+              </RequireAuth>
+            ),
+          },
           { path: "appointments", element: <AppointmentsPage /> },
           {
             path: "professional",
