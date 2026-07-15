@@ -13,6 +13,7 @@ from app.models.client_profile import ClientProfile
 from app.models.professional_profile import ProfessionalProfile
 from app.models.user import User
 from app.notifications.service import AppointmentNotificationService
+from app.automation.service import DomainEventPublisher
 from app.schemas.appointments import AppointmentCreate, AppointmentPrivateNotesUpdate, AppointmentProfessionalStatusUpdate, AppointmentStatusUpdate
 from app.services.availability import AvailabilityService
 
@@ -76,6 +77,7 @@ class AppointmentService:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Selected slot is already booked") from exc
         self.db.refresh(appointment)
         AppointmentNotificationService(self.db).notify_created(appointment)
+        DomainEventPublisher(self.db).publish_appointment_created(appointment)
         return appointment
 
     def list_for_user(self, user: User) -> list[Appointment]:
@@ -173,6 +175,7 @@ class AppointmentService:
             MeetingProvisioningService(self.db).cancel_for_appointment(appointment, user)
             self.db.refresh(appointment)
             AppointmentNotificationService(self.db).notify_cancelled(appointment)
+            DomainEventPublisher(self.db).publish_appointment_cancelled(appointment)
         return appointment
 
     def _add_history(self, appointment_id: int, changed_by_user_id: int, old_status: str | None, new_status: str, comment: str) -> None:

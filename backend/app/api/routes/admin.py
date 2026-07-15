@@ -7,6 +7,14 @@ from sqlalchemy.orm import Session
 from app.core.deps import require_admin
 from app.db.session import get_db
 from app.integrations.enums import IntegrationProvider, IntegrationStatus, IntegrationType
+from app.automation.schemas import (
+    WebhookDeliveryRead,
+    WebhookSubscriptionCreate,
+    WebhookSubscriptionRead,
+    WebhookSubscriptionUpdate,
+    WebhookTestResult,
+)
+from app.automation.service import WebhookDeliveryService
 from app.integrations.exceptions import (
     IntegrationConfigurationError,
     IntegrationDisabledError,
@@ -110,6 +118,90 @@ def list_integrations(
         page=page,
         page_size=page_size,
     )
+
+
+@router.get("/webhook-subscriptions", response_model=list[WebhookSubscriptionRead])
+def list_webhook_subscriptions(db: Session = Depends(get_db)) -> list[WebhookSubscriptionRead]:
+    return [WebhookSubscriptionRead.model_validate(item) for item in WebhookDeliveryService(db).list_subscriptions()]
+
+
+@router.post("/webhook-subscriptions", response_model=WebhookSubscriptionRead)
+def create_webhook_subscription(
+    payload: WebhookSubscriptionCreate,
+    admin_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> WebhookSubscriptionRead:
+    item = WebhookDeliveryService(db).create_subscription(payload, admin_user)
+    return WebhookSubscriptionRead.model_validate(item)
+
+
+@router.get("/webhook-subscriptions/{subscription_id}", response_model=WebhookSubscriptionRead)
+def get_webhook_subscription(subscription_id: int, db: Session = Depends(get_db)) -> WebhookSubscriptionRead:
+    return WebhookSubscriptionRead.model_validate(WebhookDeliveryService(db).get_subscription(subscription_id))
+
+
+@router.patch("/webhook-subscriptions/{subscription_id}", response_model=WebhookSubscriptionRead)
+def update_webhook_subscription(
+    subscription_id: int,
+    payload: WebhookSubscriptionUpdate,
+    admin_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> WebhookSubscriptionRead:
+    item = WebhookDeliveryService(db).update_subscription(subscription_id, payload, admin_user)
+    return WebhookSubscriptionRead.model_validate(item)
+
+
+@router.post("/webhook-subscriptions/{subscription_id}/enable", response_model=WebhookSubscriptionRead)
+def enable_webhook_subscription(
+    subscription_id: int,
+    admin_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> WebhookSubscriptionRead:
+    item = WebhookDeliveryService(db).set_enabled(subscription_id, True, admin_user)
+    return WebhookSubscriptionRead.model_validate(item)
+
+
+@router.post("/webhook-subscriptions/{subscription_id}/disable", response_model=WebhookSubscriptionRead)
+def disable_webhook_subscription(
+    subscription_id: int,
+    admin_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> WebhookSubscriptionRead:
+    item = WebhookDeliveryService(db).set_enabled(subscription_id, False, admin_user)
+    return WebhookSubscriptionRead.model_validate(item)
+
+
+@router.post("/webhook-subscriptions/{subscription_id}/test", response_model=WebhookTestResult)
+def test_webhook_subscription(
+    subscription_id: int,
+    admin_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> WebhookTestResult:
+    delivery = WebhookDeliveryService(db).test_subscription(subscription_id, admin_user)
+    return WebhookTestResult(
+        success=delivery.status == "succeeded",
+        delivery_id=delivery.id,
+        status=delivery.status,
+        message="Webhook test entregado." if delivery.status == "succeeded" else "Webhook test no entregado.",
+    )
+
+
+@router.get("/webhook-deliveries", response_model=list[WebhookDeliveryRead])
+def list_webhook_deliveries(
+    subscription_id: int | None = Query(default=None),
+    limit: int = Query(default=100, ge=1, le=200),
+    db: Session = Depends(get_db),
+) -> list[WebhookDeliveryRead]:
+    return [WebhookDeliveryRead.model_validate(item) for item in WebhookDeliveryService(db).list_deliveries(subscription_id=subscription_id, limit=limit)]
+
+
+@router.post("/webhook-deliveries/{delivery_id}/retry", response_model=WebhookDeliveryRead)
+def retry_webhook_delivery(
+    delivery_id: int,
+    admin_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> WebhookDeliveryRead:
+    return WebhookDeliveryRead.model_validate(WebhookDeliveryService(db).retry_delivery(delivery_id, admin_user))
     return IntegrationListResponse(
         items=[IntegrationRead.model_validate(item) for item in items],
         meta=_integration_page_meta(page, page_size, total),

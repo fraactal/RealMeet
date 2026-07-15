@@ -5,15 +5,20 @@ import {
   createGoogleOAuthAuthorizationUrl,
   createGoogleMeetMeeting,
   createAdminIntegration,
+  createWebhookSubscription,
   createWhatsAppConsentCorrection,
   createWhatsAppTemplate,
   cancelAppointmentNotification,
   cancelGoogleMeetMeeting,
   disableAdminIntegration,
+  disableWebhookSubscription,
   disconnectGoogleOAuth,
   enableAdminIntegration,
+  enableWebhookSubscription,
   fetchAdminIntegrationExecutions,
   fetchAdminIntegrations,
+  fetchWebhookDeliveries,
+  fetchWebhookSubscriptions,
   fetchGoogleOAuthStatus,
   fetchWhatsAppConsents,
   fetchWhatsAppNotificationPolicy,
@@ -28,10 +33,13 @@ import {
   refreshGoogleOAuth,
   retryWhatsAppMessage,
   retryAppointmentNotification,
+  retryWebhookDelivery,
   reconcileAppointmentNotification,
   sendWhatsAppMessage,
   testAdminIntegration,
+  testWebhookSubscription,
   updateAdminIntegration,
+  updateWebhookSubscription,
   updateWhatsAppNotificationPolicy,
   updateWhatsAppTemplate,
   syncWhatsAppTemplates,
@@ -51,6 +59,11 @@ import type {
   IntegrationStatus,
   IntegrationType,
   IntegrationUpdatePayload,
+  WebhookDelivery,
+  WebhookDeliveryStatus,
+  WebhookEventType,
+  WebhookSubscription,
+  WebhookSubscriptionWrite,
   GoogleOAuthStatus,
   GoogleMeetMeeting,
   GoogleMeetMeetingCreatePayload,
@@ -67,6 +80,8 @@ import {
   getIntegrationProviderLabel,
   getIntegrationStatusLabel,
   getIntegrationTypeLabel,
+  getWebhookDeliveryStatusLabel,
+  getWebhookEventTypeLabel,
 } from "../utils/labels";
 
 const INTEGRATION_TYPES: IntegrationType[] = ["meeting", "calendar", "messaging", "email", "automation", "webhook"];
@@ -83,7 +98,7 @@ const INTEGRATION_PROVIDERS: IntegrationProvider[] = [
 ];
 const INTEGRATION_STATUSES: IntegrationStatus[] = ["not_configured", "configured", "healthy", "error", "unsupported"];
 const SUPPORTED_PROVIDERS: IntegrationProvider[] = ["mock"];
-const CONFIGURABLE_PROVIDERS: IntegrationProvider[] = ["mock", "google_meet", "whatsapp_cloud"];
+const CONFIGURABLE_PROVIDERS: IntegrationProvider[] = ["mock", "google_meet", "whatsapp_cloud", "generic_webhook", "n8n"];
 const PAGE_SIZE = 20;
 
 interface FormState {
@@ -225,6 +240,14 @@ export function AdminIntegrationsPage() {
     queryFn: () => fetchAppointmentNotifications({ limit: 50 }),
     enabled: whatsappEnabled,
   });
+  const webhookSubscriptionsQuery = useQuery({
+    queryKey: ["admin-webhook-subscriptions"],
+    queryFn: fetchWebhookSubscriptions,
+  });
+  const webhookDeliveriesQuery = useQuery({
+    queryKey: ["admin-webhook-deliveries"],
+    queryFn: () => fetchWebhookDeliveries({ limit: 30 }),
+  });
 
   const refreshIntegrations = () => {
     void queryClient.invalidateQueries({ queryKey: ["admin-integrations"] });
@@ -240,6 +263,8 @@ export function AdminIntegrationsPage() {
       void queryClient.invalidateQueries({ queryKey: ["admin-whatsapp-notification-policy", selectedIntegration.id] });
       void queryClient.invalidateQueries({ queryKey: ["admin-appointment-notifications", selectedIntegration.id] });
     }
+    void queryClient.invalidateQueries({ queryKey: ["admin-webhook-subscriptions"] });
+    void queryClient.invalidateQueries({ queryKey: ["admin-webhook-deliveries"] });
   };
 
   const createMutation = useMutation({
@@ -362,6 +387,30 @@ export function AdminIntegrationsPage() {
     mutationFn: (notificationId: number) => cancelAppointmentNotification(notificationId),
     onSuccess: () => refreshIntegrations(),
   });
+  const createWebhookSubscriptionMutation = useMutation({
+    mutationFn: (payload: WebhookSubscriptionWrite) => createWebhookSubscription(payload),
+    onSuccess: () => refreshIntegrations(),
+  });
+  const updateWebhookSubscriptionMutation = useMutation({
+    mutationFn: ({ id, payload }: { id: number; payload: Partial<WebhookSubscriptionWrite> }) => updateWebhookSubscription(id, payload),
+    onSuccess: () => refreshIntegrations(),
+  });
+  const enableWebhookSubscriptionMutation = useMutation({
+    mutationFn: (id: number) => enableWebhookSubscription(id),
+    onSuccess: () => refreshIntegrations(),
+  });
+  const disableWebhookSubscriptionMutation = useMutation({
+    mutationFn: (id: number) => disableWebhookSubscription(id),
+    onSuccess: () => refreshIntegrations(),
+  });
+  const testWebhookSubscriptionMutation = useMutation({
+    mutationFn: (id: number) => testWebhookSubscription(id),
+    onSuccess: () => refreshIntegrations(),
+  });
+  const retryWebhookDeliveryMutation = useMutation({
+    mutationFn: (id: number) => retryWebhookDelivery(id),
+    onSuccess: () => refreshIntegrations(),
+  });
 
   const openCreate = () => {
     setForm(emptyForm);
@@ -451,7 +500,13 @@ export function AdminIntegrationsPage() {
     getMutationError(whatsappPolicyMutation.error) ??
     getMutationError(retryNotificationMutation.error) ??
     getMutationError(reconcileNotificationMutation.error) ??
-    getMutationError(cancelNotificationMutation.error);
+    getMutationError(cancelNotificationMutation.error) ??
+    getMutationError(createWebhookSubscriptionMutation.error) ??
+    getMutationError(updateWebhookSubscriptionMutation.error) ??
+    getMutationError(enableWebhookSubscriptionMutation.error) ??
+    getMutationError(disableWebhookSubscriptionMutation.error) ??
+    getMutationError(testWebhookSubscriptionMutation.error) ??
+    getMutationError(retryWebhookDeliveryMutation.error);
 
   return (
     <div className="space-y-6">
@@ -680,6 +735,26 @@ export function AdminIntegrationsPage() {
         </SectionCard>
       ) : null}
 
+      <OutboundWebhooksPanel
+        integrations={integrationsQuery.data?.items ?? []}
+        subscriptions={webhookSubscriptionsQuery.data ?? []}
+        deliveries={webhookDeliveriesQuery.data ?? []}
+        loading={webhookSubscriptionsQuery.isLoading || webhookDeliveriesQuery.isLoading}
+        busy={
+          createWebhookSubscriptionMutation.isPending ||
+          updateWebhookSubscriptionMutation.isPending ||
+          enableWebhookSubscriptionMutation.isPending ||
+          disableWebhookSubscriptionMutation.isPending ||
+          testWebhookSubscriptionMutation.isPending ||
+          retryWebhookDeliveryMutation.isPending
+        }
+        onCreate={(payload) => createWebhookSubscriptionMutation.mutate(payload)}
+        onEnable={(id) => enableWebhookSubscriptionMutation.mutate(id)}
+        onDisable={(id) => disableWebhookSubscriptionMutation.mutate(id)}
+        onTest={(id) => testWebhookSubscriptionMutation.mutate(id)}
+        onRetry={(id) => retryWebhookDeliveryMutation.mutate(id)}
+      />
+
       {formOpen ? (
         <IntegrationFormModal
           form={form}
@@ -760,6 +835,8 @@ function providerStageText(provider: IntegrationProvider): string {
   if (provider === "mock") return "Disponible para pruebas";
   if (provider === "google_meet") return "Disponible para OAuth y reservas segun politica";
   if (provider === "whatsapp_cloud") return "Mensajeria transaccional segun consentimiento";
+  if (provider === "generic_webhook") return "Disponible como contenedor de webhooks salientes";
+  if (provider === "n8n") return "Contenedor preparado; workflows n8n en modulo posterior";
   return "Proximamente";
 }
 
@@ -968,6 +1045,177 @@ function GoogleOAuthPanel({
   );
 }
 
+const WEBHOOK_EVENTS: WebhookEventType[] = [
+  "appointment.created",
+  "appointment.cancelled",
+  "appointment.updated",
+  "appointment.confirmed",
+  "meeting.ready",
+  "notification.sent",
+  "notification.failed",
+  "client.created",
+  "professional.created",
+];
+
+function OutboundWebhooksPanel({
+  integrations,
+  subscriptions,
+  deliveries,
+  loading,
+  busy,
+  onCreate,
+  onEnable,
+  onDisable,
+  onTest,
+  onRetry,
+}: {
+  integrations: Integration[];
+  subscriptions: WebhookSubscription[];
+  deliveries: WebhookDelivery[];
+  loading: boolean;
+  busy: boolean;
+  onCreate: (payload: WebhookSubscriptionWrite) => void;
+  onEnable: (id: number) => void;
+  onDisable: (id: number) => void;
+  onTest: (id: number) => void;
+  onRetry: (id: number) => void;
+}) {
+  const webhookIntegrations = integrations.filter((item) => item.provider === "generic_webhook" || item.provider === "n8n");
+  const [integrationId, setIntegrationId] = useState("");
+  const [name, setName] = useState("Webhook operativo RealMeet");
+  const [targetUrl, setTargetUrl] = useState("https://example.com/webhook");
+  const [secretReference, setSecretReference] = useState("REALMEET_WEBHOOK_SECRET");
+  const [events, setEvents] = useState<WebhookEventType[]>(["appointment.created", "appointment.cancelled"]);
+
+  useEffect(() => {
+    if (!integrationId && webhookIntegrations[0]) {
+      setIntegrationId(String(webhookIntegrations[0].id));
+    }
+  }, [integrationId, webhookIntegrations]);
+
+  function toggleEvent(eventType: WebhookEventType) {
+    setEvents((current) => (current.includes(eventType) ? current.filter((item) => item !== eventType) : [...current, eventType]));
+  }
+
+  return (
+    <SectionCard title="Webhooks salientes" description="Emite eventos operativos firmados hacia sistemas externos. n8n y workflows concretos se implementaran en submodulos posteriores.">
+      {loading ? <LoadingState label="Cargando webhooks salientes" /> : null}
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(320px,420px)]">
+        <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+          <h3 className="text-base font-semibold text-ink-900">Nueva suscripcion</h3>
+          <p className="mt-1 text-sm leading-6 text-ink-500">Usa solo referencias de secretos. RealMeet firma cada payload con HMAC-SHA256.</p>
+          {webhookIntegrations.length === 0 ? (
+            <p className="mt-4 rounded-md border border-warning-200 bg-warning-50 p-3 text-sm text-warning-700">Crea primero una integracion `Webhook generico` o `n8n` como contenedor administrativo.</p>
+          ) : (
+            <div className="mt-4 grid gap-3">
+              <Field id="webhook-integration" label="Integracion contenedora">
+                <Select id="webhook-integration" value={integrationId} onChange={(event) => setIntegrationId(event.target.value)}>
+                  {webhookIntegrations.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.name} · {getIntegrationProviderLabel(item.provider)}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field id="webhook-name" label="Nombre">
+                <Input id="webhook-name" value={name} onChange={(event) => setName(event.target.value)} />
+              </Field>
+              <Field id="webhook-url" label="URL destino">
+                <Input id="webhook-url" value={targetUrl} onChange={(event) => setTargetUrl(event.target.value)} placeholder="https://example.com/webhook" />
+              </Field>
+              <Field id="webhook-secret" label="Referencia de secreto">
+                <Input id="webhook-secret" value={secretReference} onChange={(event) => setSecretReference(event.target.value)} placeholder="REALMEET_WEBHOOK_SECRET" />
+              </Field>
+              <div>
+                <p className="mb-2 text-sm font-semibold text-ink-700">Eventos</p>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {WEBHOOK_EVENTS.map((eventType) => (
+                    <label className="flex items-center gap-2 rounded-md border border-slate-200 bg-white p-2 text-sm text-ink-700" key={eventType}>
+                      <input checked={events.includes(eventType)} onChange={() => toggleEvent(eventType)} type="checkbox" />
+                      {getWebhookEventTypeLabel(eventType)}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <Button
+                disabled={!integrationId || !name.trim() || !targetUrl.trim() || !secretReference.trim() || events.length === 0}
+                isLoading={busy}
+                onClick={() =>
+                  onCreate({
+                    integration_id: Number(integrationId),
+                    name: name.trim(),
+                    target_url: targetUrl.trim(),
+                    event_types: events,
+                    secret_reference: secretReference.trim(),
+                  })
+                }
+              >
+                Crear suscripcion
+              </Button>
+            </div>
+          )}
+        </div>
+
+        <div className="space-y-3">
+          <h3 className="text-base font-semibold text-ink-900">Suscripciones</h3>
+          {subscriptions.length === 0 ? <EmptyState title="No hay suscripciones webhook" description="Crea una suscripcion para probar eventos operativos firmados." /> : null}
+          {subscriptions.map((subscription) => (
+            <article className="rounded-lg border border-slate-200 bg-white p-4" key={subscription.id}>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="font-semibold text-ink-900">{subscription.name}</p>
+                  <p className="mt-1 break-all text-sm text-ink-500">{subscription.target_url}</p>
+                </div>
+                <Badge label={subscription.enabled ? "Habilitada" : "Deshabilitada"} tone={subscription.enabled ? "success" : "neutral"} />
+              </div>
+              <p className="mt-3 text-xs text-ink-500">Eventos: {subscription.event_types.map(getWebhookEventTypeLabel).join(", ")}</p>
+              <p className="mt-1 text-xs text-ink-500">Secreto: {subscription.secret_reference}</p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {subscription.enabled ? (
+                  <Button isLoading={busy} onClick={() => onDisable(subscription.id)} size="sm" variant="secondary">Deshabilitar</Button>
+                ) : (
+                  <Button isLoading={busy} onClick={() => onEnable(subscription.id)} size="sm">Habilitar</Button>
+                )}
+                <Button disabled={!subscription.enabled} isLoading={busy} onClick={() => onTest(subscription.id)} size="sm" variant="secondary">Enviar test</Button>
+              </div>
+            </article>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-5">
+        <h3 className="mb-3 text-base font-semibold text-ink-900">Ultimas entregas</h3>
+        {deliveries.length === 0 ? <EmptyState title="Todavia no hay entregas webhook" /> : null}
+        <div className="grid gap-3">
+          {deliveries.map((delivery) => (
+            <article className="rounded-lg border border-slate-200 bg-white p-4" key={delivery.id}>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <p className="font-semibold text-ink-900">{getWebhookEventTypeLabel(delivery.event_type)}</p>
+                  <p className="mt-1 text-sm text-ink-500">{formatDateTime(delivery.created_at)} · intento {delivery.attempt}</p>
+                </div>
+                <WebhookDeliveryBadge status={delivery.status} />
+              </div>
+              <div className="mt-3 grid gap-2 text-sm text-ink-600 sm:grid-cols-4">
+                <InfoItem label="HTTP" value={delivery.response_status ? String(delivery.response_status) : "Sin respuesta"} />
+                <InfoItem label="Duracion" value={delivery.duration_ms != null ? `${delivery.duration_ms} ms` : "Sin duracion"} />
+                <InfoItem label="Error" value={delivery.error_message ?? delivery.error_code ?? "Sin error"} />
+                <InfoItem label="Idempotencia" value={delivery.idempotency_key} />
+              </div>
+              {delivery.status === "failed" ? <Button className="mt-3" isLoading={busy} onClick={() => onRetry(delivery.id)} size="sm" variant="secondary">Reintentar</Button> : null}
+            </article>
+          ))}
+        </div>
+      </div>
+    </SectionCard>
+  );
+}
+
+function WebhookDeliveryBadge({ status }: { status: WebhookDeliveryStatus }) {
+  const tone: "success" | "danger" | "info" | "neutral" | "warning" = status === "succeeded" ? "success" : status === "failed" ? "danger" : status === "sending" ? "info" : status === "skipped" ? "neutral" : "warning";
+  return <Badge label={getWebhookDeliveryStatusLabel(status)} tone={tone} />;
+}
+
 function getGoogleOAuthStatusLabel(status: GoogleOAuthStatus["status"]): string {
   const labels: Record<GoogleOAuthStatus["status"], string> = {
     not_connected: "Sin conectar",
@@ -1019,7 +1267,7 @@ function IntegrationFormModal({ form, isSaving, onChange, onClose, onSave }: { f
                 onChange({ ...form, provider, integration_type: provider === "google_meet" ? "meeting" : provider === "whatsapp_cloud" ? "messaging" : form.integration_type });
               }}
             >
-              {INTEGRATION_PROVIDERS.map((provider) => <option disabled={!isConfigurableProvider(provider)} key={provider} value={provider}>{getIntegrationProviderLabel(provider)}{provider === "google_meet" ? " - OAuth y reservas" : provider === "whatsapp_cloud" ? " - Fundacion sin envio" : !isConfigurableProvider(provider) ? " - Proximamente" : ""}</option>)}
+              {INTEGRATION_PROVIDERS.map((provider) => <option disabled={!isConfigurableProvider(provider)} key={provider} value={provider}>{getIntegrationProviderLabel(provider)}{provider === "google_meet" ? " - OAuth y reservas" : provider === "whatsapp_cloud" ? " - Fundacion sin envio" : provider === "generic_webhook" ? " - Webhooks salientes" : provider === "n8n" ? " - Contenedor sin workflows" : !isConfigurableProvider(provider) ? " - Proximamente" : ""}</option>)}
             </Select>
           </Field>
           <Field label="Referencia de secreto" id="integration-secret">

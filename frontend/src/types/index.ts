@@ -448,6 +448,18 @@ export type IntegrationProvider =
   | "generic_webhook";
 export type IntegrationStatus = "not_configured" | "configured" | "healthy" | "error" | "unsupported";
 export type IntegrationExecutionStatus = "pending" | "running" | "succeeded" | "failed" | "skipped";
+export type WebhookEventType =
+  | "appointment.created"
+  | "appointment.updated"
+  | "appointment.cancelled"
+  | "appointment.confirmed"
+  | "meeting.ready"
+  | "notification.sent"
+  | "notification.failed"
+  | "client.created"
+  | "professional.created"
+  | "webhook.test";
+export type WebhookDeliveryStatus = "pending" | "sending" | "succeeded" | "failed" | "skipped";
 
 export interface IntegrationConfig {
   simulate_error?: boolean;
@@ -544,6 +556,56 @@ export interface IntegrationUpdatePayload {
 
 export interface IntegrationTestPayload {
   idempotency_key: string;
+}
+
+export interface WebhookSubscription {
+  id: number;
+  integration_id: number;
+  name: string;
+  target_url: string;
+  event_types: WebhookEventType[];
+  secret_reference: string;
+  enabled: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WebhookSubscriptionWrite {
+  integration_id: number;
+  name: string;
+  target_url: string;
+  event_types: WebhookEventType[];
+  secret_reference: string;
+}
+
+export interface WebhookSubscriptionUpdate {
+  name?: string;
+  target_url?: string;
+  event_types?: WebhookEventType[];
+  secret_reference?: string;
+}
+
+export interface WebhookDelivery {
+  id: number;
+  subscription_id: number;
+  event_id: string;
+  event_type: WebhookEventType;
+  status: WebhookDeliveryStatus;
+  attempt: number;
+  idempotency_key: string;
+  response_status?: number | null;
+  duration_ms?: number | null;
+  error_code?: string | null;
+  error_message?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WebhookTestResult {
+  success: boolean;
+  delivery_id?: number | null;
+  status: WebhookDeliveryStatus;
+  message: string;
 }
 
 export interface GoogleOAuthAuthorizationUrl {

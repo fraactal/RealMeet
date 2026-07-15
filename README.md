@@ -556,6 +556,41 @@ Seguridad:
 - El token se resuelve desde la referencia de entorno y permanece solo en memoria durante la llamada.
 - Marketing, campanas, mensajes libres, bots y WhatsApp Flows quedan fuera de esta etapa.
 
+## Webhooks salientes operativos
+
+RealMeet puede emitir eventos operativos mediante webhooks firmados. La integracion especifica con n8n y flujos de negocio se implementara en los siguientes submodulos.
+
+Modulo 14.1 agrega:
+
+- Catalogo inicial de eventos: `appointment.created`, `appointment.updated`, `appointment.cancelled`, `appointment.confirmed`, `meeting.ready`, `notification.sent`, `notification.failed`, `client.created`, `professional.created` y `webhook.test`.
+- Suscripciones administrativas vinculadas a integraciones `generic_webhook` o `n8n`.
+- Entregas persistidas con idempotencia por suscripcion y evento.
+- Firma HMAC-SHA256 con `X-RealMeet-Signature`.
+- Headers `X-RealMeet-Event`, `X-RealMeet-Delivery` y `X-RealMeet-Timestamp`.
+- Cliente HTTP saliente con timeout breve y sin redirects.
+- Proveedor fake para pruebas automatizadas.
+- Reintento manual de entregas fallidas.
+
+Los eventos conectados inicialmente son `appointment.created` y `appointment.cancelled`. El payload incluye solo IDs y datos operativos minimos de la reserva; no incluye telefonos, emails, notas privadas, datos clinicos, meeting URL, secretos ni modelos completos.
+
+APIs admin disponibles:
+
+- `GET/POST /api/v1/admin/webhook-subscriptions`
+- `GET/PATCH /api/v1/admin/webhook-subscriptions/{id}`
+- `POST /api/v1/admin/webhook-subscriptions/{id}/enable`
+- `POST /api/v1/admin/webhook-subscriptions/{id}/disable`
+- `POST /api/v1/admin/webhook-subscriptions/{id}/test`
+- `GET /api/v1/admin/webhook-deliveries`
+- `POST /api/v1/admin/webhook-deliveries/{id}/retry`
+
+Seguridad:
+
+- La URL debe ser HTTPS, salvo `localhost` en entornos locales.
+- No se permiten credenciales embebidas en la URL.
+- IPs privadas y localhost quedan bloqueados fuera de entornos locales.
+- El secreto se guarda solo como referencia de variable de entorno y se resuelve en memoria.
+- No se persiste el body completo de respuesta.
+
 ## Plan sugerido de commits
 
 El repositorio tiene commits incrementales por modulo. El Modulo 8 debe cerrarse con un unico commit y sin push salvo instruccion explicita.

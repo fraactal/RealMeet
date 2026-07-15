@@ -40,6 +40,11 @@ import type {
   IntegrationTestPayload,
   IntegrationType,
   IntegrationUpdatePayload,
+  WebhookDelivery,
+  WebhookSubscription,
+  WebhookSubscriptionUpdate,
+  WebhookSubscriptionWrite,
+  WebhookTestResult,
   WhatsAppConsentCorrectionPayload,
   WhatsAppConsentPurpose,
   WhatsAppConsentSummary,
@@ -418,6 +423,46 @@ export async function testAdminIntegration(integrationId: number, payload: Integ
 
 export async function fetchAdminIntegrationExecutions(integrationId: number): Promise<IntegrationExecution[]> {
   const { data } = await api.get(`/admin/integrations/${integrationId}/executions`);
+  return data;
+}
+
+export async function fetchWebhookSubscriptions(): Promise<WebhookSubscription[]> {
+  const { data } = await api.get("/admin/webhook-subscriptions");
+  return data;
+}
+
+export async function createWebhookSubscription(payload: WebhookSubscriptionWrite): Promise<WebhookSubscription> {
+  const { data } = await api.post("/admin/webhook-subscriptions", payload);
+  return data;
+}
+
+export async function updateWebhookSubscription(subscriptionId: number, payload: WebhookSubscriptionUpdate): Promise<WebhookSubscription> {
+  const { data } = await api.patch(`/admin/webhook-subscriptions/${subscriptionId}`, payload);
+  return data;
+}
+
+export async function enableWebhookSubscription(subscriptionId: number): Promise<WebhookSubscription> {
+  const { data } = await api.post(`/admin/webhook-subscriptions/${subscriptionId}/enable`);
+  return data;
+}
+
+export async function disableWebhookSubscription(subscriptionId: number): Promise<WebhookSubscription> {
+  const { data } = await api.post(`/admin/webhook-subscriptions/${subscriptionId}/disable`);
+  return data;
+}
+
+export async function testWebhookSubscription(subscriptionId: number): Promise<WebhookTestResult> {
+  const { data } = await api.post(`/admin/webhook-subscriptions/${subscriptionId}/test`);
+  return data;
+}
+
+export async function fetchWebhookDeliveries(params: { subscription_id?: number; limit?: number } = {}): Promise<WebhookDelivery[]> {
+  const { data } = await api.get("/admin/webhook-deliveries", { params });
+  return data;
+}
+
+export async function retryWebhookDelivery(deliveryId: number): Promise<WebhookDelivery> {
+  const { data } = await api.post(`/admin/webhook-deliveries/${deliveryId}/retry`);
   return data;
 }
 

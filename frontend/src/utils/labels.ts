@@ -282,3 +282,30 @@ export function getAppointmentNotificationEventLabel(value: string): string {
 export function getAppointmentNotificationStatusLabel(value: string): string {
   return appointmentNotificationStatusLabels[value] ?? value;
 }
+
+export function getWebhookEventTypeLabel(value: string): string {
+  const labels: Record<string, string> = {
+    "appointment.created": "Reserva creada",
+    "appointment.updated": "Reserva actualizada",
+    "appointment.cancelled": "Reserva cancelada",
+    "appointment.confirmed": "Reserva confirmada",
+    "meeting.ready": "Reunion lista",
+    "notification.sent": "Notificacion enviada",
+    "notification.failed": "Notificacion fallida",
+    "client.created": "Cliente creado",
+    "professional.created": "Profesional creado",
+    "webhook.test": "Prueba webhook",
+  };
+  return labels[value] ?? value;
+}
+
+export function getWebhookDeliveryStatusLabel(value: string): string {
+  const labels: Record<string, string> = {
+    pending: "Pendiente",
+    sending: "Enviando",
+    succeeded: "Exitosa",
+    failed: "Fallida",
+    skipped: "Omitida",
+  };
+  return labels[value] ?? value;
+}
