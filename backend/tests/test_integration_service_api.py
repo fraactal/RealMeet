@@ -7,12 +7,7 @@ from sqlalchemy import delete, select
 from app.core.security import create_access_token, hash_password
 from app.db.session import SessionLocal
 from app.integrations.enums import IntegrationExecutionStatus, IntegrationProvider, IntegrationStatus, IntegrationType
-from app.integrations.exceptions import (
-    IntegrationConfigurationError,
-    IntegrationOperationUnsupportedError,
-    IntegrationProviderExecutionError,
-    IntegrationProviderUnsupportedError,
-)
+from app.integrations.exceptions import IntegrationConfigurationError, IntegrationProviderExecutionError, IntegrationProviderUnsupportedError
 from app.integrations.providers.mock import MockIntegrationProvider
 from app.integrations.registry import provider_registry
 from app.main import app
@@ -150,15 +145,15 @@ def test_service_creates_updates_validates_enables_and_disables(db_session) -> N
     assert disabled.enabled is False
 
 
-def test_service_rejects_enable_for_future_provider(db_session) -> None:
+def test_service_rejects_google_meet_enable_without_oauth_connection(db_session) -> None:
     admin = _create_user(db_session, UserRole.admin)
     service = IntegrationService(db_session)
     integration = service.create_integration(
-        IntegrationCreate(**_integration_payload(name="Test 11.2 Future", provider="google_meet", config={})),
+        IntegrationCreate(**_integration_payload(name="Test 11.2 Google Meet", provider="google_meet", config={})),
         admin,
     )
 
-    with pytest.raises(IntegrationOperationUnsupportedError):
+    with pytest.raises(IntegrationConfigurationError):
         service.enable_integration(integration.id, admin)
 
 
@@ -286,12 +281,12 @@ def test_admin_api_authorization_and_protected_payloads(api_client: TestClient, 
     assert response.status_code == 422
 
 
-def test_admin_api_rejects_unsupported_provider_enable(api_client: TestClient, db_session) -> None:
+def test_admin_api_rejects_google_meet_enable_without_oauth_connection(api_client: TestClient, db_session) -> None:
     admin = _create_user(db_session, UserRole.admin)
     headers = _auth_headers(admin)
     create_response = api_client.post(
         "/api/v1/admin/integrations",
-        json=_integration_payload(name="Test 11.2 Future API", provider="google_meet", config={}),
+        json=_integration_payload(name="Test 11.2 Google Meet API", provider="google_meet", config={}),
         headers=headers,
     )
     assert create_response.status_code == 200
@@ -299,7 +294,7 @@ def test_admin_api_rejects_unsupported_provider_enable(api_client: TestClient, d
 
     enable_response = api_client.post(f"/api/v1/admin/integrations/{integration_id}/enable", headers=headers)
 
-    assert enable_response.status_code == 409
+    assert enable_response.status_code == 422
 
 
 def test_admin_api_response_does_not_expose_secret_values(api_client: TestClient, db_session) -> None:

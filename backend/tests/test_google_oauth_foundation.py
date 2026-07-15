@@ -269,10 +269,10 @@ def test_admin_oauth_endpoints_authorization_and_provider_checks(api_client: Tes
     assert api_client.post(f"/api/v1/admin/integrations/{mock.id}/oauth/google/authorize", headers=_headers(admin)).status_code == 409
 
 
-def test_google_meet_cannot_be_enabled_as_operational_provider(api_client: TestClient, db_session) -> None:
+def test_google_meet_cannot_be_enabled_without_oauth_connection(api_client: TestClient, db_session) -> None:
     admin = _create_user(db_session, UserRole.admin)
     integration = _create_integration(db_session, admin)
 
     response = api_client.post(f"/api/v1/admin/integrations/{integration.id}/enable", headers=_headers(admin))
 
-    assert response.status_code == 409
+    assert response.status_code == 422

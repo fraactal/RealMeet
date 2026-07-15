@@ -3,7 +3,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
   createGoogleOAuthAuthorizationUrl,
+  createGoogleMeetMeeting,
   createAdminIntegration,
+  cancelGoogleMeetMeeting,
   disableAdminIntegration,
   disconnectGoogleOAuth,
   enableAdminIntegration,
@@ -29,6 +31,8 @@ import type {
   IntegrationType,
   IntegrationUpdatePayload,
   GoogleOAuthStatus,
+  GoogleMeetMeeting,
+  GoogleMeetMeetingCreatePayload,
 } from "../types";
 import { formatDateTime } from "../utils/dates";
 import {
@@ -87,6 +91,7 @@ export function AdminIntegrationsPage() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [testKeyById, setTestKeyById] = useState<Record<number, string>>({});
   const [lastResult, setLastResult] = useState<IntegrationOperationResult | null>(null);
+  const [googleMeetingResult, setGoogleMeetingResult] = useState<GoogleMeetMeeting | null>(null);
 
   const integrationsQuery = useQuery({
     queryKey: ["admin-integrations", typeFilter, providerFilter, enabledFilter, statusFilter],
@@ -178,6 +183,21 @@ export function AdminIntegrationsPage() {
     mutationFn: (id: number) => disconnectGoogleOAuth(id),
     onSuccess: () => refreshIntegrations(),
   });
+  const createGoogleMeetingMutation = useMutation({
+    mutationFn: ({ id, payload }: { id: number; payload: GoogleMeetMeetingCreatePayload }) => createGoogleMeetMeeting(id, payload),
+    onSuccess: (result) => {
+      setGoogleMeetingResult(result);
+      refreshIntegrations();
+    },
+  });
+  const cancelGoogleMeetingMutation = useMutation({
+    mutationFn: ({ id, externalEventId }: { id: number; externalEventId: string }) =>
+      cancelGoogleMeetMeeting(id, externalEventId, { idempotency_key: `meeting:test:cancel:${externalEventId}:${Date.now()}`, send_updates: "none" }),
+    onSuccess: (result) => {
+      setGoogleMeetingResult(result);
+      refreshIntegrations();
+    },
+  });
 
   const openCreate = () => {
     setForm(emptyForm);
@@ -235,7 +255,9 @@ export function AdminIntegrationsPage() {
     getMutationError(testMutation.error) ??
     getMutationError(googleAuthorizeMutation.error) ??
     getMutationError(googleRefreshMutation.error) ??
-    getMutationError(googleDisconnectMutation.error);
+    getMutationError(googleDisconnectMutation.error) ??
+    getMutationError(createGoogleMeetingMutation.error) ??
+    getMutationError(cancelGoogleMeetingMutation.error);
 
   return (
     <div className="space-y-6">
@@ -374,6 +396,12 @@ export function AdminIntegrationsPage() {
                   onAuthorize={() => googleAuthorizeMutation.mutate(selectedIntegration.id)}
                   onDisconnect={() => window.confirm("Se desconectara localmente la cuenta Google. La integracion se conserva y no se borran ejecuciones.") && googleDisconnectMutation.mutate(selectedIntegration.id)}
                   onRefresh={() => googleRefreshMutation.mutate(selectedIntegration.id)}
+                  onEnableGoogle={() => enableMutation.mutate(selectedIntegration.id)}
+                  onHealthCheck={() => healthMutation.mutate(selectedIntegration.id)}
+                  onCreateMeeting={(payload) => createGoogleMeetingMutation.mutate({ id: selectedIntegration.id, payload })}
+                  onCancelMeeting={(externalEventId) => window.confirm("Se cancelara el evento real en Google Calendar si existe. Esta accion no afecta reservas.") && cancelGoogleMeetingMutation.mutate({ id: selectedIntegration.id, externalEventId })}
+                  meetingResult={googleMeetingResult}
+                  meetingBusy={createGoogleMeetingMutation.isPending || cancelGoogleMeetingMutation.isPending}
                   status={googleOAuthStatusQuery.data}
                   statusLoading={googleOAuthStatusQuery.isLoading}
                 />
@@ -550,6 +578,12 @@ function GoogleOAuthPanel({
   onAuthorize,
   onDisconnect,
   onRefresh,
+  onEnableGoogle,
+  onHealthCheck,
+  onCreateMeeting,
+  onCancelMeeting,
+  meetingResult,
+  meetingBusy,
   status,
   statusLoading,
 }: {
@@ -560,10 +594,25 @@ function GoogleOAuthPanel({
   onAuthorize: () => void;
   onDisconnect: () => void;
   onRefresh: () => void;
+  onEnableGoogle: () => void;
+  onHealthCheck: () => void;
+  onCreateMeeting: (payload: GoogleMeetMeetingCreatePayload) => void;
+  onCancelMeeting: (externalEventId: string) => void;
+  meetingResult: GoogleMeetMeeting | null;
+  meetingBusy: boolean;
   status?: GoogleOAuthStatus;
   statusLoading: boolean;
 }) {
   const connected = status?.connected ?? false;
+  const start = new Date(Date.now() + 60 * 60 * 1000);
+  const end = new Date(Date.now() + 90 * 60 * 1000);
+  const [title, setTitle] = useState("Prueba de integracion RealMeet");
+  const [startAt, setStartAt] = useState(toDatetimeLocal(start));
+  const [endAt, setEndAt] = useState(toDatetimeLocal(end));
+  const [timezone, setTimezone] = useState("America/Santiago");
+  const [attendees, setAttendees] = useState("");
+  const [sendUpdates, setSendUpdates] = useState<"none" | "all" | "externalOnly">("none");
+  const [idempotencyKey, setIdempotencyKey] = useState(`meeting:test:${Date.now()}`);
   return (
     <div className="mt-4 rounded-lg border border-slate-200 bg-white p-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -583,8 +632,71 @@ function GoogleOAuthPanel({
       <div className="mt-4 flex flex-wrap gap-2">
         {!connected ? <Button isLoading={isAuthorizing} onClick={onAuthorize}>Conectar con Google</Button> : null}
         {connected ? <Button isLoading={isRefreshing} onClick={onRefresh} variant="secondary">Refrescar token</Button> : null}
+        {connected && !integration.enabled ? <Button onClick={onEnableGoogle}>Habilitar pruebas Google</Button> : null}
+        {connected && integration.enabled ? <Button onClick={onHealthCheck} variant="secondary">Health check Google</Button> : null}
         {connected ? <Button isLoading={isDisconnecting} onClick={onDisconnect} variant="secondary">Desconectar</Button> : null}
       </div>
+      {connected && integration.enabled ? (
+        <div className="mt-5 rounded-lg border border-warning-200 bg-warning-50 p-4">
+          <h4 className="font-semibold text-ink-900">Crear reunion de prueba</h4>
+          <p className="mt-1 text-sm leading-6 text-ink-600">Esta operacion crea un evento real en la cuenta Google conectada. Todavia no se utiliza automaticamente en las reservas.</p>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <Field id="google-meet-title" label="Titulo">
+              <Input id="google-meet-title" value={title} onChange={(event) => setTitle(event.target.value)} />
+            </Field>
+            <Field id="google-meet-timezone" label="Zona horaria">
+              <Input id="google-meet-timezone" value={timezone} onChange={(event) => setTimezone(event.target.value)} />
+            </Field>
+            <Field id="google-meet-start" label="Inicio">
+              <Input id="google-meet-start" type="datetime-local" value={startAt} onChange={(event) => setStartAt(event.target.value)} />
+            </Field>
+            <Field id="google-meet-end" label="Termino">
+              <Input id="google-meet-end" type="datetime-local" value={endAt} onChange={(event) => setEndAt(event.target.value)} />
+            </Field>
+            <Field id="google-meet-attendees" label="Asistentes opcionales">
+              <Input id="google-meet-attendees" value={attendees} onChange={(event) => setAttendees(event.target.value)} placeholder="correo@example.com, otro@example.com" />
+            </Field>
+            <Field id="google-meet-send-updates" label="Notificaciones Google">
+              <Select id="google-meet-send-updates" value={sendUpdates} onChange={(event) => setSendUpdates(event.target.value as "none" | "all" | "externalOnly")}>
+                <option value="none">No enviar invitaciones</option>
+                <option value="externalOnly">Solo externos</option>
+                <option value="all">Enviar a todos</option>
+              </Select>
+            </Field>
+            <Field id="google-meet-idempotency" label="Clave idempotente">
+              <Input id="google-meet-idempotency" value={idempotencyKey} onChange={(event) => setIdempotencyKey(event.target.value)} />
+            </Field>
+          </div>
+          {sendUpdates !== "none" ? <p className="mt-3 text-sm font-semibold text-warning-700">Esta opcion puede enviar invitaciones reales desde Google Calendar.</p> : null}
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Button
+              isLoading={meetingBusy}
+              onClick={() => {
+                if (!window.confirm("Confirmas crear un evento real en la cuenta Google conectada?")) return;
+                onCreateMeeting({
+                  title,
+                  start_at: new Date(startAt).toISOString(),
+                  end_at: new Date(endAt).toISOString(),
+                  timezone,
+                  attendees: attendees.split(",").map((item) => item.trim()).filter(Boolean),
+                  idempotency_key: idempotencyKey,
+                  send_updates: sendUpdates,
+                });
+              }}
+            >
+              Crear reunion de prueba
+            </Button>
+            {meetingResult?.external_event_id && meetingResult.status !== "cancelled" ? <Button isLoading={meetingBusy} onClick={() => onCancelMeeting(meetingResult.external_event_id)} variant="secondary">Cancelar prueba</Button> : null}
+          </div>
+          {meetingResult ? (
+            <div className="mt-4 rounded-md border border-slate-200 bg-white p-3 text-sm text-ink-700">
+              <p className="font-semibold">Resultado: {meetingResult.status}</p>
+              <p>Evento: {meetingResult.external_event_id}</p>
+              {meetingResult.meeting_url ? <a className="text-brand-700 underline" href={meetingResult.meeting_url} rel="noreferrer" target="_blank">Abrir enlace Meet</a> : <p>Meet pendiente o no disponible.</p>}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
       <p className="mt-3 text-xs text-ink-500">Integracion #{integration.id}. No se muestran tokens, codigos OAuth ni secretos.</p>
     </div>
   );
@@ -743,6 +855,12 @@ function durationText(item: IntegrationExecution): string {
   if (!item.started_at || !item.finished_at) return "Sin duracion";
   const duration = Math.max(new Date(item.finished_at).getTime() - new Date(item.started_at).getTime(), 0);
   return `${duration} ms`;
+}
+
+function toDatetimeLocal(value: Date): string {
+  const offset = value.getTimezoneOffset();
+  const local = new Date(value.getTime() - offset * 60 * 1000);
+  return local.toISOString().slice(0, 16);
 }
 
 function getMutationError(error: unknown): string | null {

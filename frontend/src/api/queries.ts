@@ -26,6 +26,9 @@ import type {
   GoogleOAuthAuthorizationUrl,
   GoogleOAuthDisconnectResult,
   GoogleOAuthStatus,
+  GoogleMeetMeeting,
+  GoogleMeetMeetingCancelPayload,
+  GoogleMeetMeetingCreatePayload,
   Integration,
   IntegrationCreatePayload,
   IntegrationExecution,
@@ -402,5 +405,20 @@ export async function refreshGoogleOAuth(integrationId: number): Promise<GoogleO
 
 export async function disconnectGoogleOAuth(integrationId: number): Promise<GoogleOAuthDisconnectResult> {
   const { data } = await api.post(`/admin/integrations/${integrationId}/oauth/disconnect`);
+  return data;
+}
+
+export async function createGoogleMeetMeeting(integrationId: number, payload: GoogleMeetMeetingCreatePayload): Promise<GoogleMeetMeeting> {
+  const { data } = await api.post(`/admin/integrations/${integrationId}/meetings`, payload);
+  return data;
+}
+
+export async function fetchGoogleMeetMeeting(integrationId: number, externalEventId: string): Promise<GoogleMeetMeeting> {
+  const { data } = await api.get(`/admin/integrations/${integrationId}/meetings/${encodeURIComponent(externalEventId)}`);
+  return data;
+}
+
+export async function cancelGoogleMeetMeeting(integrationId: number, externalEventId: string, payload: GoogleMeetMeetingCancelPayload): Promise<GoogleMeetMeeting> {
+  const { data } = await api.delete(`/admin/integrations/${integrationId}/meetings/${encodeURIComponent(externalEventId)}`, { data: payload });
   return data;
 }

@@ -31,6 +31,7 @@ class Integration(Base, TimestampMixin):
     executions: Mapped[list["IntegrationExecution"]] = relationship("IntegrationExecution", back_populates="integration")
     credentials: Mapped[list["IntegrationCredential"]] = relationship("IntegrationCredential", back_populates="integration")
     oauth_states: Mapped[list["IntegrationOAuthState"]] = relationship("IntegrationOAuthState", back_populates="integration")
+    external_meetings: Mapped[list["ExternalMeeting"]] = relationship("ExternalMeeting", back_populates="integration")
 
 
 class IntegrationExecution(Base):
@@ -94,3 +95,25 @@ class IntegrationOAuthState(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     integration: Mapped[Integration] = relationship("Integration", back_populates="oauth_states")
+
+
+class ExternalMeeting(Base, TimestampMixin):
+    __tablename__ = "external_meetings"
+    __table_args__ = (UniqueConstraint("integration_id", "provider", "external_event_id", name="uq_external_meetings_integration_event"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    integration_id: Mapped[int] = mapped_column(ForeignKey("integrations.id"), nullable=False)
+    provider: Mapped[IntegrationProvider] = mapped_column(Enum(IntegrationProvider, name="integration_provider"), nullable=False)
+    external_event_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    external_calendar_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    conference_id: Mapped[str | None] = mapped_column(String(120))
+    meeting_url: Mapped[str | None] = mapped_column(String(500))
+    html_link: Mapped[str | None] = mapped_column(String(500))
+    status: Mapped[str] = mapped_column(String(40), nullable=False, default="active")
+    starts_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    entity_type: Mapped[str | None] = mapped_column(String(80))
+    entity_id: Mapped[str | None] = mapped_column(String(120))
+    cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    integration: Mapped[Integration] = relationship("Integration", back_populates="external_meetings")

@@ -39,6 +39,9 @@ from app.schemas.admin import (
 from app.schemas.appointments import AppointmentAdminRead, AppointmentHistoryRead, AppointmentMeetingRead, AppointmentStatusUpdate
 from app.schemas.categories import CategoryAdminRead, CategoryCreate, CategoryUpdate
 from app.schemas.integrations import (
+    GoogleMeetMeetingCancel,
+    GoogleMeetMeetingCreate,
+    GoogleMeetMeetingRead,
     GoogleOAuthAuthorizationUrlRead,
     GoogleOAuthCallbackRead,
     GoogleOAuthDisconnectRead,
@@ -56,6 +59,8 @@ from app.schemas.specialties import SpecialtyAdminRead, SpecialtyCreate, Special
 from app.services.catalog import CatalogService
 from app.services.appointments import AppointmentService
 from app.services.integrations import IntegrationService
+from app.services.google_meet import GoogleMeetService
+from app.integrations.meeting_contracts import MeetingAttendee, MeetingCreateRequest
 
 router = APIRouter(dependencies=[Depends(require_admin)])
 
@@ -276,6 +281,64 @@ def disconnect_google_oauth(
     except IntegrationError as exc:
         raise _integration_http_error(exc) from exc
     return GoogleOAuthDisconnectRead(success=True, status="revoked", message="Cuenta Google desconectada.")
+
+
+@router.post("/integrations/{integration_id}/meetings", response_model=GoogleMeetMeetingRead)
+def create_google_meet_meeting(
+    integration_id: int,
+    payload: GoogleMeetMeetingCreate,
+    admin_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> GoogleMeetMeetingRead:
+    try:
+        result = GoogleMeetService(db).create_meeting(
+            integration_id,
+            MeetingCreateRequest(
+                title=payload.title,
+                description=payload.description or "Reunion programada mediante RealMeet.",
+                start_at=payload.start_at,
+                end_at=payload.end_at,
+                timezone=payload.timezone,
+                attendees=[MeetingAttendee(email=item) for item in payload.attendees],
+                idempotency_key=payload.idempotency_key,
+                send_updates=payload.send_updates,
+                entity_type="admin_test",
+                entity_id=payload.idempotency_key,
+            ),
+            admin_user,
+        )
+    except IntegrationError as exc:
+        raise _integration_http_error(exc) from exc
+    return GoogleMeetMeetingRead(**result.__dict__)
+
+
+@router.get("/integrations/{integration_id}/meetings/{external_event_id}", response_model=GoogleMeetMeetingRead)
+def get_google_meet_meeting(
+    integration_id: int,
+    external_event_id: str,
+    admin_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> GoogleMeetMeetingRead:
+    try:
+        result = GoogleMeetService(db).get_meeting(integration_id, external_event_id, admin_user)
+    except IntegrationError as exc:
+        raise _integration_http_error(exc) from exc
+    return GoogleMeetMeetingRead(**result.__dict__)
+
+
+@router.delete("/integrations/{integration_id}/meetings/{external_event_id}", response_model=GoogleMeetMeetingRead)
+def cancel_google_meet_meeting(
+    integration_id: int,
+    external_event_id: str,
+    payload: GoogleMeetMeetingCancel,
+    admin_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> GoogleMeetMeetingRead:
+    try:
+        result = GoogleMeetService(db).cancel_meeting(integration_id, external_event_id, admin_user, idempotency_key=payload.idempotency_key, send_updates=payload.send_updates)
+    except IntegrationError as exc:
+        raise _integration_http_error(exc) from exc
+    return GoogleMeetMeetingRead(**result.__dict__)
 
 
 @router.get("/users", response_model=AdminUserListResponse)

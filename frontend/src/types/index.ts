@@ -541,3 +541,33 @@ export interface GoogleOAuthDisconnectResult {
   status: string;
   message: string;
 }
+
+export interface GoogleMeetMeeting {
+  provider: string;
+  external_event_id: string;
+  external_calendar_id: string;
+  meeting_url?: string | null;
+  html_link?: string | null;
+  conference_id?: string | null;
+  status: string;
+  start_at: string;
+  end_at: string;
+  created_at?: string | null;
+  metadata: Record<string, string | number | boolean | null>;
+}
+
+export interface GoogleMeetMeetingCreatePayload {
+  title: string;
+  description?: string | null;
+  start_at: string;
+  end_at: string;
+  timezone: string;
+  attendees: string[];
+  idempotency_key: string;
+  send_updates: "none" | "all" | "externalOnly";
+}
+
+export interface GoogleMeetMeetingCancelPayload {
+  idempotency_key: string;
+  send_updates: "none" | "all" | "externalOnly";
+}

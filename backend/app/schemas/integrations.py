@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.integrations.enums import IntegrationExecutionStatus, IntegrationProvider, IntegrationStatus, IntegrationType
 from app.integrations.exceptions import IntegrationValidationError
@@ -178,3 +178,46 @@ class GoogleOAuthDisconnectRead(BaseModel):
     success: bool
     status: str
     message: str
+
+
+class GoogleMeetMeetingCreate(StrictBaseModel):
+    title: str = Field(default="Prueba de integracion RealMeet", min_length=1, max_length=120)
+    description: str | None = Field(default=None, max_length=500)
+    start_at: datetime
+    end_at: datetime
+    timezone: str = Field(default="America/Santiago", min_length=1, max_length=80)
+    attendees: list[str] = Field(default_factory=list, max_length=10)
+    idempotency_key: str = Field(min_length=1, max_length=180)
+    send_updates: str = Field(default="none", pattern="^(none|all|externalOnly)$")
+
+    @model_validator(mode="after")
+    def validate_interval(self) -> "GoogleMeetMeetingCreate":
+        if self.start_at.tzinfo is None or self.end_at.tzinfo is None:
+            raise ValueError("start_at and end_at must include timezone")
+        if self.start_at >= self.end_at:
+            raise ValueError("start_at must be before end_at")
+        normalized = [item.lower() for item in self.attendees]
+        if len(set(normalized)) != len(normalized):
+            raise ValueError("attendees must be unique")
+        if any("@" not in item or len(item) > 254 for item in self.attendees):
+            raise ValueError("attendees must be valid emails")
+        return self
+
+
+class GoogleMeetMeetingCancel(StrictBaseModel):
+    idempotency_key: str = Field(min_length=1, max_length=180)
+    send_updates: str = Field(default="none", pattern="^(none|all|externalOnly)$")
+
+
+class GoogleMeetMeetingRead(BaseModel):
+    provider: str
+    external_event_id: str
+    external_calendar_id: str
+    meeting_url: str | None = None
+    html_link: str | None = None
+    conference_id: str | None = None
+    status: str
+    start_at: datetime
+    end_at: datetime
+    created_at: datetime | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)

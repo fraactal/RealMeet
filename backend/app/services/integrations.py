@@ -24,6 +24,7 @@ from app.models.user import User
 from app.repositories.integration_execution_repository import IntegrationExecutionRepository
 from app.repositories.integration_repository import IntegrationRepository
 from app.schemas.integrations import IntegrationCreate, IntegrationExecutionCreate, IntegrationUpdate
+from app.services.google_meet import GoogleMeetService
 
 logger = logging.getLogger("realmeet.integrations")
 
@@ -106,7 +107,13 @@ class IntegrationService:
     def enable_integration(self, integration_id: int, admin_user: User) -> Integration:
         integration = self.get_integration(integration_id)
         if integration.provider == IntegrationProvider.google_meet:
-            raise IntegrationOperationUnsupportedError("Google Meet aun no puede habilitarse como proveedor operativo", code="google_meet_not_operational")
+            GoogleMeetService(self.db).validate_enable_ready(integration)
+            integration.enabled = True
+            integration.status = IntegrationStatus.configured
+            self._audit(admin_user, "integration_enabled", integration, {"result": "enabled", "scope": "admin_google_meet"})
+            self._commit()
+            self.db.refresh(integration)
+            return integration
         self.validate_configuration(integration.id, admin_user)
         integration.enabled = True
         if integration.status == IntegrationStatus.not_configured:
@@ -126,6 +133,13 @@ class IntegrationService:
 
     def health_check(self, integration_id: int, admin_user: User, *, idempotency_key: str | None = None) -> IntegrationResult:
         integration = self.get_integration(integration_id)
+        if integration.provider == IntegrationProvider.google_meet:
+            result = GoogleMeetService(self.db).health_check(integration, admin_user)
+            return IntegrationResult.ok(
+                code="google_meet_health_ok",
+                message="Health check Google Meet exitoso",
+                metadata={"provider": "google_meet", "calendar_id": result.external_calendar_id},
+            )
         self._ensure_enabled(integration)
         key = idempotency_key or f"integration:{integration.id}:health:{datetime.now(UTC).isoformat()}"
         result = self._execute_with_idempotency(integration, operation="health_check", idempotency_key=key, provider_operation="health_check")

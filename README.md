@@ -443,9 +443,11 @@ Readiness:
 
 Modulo 9 agrega hardening tecnico para staging: settings por entorno, rechazo de secretos inseguros en staging/production, headers HTTP, rate limiting basico, Swagger configurable, seed demo configurable, Docker no root cuando es viable y documentacion de backup/restauracion.
 
-## Integraciones Google OAuth
+## Integraciones Google OAuth y Meet
 
-El Modulo 12.1 prepara autorizacion OAuth administrativa para una integracion `google_meet`. La autorizacion OAuth queda preparada, pero RealMeet todavia no crea reuniones reales en este submodulo.
+El Modulo 12.1 prepara autorizacion OAuth administrativa para una integracion `google_meet`.
+
+El Modulo 12.2 agrega un proveedor Google Meet controlado desde backoffice admin para pruebas manuales: crea eventos de Google Calendar con `conferenceDataVersion=1`, solicita conferencia `hangoutsMeet`, persiste referencias reducidas en RealMeet y permite consultar/cancelar reuniones conocidas. Este flujo no se conecta todavia a las reservas; las reservas siguen usando el provider mock hasta el submodulo 12.3.
 
 Variables:
 
@@ -458,13 +460,20 @@ Variables:
 
 Para crear credenciales en Google Cloud, configura una aplicacion OAuth web, registra el redirect URI exacto y solicita solo el scope de eventos de calendario. No agregues Gmail, Drive, contactos ni scopes amplios. Los tokens de la cuenta autorizada se guardan cifrados en base de datos y nunca se muestran en API ni frontend.
 
+Notas operativas:
+
+- La creacion real de reuniones requiere una integracion `google_meet` habilitada y una credencial OAuth activa.
+- La operacion admin usa idempotency key para evitar crear dos eventos por doble ejecucion.
+- `sendUpdates` queda en `none` por defecto; otros modos deben elegirse de forma explicita.
+- No ingreses tokens, client secrets ni credenciales reales en el formulario de integraciones.
+
 ## Plan sugerido de commits
 
 El repositorio tiene commits incrementales por modulo. El Modulo 8 debe cerrarse con un unico commit y sin push salvo instruccion explicita.
 
 ## Limitaciones actuales del MVP
 
-- Integraciones reales con Google Meet y Zoom no implementadas.
+- Integracion automatica de reservas con Google Meet y Zoom no implementada.
 - WhatsApp, pagos, suscripciones y facturacion quedan diferidos.
 - Recuperacion de contrasena, MFA y roles configurables quedan diferidos.
 - Pruebas frontend automaticas y E2E completas quedan diferidas.
