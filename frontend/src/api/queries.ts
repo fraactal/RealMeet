@@ -45,6 +45,8 @@ import type {
   WebhookSubscriptionUpdate,
   WebhookSubscriptionWrite,
   WebhookTestResult,
+  N8nWorkflow,
+  N8nWorkflowWrite,
   WhatsAppConsentCorrectionPayload,
   WhatsAppConsentPurpose,
   WhatsAppConsentSummary,
@@ -463,6 +465,36 @@ export async function fetchWebhookDeliveries(params: { subscription_id?: number;
 
 export async function retryWebhookDelivery(deliveryId: number): Promise<WebhookDelivery> {
   const { data } = await api.post(`/admin/webhook-deliveries/${deliveryId}/retry`);
+  return data;
+}
+
+export async function fetchN8nWorkflows(integrationId: number): Promise<N8nWorkflow[]> {
+  const { data } = await api.get(`/admin/integrations/${integrationId}/n8n/workflows`);
+  return data;
+}
+
+export async function createN8nWorkflow(integrationId: number, payload: N8nWorkflowWrite): Promise<N8nWorkflow> {
+  const { data } = await api.post(`/admin/integrations/${integrationId}/n8n/workflows`, payload);
+  return data;
+}
+
+export async function enableN8nWorkflow(integrationId: number, workflowId: number): Promise<N8nWorkflow> {
+  const { data } = await api.post(`/admin/integrations/${integrationId}/n8n/workflows/${workflowId}/enable`);
+  return data;
+}
+
+export async function disableN8nWorkflow(integrationId: number, workflowId: number): Promise<N8nWorkflow> {
+  const { data } = await api.post(`/admin/integrations/${integrationId}/n8n/workflows/${workflowId}/disable`);
+  return data;
+}
+
+export async function testN8nWorkflow(integrationId: number, workflowId: number): Promise<WebhookDelivery> {
+  const { data } = await api.post(`/admin/integrations/${integrationId}/n8n/workflows/${workflowId}/test`);
+  return data;
+}
+
+export async function fetchN8nWorkflowDeliveries(integrationId: number, workflowId: number): Promise<WebhookDelivery[]> {
+  const { data } = await api.get(`/admin/integrations/${integrationId}/n8n/workflows/${workflowId}/deliveries`);
   return data;
 }
 

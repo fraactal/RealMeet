@@ -12,6 +12,7 @@ class WebhookEventType(str, enum.Enum):
     client_created = "client.created"
     professional_created = "professional.created"
     webhook_test = "webhook.test"
+    n8n_workflow_test = "n8n.workflow.test"
 
 
 class WebhookDeliveryStatus(str, enum.Enum):

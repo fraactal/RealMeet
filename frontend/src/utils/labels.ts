@@ -295,6 +295,7 @@ export function getWebhookEventTypeLabel(value: string): string {
     "client.created": "Cliente creado",
     "professional.created": "Profesional creado",
     "webhook.test": "Prueba webhook",
+    "n8n.workflow.test": "Prueba workflow n8n",
   };
   return labels[value] ?? value;
 }

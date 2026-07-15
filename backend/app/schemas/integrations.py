@@ -8,6 +8,7 @@ from app.integrations.exceptions import IntegrationValidationError
 from app.integrations.validation import validate_safe_metadata, validate_secret_reference
 from app.schemas.common import ORMModel
 from app.whatsapp.configuration import parse_whatsapp_config
+from app.automation.n8n import validate_n8n_config
 
 
 class StrictBaseModel(BaseModel):
@@ -48,6 +49,14 @@ class IntegrationCreate(StrictBaseModel):
             if self.integration_type != IntegrationType.messaging:
                 raise ValueError("whatsapp_cloud requires integration_type messaging")
             parse_whatsapp_config(self.config)
+        if self.provider == IntegrationProvider.n8n:
+            if self.integration_type != IntegrationType.automation:
+                raise ValueError("n8n requires integration_type automation")
+            try:
+                validate_n8n_config(self.config)
+            except Exception as exc:
+                detail = getattr(exc, "detail", str(exc))
+                raise ValueError(str(detail)) from exc
         return self
 
 

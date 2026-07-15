@@ -558,7 +558,7 @@ Seguridad:
 
 ## Webhooks salientes operativos
 
-RealMeet puede emitir eventos operativos mediante webhooks firmados. La integracion especifica con n8n y flujos de negocio se implementara en los siguientes submodulos.
+RealMeet puede emitir eventos operativos mediante webhooks firmados.
 
 Modulo 14.1 agrega:
 
@@ -590,6 +590,26 @@ Seguridad:
 - IPs privadas y localhost quedan bloqueados fuera de entornos locales.
 - El secreto se guarda solo como referencia de variable de entorno y se resuelve en memoria.
 - No se persiste el body completo de respuesta.
+
+Modulo 14.2 agrega soporte especifico para n8n sobre esta misma base. RealMeet puede activar workflows de n8n mediante eventos firmados. Los workflows se configuran y ejecutan fuera de RealMeet.
+
+- Las integraciones n8n usan `integration_type=automation` y `provider=n8n`.
+- La configuracion no secreta guarda `base_url` y `environment`; cada workflow define un `webhook_path` relativo.
+- Cada workflow n8n se respalda internamente con una `WebhookSubscription`, por lo que reutiliza firma, idempotencia, timeout, cliente HTTP y `WebhookDelivery`.
+- Eventos disponibles para workflow: `appointment.created`, `appointment.cancelled`, `meeting.ready` y `notification.failed`; en esta etapa las reservas publican `appointment.created` y `appointment.cancelled`.
+- El test manual usa `n8n.workflow.test`.
+- La UI administrativa permite crear la integracion n8n, registrar workflows, habilitarlos, deshabilitarlos, probarlos y revisar entregas recientes.
+
+APIs admin n8n:
+
+- `GET/POST /api/v1/admin/integrations/{id}/n8n/workflows`
+- `GET/PATCH /api/v1/admin/integrations/{id}/n8n/workflows/{workflow_id}`
+- `POST /api/v1/admin/integrations/{id}/n8n/workflows/{workflow_id}/enable`
+- `POST /api/v1/admin/integrations/{id}/n8n/workflows/{workflow_id}/disable`
+- `POST /api/v1/admin/integrations/{id}/n8n/workflows/{workflow_id}/test`
+- `GET /api/v1/admin/integrations/{id}/n8n/workflows/{workflow_id}/deliveries`
+
+n8n no administra credenciales, no importa/exporta workflows, no ejecuta llamadas inbound hacia RealMeet y no implementa colas ni retries automaticos en 14.2.
 
 ## Plan sugerido de commits
 

@@ -46,6 +46,7 @@ class DomainEvent:
 
     def as_payload(self) -> dict[str, Any]:
         return {
+            "source": "realmeet",
             "event_id": self.event_id,
             "event_type": self.event_type.value,
             "event_version": self.event_version,

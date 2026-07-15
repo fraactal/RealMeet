@@ -15,6 +15,8 @@ from app.automation.schemas import (
     WebhookTestResult,
 )
 from app.automation.service import WebhookDeliveryService
+from app.automation.n8n import N8nWorkflowService
+from app.automation.n8n_schemas import N8nWorkflowCreate, N8nWorkflowRead, N8nWorkflowUpdate
 from app.integrations.exceptions import (
     IntegrationConfigurationError,
     IntegrationDisabledError,
@@ -202,6 +204,77 @@ def retry_webhook_delivery(
     db: Session = Depends(get_db),
 ) -> WebhookDeliveryRead:
     return WebhookDeliveryRead.model_validate(WebhookDeliveryService(db).retry_delivery(delivery_id, admin_user))
+
+
+@router.get("/integrations/{integration_id}/n8n/workflows", response_model=list[N8nWorkflowRead])
+def list_n8n_workflows(integration_id: int, db: Session = Depends(get_db)) -> list[N8nWorkflowRead]:
+    return [N8nWorkflowRead.model_validate(item) for item in N8nWorkflowService(db).list_workflows(integration_id)]
+
+
+@router.post("/integrations/{integration_id}/n8n/workflows", response_model=N8nWorkflowRead)
+def create_n8n_workflow(
+    integration_id: int,
+    payload: N8nWorkflowCreate,
+    admin_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> N8nWorkflowRead:
+    return N8nWorkflowRead.model_validate(N8nWorkflowService(db).create_workflow(integration_id, payload, admin_user))
+
+
+@router.get("/integrations/{integration_id}/n8n/workflows/{workflow_id}", response_model=N8nWorkflowRead)
+def get_n8n_workflow(integration_id: int, workflow_id: int, db: Session = Depends(get_db)) -> N8nWorkflowRead:
+    return N8nWorkflowRead.model_validate(N8nWorkflowService(db).get_workflow(integration_id, workflow_id))
+
+
+@router.patch("/integrations/{integration_id}/n8n/workflows/{workflow_id}", response_model=N8nWorkflowRead)
+def update_n8n_workflow(
+    integration_id: int,
+    workflow_id: int,
+    payload: N8nWorkflowUpdate,
+    admin_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> N8nWorkflowRead:
+    return N8nWorkflowRead.model_validate(N8nWorkflowService(db).update_workflow(integration_id, workflow_id, payload, admin_user))
+
+
+@router.post("/integrations/{integration_id}/n8n/workflows/{workflow_id}/enable", response_model=N8nWorkflowRead)
+def enable_n8n_workflow(
+    integration_id: int,
+    workflow_id: int,
+    admin_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> N8nWorkflowRead:
+    return N8nWorkflowRead.model_validate(N8nWorkflowService(db).set_enabled(integration_id, workflow_id, True, admin_user))
+
+
+@router.post("/integrations/{integration_id}/n8n/workflows/{workflow_id}/disable", response_model=N8nWorkflowRead)
+def disable_n8n_workflow(
+    integration_id: int,
+    workflow_id: int,
+    admin_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> N8nWorkflowRead:
+    return N8nWorkflowRead.model_validate(N8nWorkflowService(db).set_enabled(integration_id, workflow_id, False, admin_user))
+
+
+@router.post("/integrations/{integration_id}/n8n/workflows/{workflow_id}/test", response_model=WebhookDeliveryRead)
+def test_n8n_workflow(
+    integration_id: int,
+    workflow_id: int,
+    admin_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> WebhookDeliveryRead:
+    return WebhookDeliveryRead.model_validate(N8nWorkflowService(db).test_workflow(integration_id, workflow_id, admin_user))
+
+
+@router.get("/integrations/{integration_id}/n8n/workflows/{workflow_id}/deliveries", response_model=list[WebhookDeliveryRead])
+def list_n8n_workflow_deliveries(
+    integration_id: int,
+    workflow_id: int,
+    limit: int = Query(default=50, ge=1, le=100),
+    db: Session = Depends(get_db),
+) -> list[WebhookDeliveryRead]:
+    return [WebhookDeliveryRead.model_validate(item) for item in N8nWorkflowService(db).list_deliveries(integration_id, workflow_id, limit=limit)]
     return IntegrationListResponse(
         items=[IntegrationRead.model_validate(item) for item in items],
         meta=_integration_page_meta(page, page_size, total),

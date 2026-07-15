@@ -458,7 +458,8 @@ export type WebhookEventType =
   | "notification.failed"
   | "client.created"
   | "professional.created"
-  | "webhook.test";
+  | "webhook.test"
+  | "n8n.workflow.test";
 export type WebhookDeliveryStatus = "pending" | "sending" | "succeeded" | "failed" | "skipped";
 
 export interface IntegrationConfig {
@@ -483,6 +484,8 @@ export interface IntegrationConfig {
   reminder_enabled?: boolean;
   reminder_minutes_before?: number;
   template_mapping?: Partial<Record<WhatsAppTemplatePurpose, number>>;
+  base_url?: string;
+  environment?: string;
 }
 
 export interface WhatsAppSecretReferences {
@@ -606,6 +609,32 @@ export interface WebhookTestResult {
   delivery_id?: number | null;
   status: WebhookDeliveryStatus;
   message: string;
+}
+
+export interface N8nWorkflow {
+  id: number;
+  integration_id: number;
+  subscription_id: number;
+  name: string;
+  description?: string | null;
+  webhook_path: string;
+  event_types: WebhookEventType[];
+  enabled: boolean;
+  secret_reference: string;
+  last_triggered_at?: string | null;
+  last_success_at?: string | null;
+  last_error_at?: string | null;
+  last_error_code?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface N8nWorkflowWrite {
+  name: string;
+  description?: string | null;
+  webhook_path: string;
+  event_types: WebhookEventType[];
+  secret_reference: string;
 }
 
 export interface GoogleOAuthAuthorizationUrl {

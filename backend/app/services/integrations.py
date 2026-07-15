@@ -69,7 +69,7 @@ class IntegrationService:
     def create_integration(self, payload: IntegrationCreate, admin_user: User) -> Integration:
         integration = self.integrations.create(payload)
         integration.enabled = False
-        if integration.provider == IntegrationProvider.whatsapp_cloud:
+        if integration.provider in {IntegrationProvider.whatsapp_cloud, IntegrationProvider.n8n, IntegrationProvider.generic_webhook}:
             integration.status = IntegrationStatus.configured
         else:
             integration.status = IntegrationStatus.configured if self.registry.is_supported(integration.provider) else IntegrationStatus.unsupported
@@ -83,7 +83,7 @@ class IntegrationService:
         changes = payload.model_dump(exclude_unset=True)
         self.integrations.update_allowed_fields(integration, payload)
         if {"config", "secret_reference"} & set(changes):
-            integration.status = IntegrationStatus.configured if integration.provider == IntegrationProvider.whatsapp_cloud or self.registry.is_supported(integration.provider) else IntegrationStatus.unsupported
+            integration.status = IntegrationStatus.configured if integration.provider in {IntegrationProvider.whatsapp_cloud, IntegrationProvider.n8n, IntegrationProvider.generic_webhook} or self.registry.is_supported(integration.provider) else IntegrationStatus.unsupported
             integration.last_error_message = None
         self._audit(admin_user, "integration_updated", integration, {"fields": sorted(changes.keys()), "result": "updated"})
         self._commit()

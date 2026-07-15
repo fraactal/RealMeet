@@ -5,18 +5,22 @@ import {
   createGoogleOAuthAuthorizationUrl,
   createGoogleMeetMeeting,
   createAdminIntegration,
+  createN8nWorkflow,
   createWebhookSubscription,
   createWhatsAppConsentCorrection,
   createWhatsAppTemplate,
   cancelAppointmentNotification,
   cancelGoogleMeetMeeting,
   disableAdminIntegration,
+  disableN8nWorkflow,
   disableWebhookSubscription,
   disconnectGoogleOAuth,
   enableAdminIntegration,
+  enableN8nWorkflow,
   enableWebhookSubscription,
   fetchAdminIntegrationExecutions,
   fetchAdminIntegrations,
+  fetchN8nWorkflows,
   fetchWebhookDeliveries,
   fetchWebhookSubscriptions,
   fetchGoogleOAuthStatus,
@@ -37,6 +41,7 @@ import {
   reconcileAppointmentNotification,
   sendWhatsAppMessage,
   testAdminIntegration,
+  testN8nWorkflow,
   testWebhookSubscription,
   updateAdminIntegration,
   updateWebhookSubscription,
@@ -64,6 +69,8 @@ import type {
   WebhookEventType,
   WebhookSubscription,
   WebhookSubscriptionWrite,
+  N8nWorkflow,
+  N8nWorkflowWrite,
   GoogleOAuthStatus,
   GoogleMeetMeeting,
   GoogleMeetMeetingCreatePayload,
@@ -128,6 +135,8 @@ interface FormState {
   notification_policy: WhatsAppNotificationPolicyValue;
   reminder_enabled: boolean;
   reminder_minutes_before: number;
+  n8n_base_url: string;
+  n8n_environment: string;
 }
 
 const emptyForm: FormState = {
@@ -156,6 +165,8 @@ const emptyForm: FormState = {
   notification_policy: "email_only",
   reminder_enabled: true,
   reminder_minutes_before: 1440,
+  n8n_base_url: "https://automation.example.com",
+  n8n_environment: "staging",
 };
 
 export function AdminIntegrationsPage() {
@@ -248,6 +259,12 @@ export function AdminIntegrationsPage() {
     queryKey: ["admin-webhook-deliveries"],
     queryFn: () => fetchWebhookDeliveries({ limit: 30 }),
   });
+  const n8nEnabled = selectedIntegration?.provider === "n8n";
+  const n8nWorkflowsQuery = useQuery({
+    queryKey: ["admin-n8n-workflows", selectedIntegration?.id],
+    queryFn: () => fetchN8nWorkflows(selectedIntegration?.id ?? 0),
+    enabled: n8nEnabled,
+  });
 
   const refreshIntegrations = () => {
     void queryClient.invalidateQueries({ queryKey: ["admin-integrations"] });
@@ -262,6 +279,7 @@ export function AdminIntegrationsPage() {
       void queryClient.invalidateQueries({ queryKey: ["admin-whatsapp-messages", selectedIntegration.id] });
       void queryClient.invalidateQueries({ queryKey: ["admin-whatsapp-notification-policy", selectedIntegration.id] });
       void queryClient.invalidateQueries({ queryKey: ["admin-appointment-notifications", selectedIntegration.id] });
+      void queryClient.invalidateQueries({ queryKey: ["admin-n8n-workflows", selectedIntegration.id] });
     }
     void queryClient.invalidateQueries({ queryKey: ["admin-webhook-subscriptions"] });
     void queryClient.invalidateQueries({ queryKey: ["admin-webhook-deliveries"] });
@@ -411,6 +429,22 @@ export function AdminIntegrationsPage() {
     mutationFn: (id: number) => retryWebhookDelivery(id),
     onSuccess: () => refreshIntegrations(),
   });
+  const createN8nWorkflowMutation = useMutation({
+    mutationFn: ({ id, payload }: { id: number; payload: N8nWorkflowWrite }) => createN8nWorkflow(id, payload),
+    onSuccess: () => refreshIntegrations(),
+  });
+  const enableN8nWorkflowMutation = useMutation({
+    mutationFn: ({ id, workflowId }: { id: number; workflowId: number }) => enableN8nWorkflow(id, workflowId),
+    onSuccess: () => refreshIntegrations(),
+  });
+  const disableN8nWorkflowMutation = useMutation({
+    mutationFn: ({ id, workflowId }: { id: number; workflowId: number }) => disableN8nWorkflow(id, workflowId),
+    onSuccess: () => refreshIntegrations(),
+  });
+  const testN8nWorkflowMutation = useMutation({
+    mutationFn: ({ id, workflowId }: { id: number; workflowId: number }) => testN8nWorkflow(id, workflowId),
+    onSuccess: () => refreshIntegrations(),
+  });
 
   const openCreate = () => {
     setForm(emptyForm);
@@ -445,6 +479,8 @@ export function AdminIntegrationsPage() {
       notification_policy: integration.config.notification_policy ?? "email_only",
       reminder_enabled: integration.config.reminder_enabled ?? true,
       reminder_minutes_before: integration.config.reminder_minutes_before ?? 1440,
+      n8n_base_url: integration.config.base_url ?? "https://automation.example.com",
+      n8n_environment: integration.config.environment ?? "staging",
     });
     setFormOpen(true);
   };
@@ -506,7 +542,11 @@ export function AdminIntegrationsPage() {
     getMutationError(enableWebhookSubscriptionMutation.error) ??
     getMutationError(disableWebhookSubscriptionMutation.error) ??
     getMutationError(testWebhookSubscriptionMutation.error) ??
-    getMutationError(retryWebhookDeliveryMutation.error);
+    getMutationError(retryWebhookDeliveryMutation.error) ??
+    getMutationError(createN8nWorkflowMutation.error) ??
+    getMutationError(enableN8nWorkflowMutation.error) ??
+    getMutationError(disableN8nWorkflowMutation.error) ??
+    getMutationError(testN8nWorkflowMutation.error);
 
   return (
     <div className="space-y-6">
@@ -627,7 +667,7 @@ export function AdminIntegrationsPage() {
               {selectedIntegration.provider === "whatsapp_cloud" ? (
                 <p className="mt-4 rounded-md border border-slate-200 bg-white p-3 text-sm text-ink-600">WhatsApp queda preparado para configuracion, webhooks, plantillas y consentimiento. El envio real se habilitara en un submodulo posterior.</p>
               ) : null}
-              {!isSupportedProvider(selectedIntegration.provider) && selectedIntegration.provider !== "google_meet" && selectedIntegration.provider !== "whatsapp_cloud" ? (
+              {!isSupportedProvider(selectedIntegration.provider) && selectedIntegration.provider !== "google_meet" && selectedIntegration.provider !== "whatsapp_cloud" && selectedIntegration.provider !== "n8n" ? (
                 <p className="mt-4 rounded-md border border-slate-200 bg-white p-3 text-sm text-ink-600">Proveedor aun no soportado. Puedes revisar o editar su configuracion, pero no habilitarlo ni ejecutar pruebas.</p>
               ) : null}
               <div className="mt-4 flex flex-wrap gap-2">
@@ -694,6 +734,19 @@ export function AdminIntegrationsPage() {
                   onReconcileNotification={(notificationId) => reconcileNotificationMutation.mutate(notificationId)}
                   onCancelNotification={(notificationId) => cancelNotificationMutation.mutate(notificationId)}
                   onRefresh={refreshIntegrations}
+                />
+              ) : null}
+              {selectedIntegration.provider === "n8n" ? (
+                <N8nWorkflowPanel
+                  integration={selectedIntegration}
+                  workflows={n8nWorkflowsQuery.data ?? []}
+                  deliveries={webhookDeliveriesQuery.data ?? []}
+                  loading={n8nWorkflowsQuery.isLoading}
+                  busy={createN8nWorkflowMutation.isPending || enableN8nWorkflowMutation.isPending || disableN8nWorkflowMutation.isPending || testN8nWorkflowMutation.isPending}
+                  onCreate={(payload) => createN8nWorkflowMutation.mutate({ id: selectedIntegration.id, payload })}
+                  onEnable={(workflowId) => enableN8nWorkflowMutation.mutate({ id: selectedIntegration.id, workflowId })}
+                  onDisable={(workflowId) => disableN8nWorkflowMutation.mutate({ id: selectedIntegration.id, workflowId })}
+                  onTest={(workflowId) => testN8nWorkflowMutation.mutate({ id: selectedIntegration.id, workflowId })}
                 />
               ) : null}
             </div>
@@ -813,6 +866,12 @@ function buildConfig(form: FormState): IntegrationConfig {
       reminder_minutes_before: Number(form.reminder_minutes_before) || 1440,
     };
   }
+  if (form.provider === "n8n") {
+    return {
+      base_url: form.n8n_base_url.trim(),
+      environment: form.n8n_environment.trim() || "staging",
+    };
+  }
   if (form.provider !== "mock") {
     return {};
   }
@@ -836,7 +895,7 @@ function providerStageText(provider: IntegrationProvider): string {
   if (provider === "google_meet") return "Disponible para OAuth y reservas segun politica";
   if (provider === "whatsapp_cloud") return "Mensajeria transaccional segun consentimiento";
   if (provider === "generic_webhook") return "Disponible como contenedor de webhooks salientes";
-  if (provider === "n8n") return "Contenedor preparado; workflows n8n en modulo posterior";
+  if (provider === "n8n") return "Disponible para workflows n8n firmados";
   return "Proximamente";
 }
 
@@ -905,7 +964,7 @@ function IntegrationActions({ integration, loading, onDisable, onEdit, onEnable,
   return (
     <div className="flex flex-wrap justify-end gap-2">
       <Button onClick={onEdit} size="sm" variant="secondary">Editar</Button>
-      {supported || integration.provider === "google_meet" ? <Button isLoading={loading} onClick={onValidate} size="sm" variant="secondary">Validar</Button> : <Button disabled size="sm" title="Proveedor aun no soportado" variant="secondary">Proximamente</Button>}
+      {supported || integration.provider === "google_meet" || integration.provider === "n8n" ? <Button isLoading={loading} onClick={onValidate} size="sm" variant="secondary">Validar</Button> : <Button disabled size="sm" title="Proveedor aun no soportado" variant="secondary">Proximamente</Button>}
       {supported && !integration.enabled ? <Button isLoading={loading} onClick={() => window.confirm("La integracion comenzara a estar disponible para operaciones futuras. En este modulo solo mock tiene ejecucion real.") && onEnable()} size="sm">Habilitar</Button> : null}
       {supported && integration.enabled ? <Button isLoading={loading} onClick={() => window.confirm("La configuracion se conservara, pero la integracion no podra ejecutar pruebas ni chequeos.") && onDisable()} size="sm" variant="secondary">Deshabilitar</Button> : null}
       {integration.provider === "google_meet" ? <Button disabled size="sm" title="Google Meet todavia no crea reuniones reales" variant="secondary">OAuth</Button> : null}
@@ -1056,6 +1115,154 @@ const WEBHOOK_EVENTS: WebhookEventType[] = [
   "client.created",
   "professional.created",
 ];
+
+const N8N_EVENTS: WebhookEventType[] = ["appointment.created", "appointment.cancelled", "meeting.ready", "notification.failed"];
+
+function N8nWorkflowPanel({
+  integration,
+  workflows,
+  deliveries,
+  loading,
+  busy,
+  onCreate,
+  onEnable,
+  onDisable,
+  onTest,
+}: {
+  integration: Integration;
+  workflows: N8nWorkflow[];
+  deliveries: WebhookDelivery[];
+  loading: boolean;
+  busy: boolean;
+  onCreate: (payload: N8nWorkflowWrite) => void;
+  onEnable: (workflowId: number) => void;
+  onDisable: (workflowId: number) => void;
+  onTest: (workflowId: number) => void;
+}) {
+  const [name, setName] = useState("Workflow operativo RealMeet");
+  const [description, setDescription] = useState("Recibe eventos operativos firmados desde RealMeet.");
+  const [path, setPath] = useState("webhook/realmeet");
+  const [secretReference, setSecretReference] = useState("REALMEET_N8N_WEBHOOK_SECRET");
+  const [events, setEvents] = useState<WebhookEventType[]>(["appointment.created", "appointment.cancelled"]);
+
+  function toggleEvent(eventType: WebhookEventType) {
+    setEvents((current) => (current.includes(eventType) ? current.filter((item) => item !== eventType) : [...current, eventType]));
+  }
+
+  return (
+    <div className="mt-4 rounded-lg border border-slate-200 bg-white p-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h3 className="text-base font-semibold text-ink-900">Workflows n8n</h3>
+          <p className="mt-1 text-sm leading-6 text-ink-500">RealMeet dispara webhooks firmados. Los workflows se configuran y ejecutan fuera de RealMeet.</p>
+        </div>
+        <Badge label={integration.config.environment ?? "staging"} tone="info" />
+      </div>
+      <div className="mt-4 grid gap-3 text-sm text-ink-600 sm:grid-cols-2">
+        <InfoItem label="Base URL" value={integration.config.base_url ?? "No configurada"} />
+        <InfoItem label="Workflows registrados" value={String(workflows.length)} />
+      </div>
+
+      <div className="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-4">
+        <h4 className="font-semibold text-ink-900">Crear workflow</h4>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <Field id="n8n-workflow-name" label="Nombre">
+            <Input id="n8n-workflow-name" value={name} onChange={(event) => setName(event.target.value)} />
+          </Field>
+          <Field id="n8n-workflow-path" label="Webhook path">
+            <Input id="n8n-workflow-path" value={path} onChange={(event) => setPath(event.target.value)} placeholder="webhook/realmeet" />
+          </Field>
+          <Field id="n8n-workflow-secret" label="Referencia de secreto">
+            <Input id="n8n-workflow-secret" value={secretReference} onChange={(event) => setSecretReference(event.target.value)} placeholder="REALMEET_N8N_WEBHOOK_SECRET" />
+          </Field>
+          <Field id="n8n-workflow-description" label="Descripcion">
+            <Input id="n8n-workflow-description" value={description} onChange={(event) => setDescription(event.target.value)} />
+          </Field>
+        </div>
+        <div className="mt-4">
+          <p className="mb-2 text-sm font-semibold text-ink-700">Eventos</p>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {N8N_EVENTS.map((eventType) => (
+              <label className="flex items-center gap-2 rounded-md border border-slate-200 bg-white p-2 text-sm text-ink-700" key={eventType}>
+                <input checked={events.includes(eventType)} onChange={() => toggleEvent(eventType)} type="checkbox" />
+                {getWebhookEventTypeLabel(eventType)}
+              </label>
+            ))}
+          </div>
+        </div>
+        <Button
+          className="mt-4"
+          disabled={!name.trim() || !path.trim() || !secretReference.trim() || events.length === 0}
+          isLoading={busy}
+          onClick={() =>
+            onCreate({
+              name: name.trim(),
+              description: description.trim() || null,
+              webhook_path: path.trim(),
+              event_types: events,
+              secret_reference: secretReference.trim(),
+            })
+          }
+        >
+          Crear workflow
+        </Button>
+      </div>
+
+      <div className="mt-5 space-y-3">
+        <h4 className="font-semibold text-ink-900">Workflows registrados</h4>
+        {loading ? <LoadingState label="Cargando workflows n8n" /> : null}
+        {!loading && workflows.length === 0 ? <EmptyState title="No hay workflows n8n registrados" /> : null}
+        {workflows.map((workflow) => (
+          <article className="rounded-lg border border-slate-200 bg-white p-4" key={workflow.id}>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="font-semibold text-ink-900">{workflow.name}</p>
+                <p className="mt-1 text-sm text-ink-500">{workflow.description ?? "Sin descripcion"}</p>
+              </div>
+              <Badge label={workflow.enabled ? "Habilitado" : "Deshabilitado"} tone={workflow.enabled ? "success" : "neutral"} />
+            </div>
+            <div className="mt-3 grid gap-2 text-sm text-ink-600 sm:grid-cols-3">
+              <InfoItem label="Path" value={workflow.webhook_path} />
+              <InfoItem label="Ultimo exito" value={formatOptionalDate(workflow.last_success_at)} />
+              <InfoItem label="Ultimo error" value={workflow.last_error_code ?? "Sin error"} />
+            </div>
+            <p className="mt-3 text-xs text-ink-500">Eventos: {workflow.event_types.map(getWebhookEventTypeLabel).join(", ")}</p>
+            <p className="mt-1 text-xs text-ink-500">Referencia de secreto configurada. El valor no se muestra ni se almacena en RealMeet.</p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {workflow.enabled ? (
+                <Button isLoading={busy} onClick={() => onDisable(workflow.id)} size="sm" variant="secondary">Deshabilitar</Button>
+              ) : (
+                <Button isLoading={busy} onClick={() => onEnable(workflow.id)} size="sm">Habilitar</Button>
+              )}
+              <Button disabled={!workflow.enabled} isLoading={busy} onClick={() => onTest(workflow.id)} size="sm" variant="secondary">Probar workflow</Button>
+            </div>
+            <N8nWorkflowDeliveries deliveries={deliveries.filter((delivery) => delivery.subscription_id === workflow.subscription_id).slice(0, 5)} />
+          </article>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function N8nWorkflowDeliveries({ deliveries }: { deliveries: WebhookDelivery[] }) {
+  return (
+    <div className="mt-4 rounded-md border border-slate-200 bg-slate-50 p-3">
+      <p className="text-sm font-semibold text-ink-800">Entregas recientes</p>
+      {deliveries.length === 0 ? <p className="mt-2 text-sm text-ink-500">Este workflow todavia no registra entregas.</p> : null}
+      <div className="mt-2 space-y-2">
+        {deliveries.map((delivery) => (
+          <div className="grid gap-1 rounded-md bg-white p-2 text-xs text-ink-600 sm:grid-cols-4" key={delivery.id}>
+            <span>{getWebhookEventTypeLabel(delivery.event_type)}</span>
+            <span>{getWebhookDeliveryStatusLabel(delivery.status)}</span>
+            <span>Intento {delivery.attempt}</span>
+            <span>{formatOptionalDate(delivery.updated_at)}</span>
+            {delivery.error_code ? <span className="sm:col-span-4">Error: {delivery.error_code}</span> : null}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function OutboundWebhooksPanel({
   integrations,
@@ -1264,10 +1471,23 @@ function IntegrationFormModal({ form, isSaving, onChange, onClose, onSave }: { f
               value={form.provider}
               onChange={(event) => {
                 const provider = event.target.value as IntegrationProvider;
-                onChange({ ...form, provider, integration_type: provider === "google_meet" ? "meeting" : provider === "whatsapp_cloud" ? "messaging" : form.integration_type });
+                onChange({
+                  ...form,
+                  provider,
+                  integration_type:
+                    provider === "google_meet"
+                      ? "meeting"
+                      : provider === "whatsapp_cloud"
+                        ? "messaging"
+                        : provider === "n8n"
+                          ? "automation"
+                          : provider === "generic_webhook"
+                            ? "webhook"
+                            : form.integration_type,
+                });
               }}
             >
-              {INTEGRATION_PROVIDERS.map((provider) => <option disabled={!isConfigurableProvider(provider)} key={provider} value={provider}>{getIntegrationProviderLabel(provider)}{provider === "google_meet" ? " - OAuth y reservas" : provider === "whatsapp_cloud" ? " - Fundacion sin envio" : provider === "generic_webhook" ? " - Webhooks salientes" : provider === "n8n" ? " - Contenedor sin workflows" : !isConfigurableProvider(provider) ? " - Proximamente" : ""}</option>)}
+              {INTEGRATION_PROVIDERS.map((provider) => <option disabled={!isConfigurableProvider(provider)} key={provider} value={provider}>{getIntegrationProviderLabel(provider)}{provider === "google_meet" ? " - OAuth y reservas" : provider === "whatsapp_cloud" ? " - Fundacion sin envio" : provider === "generic_webhook" ? " - Webhooks salientes" : provider === "n8n" ? " - Workflows firmados" : !isConfigurableProvider(provider) ? " - Proximamente" : ""}</option>)}
             </Select>
           </Field>
           <Field label="Referencia de secreto" id="integration-secret">
@@ -1327,6 +1547,20 @@ function IntegrationFormModal({ form, isSaving, onChange, onClose, onSave }: { f
               </label>
             </div>
             {form.send_updates !== "none" ? <p className="mt-3 text-sm font-semibold text-warning-700">Esta opcion puede enviar invitaciones reales desde Google Calendar.</p> : null}
+          </div>
+        ) : form.provider === "n8n" ? (
+          <div className="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-4">
+            <h3 className="text-sm font-semibold text-ink-900">Configuracion n8n</h3>
+            <p className="mt-1 text-sm leading-6 text-ink-500">RealMeet puede activar workflows de n8n mediante eventos firmados. Los workflows se configuran y ejecutan fuera de RealMeet.</p>
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <Field label="Base URL n8n" id="n8n-base-url">
+                <Input id="n8n-base-url" value={form.n8n_base_url} onChange={(event) => onChange({ ...form, n8n_base_url: event.target.value })} placeholder="https://automation.example.com" />
+              </Field>
+              <Field label="Ambiente" id="n8n-environment">
+                <Input id="n8n-environment" value={form.n8n_environment} onChange={(event) => onChange({ ...form, n8n_environment: event.target.value })} placeholder="staging" />
+              </Field>
+            </div>
+            <p className="mt-3 text-sm font-semibold text-warning-700">No pegues tokens, credenciales, headers ni URLs con secretos. Define cada workflow con un path relativo.</p>
           </div>
         ) : form.provider === "whatsapp_cloud" ? (
           <div className="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-4">
