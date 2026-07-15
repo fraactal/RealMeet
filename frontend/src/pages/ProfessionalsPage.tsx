@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { normalizeApiError } from "../api/errors";
@@ -10,7 +11,7 @@ import {
   fetchProfessionals,
   fetchSpecialties,
 } from "../api/queries";
-import { ProfessionalSearchCard } from "../components/client/ProfessionalSearchCard";
+import { PublicProfessionalCard } from "../components/public/PublicProfessionalCard";
 import { SlotPicker } from "../components/client/SlotPicker";
 import { Avatar, Badge, Button, EmptyState, ErrorState, Input, Label, LoadingState, PageHeader, SectionCard, Select } from "../components/ui";
 import { useAuthStore } from "../store/auth";
@@ -33,6 +34,10 @@ export function ProfessionalsPage() {
   const [availabilityDate, setAvailabilityDate] = useState(today);
   const [selectedSlot, setSelectedSlot] = useState<AvailableSlot | null>(null);
   const [bookingMessage, setBookingMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    document.title = "Profesionales | RealMeet";
+  }, []);
 
   const filters = useMemo<ProfessionalSearchParams>(
     () => ({
@@ -113,6 +118,7 @@ export function ProfessionalsPage() {
 
   const data = professionalsQuery.data;
   const canBook = user?.role === "client";
+  const isPublicVisitor = !user;
   const selectedProfessional = detailQuery.data;
   const selectedFullName = selectedProfessional
     ? `${selectedProfessional.user.first_name} ${selectedProfessional.user.last_name}`
@@ -122,8 +128,12 @@ export function ProfessionalsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Buscar profesionales"
-        description="Encuentra profesionales publicados, revisa su informacion disponible y elige un horario para reservar."
+        title={isPublicVisitor ? "Profesionales disponibles" : "Buscar profesionales"}
+        description={
+          isPublicVisitor
+            ? "Explora perfiles publicados, revisa disponibilidad y crea tu cuenta cuando quieras continuar con una reserva."
+            : "Encuentra profesionales publicados, revisa su informacion disponible y elige un horario para reservar."
+        }
       />
 
       <SectionCard title="Filtros" description="Ajusta la busqueda con los filtros disponibles actualmente.">
@@ -217,7 +227,7 @@ export function ProfessionalsPage() {
 
       <div className="grid gap-5 lg:grid-cols-2">
         {data?.items.map((professional) => (
-          <ProfessionalSearchCard
+          <PublicProfessionalCard
             key={professional.id}
             onSelect={() => {
               setSelectedProfessionalId(professional.id);
@@ -324,7 +334,7 @@ export function ProfessionalsPage() {
                       />
                     </div>
                     <p className="text-sm text-ink-500">
-                      {canBook ? "Elige un horario disponible." : "Inicia sesion como cliente para reservar."}
+                      {canBook ? "Elige un horario disponible." : "Inicia sesion o crea tu cuenta para confirmar una reserva."}
                     </p>
                   </div>
 
@@ -383,11 +393,35 @@ export function ProfessionalsPage() {
                             bookingMutation.mutate(selectedSlot);
                           }}
                         >
-                          Confirmar reserva
+                          {canBook ? "Confirmar reserva" : "Inicia sesion para reservar"}
                         </Button>
+                        {!canBook ? (
+                          <Link className="w-full sm:w-auto" to="/register">
+                            <Button className="w-full" variant="secondary">
+                              Crear cuenta
+                            </Button>
+                          </Link>
+                        ) : null}
                         <Button className="w-full sm:w-auto" onClick={() => setSelectedSlot(null)} variant="secondary">
                           Elegir otro horario
                         </Button>
+                      </div>
+                    </div>
+                  ) : !canBook && availabilityQuery.data && availabilityQuery.data.slots.length > 0 ? (
+                    <div className="mt-5 rounded-lg border border-brand-200 bg-white p-4">
+                      <h3 className="text-base font-semibold text-ink-900">Continua con una cuenta</h3>
+                      <p className="mt-2 text-sm leading-6 text-ink-500">
+                        Puedes revisar horarios disponibles. Para confirmar una reserva necesitas iniciar sesion o crear una cuenta cliente.
+                      </p>
+                      <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                        <Link className="w-full sm:w-auto" to="/login">
+                          <Button className="w-full">Iniciar sesion</Button>
+                        </Link>
+                        <Link className="w-full sm:w-auto" to="/register">
+                          <Button className="w-full" variant="secondary">
+                            Crear cuenta
+                          </Button>
+                        </Link>
                       </div>
                     </div>
                   ) : null}

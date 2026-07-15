@@ -1,14 +1,16 @@
 import { Outlet } from "react-router-dom";
 
-import { Navbar } from "../components/Navbar";
+import { PublicFooter } from "../components/public/PublicFooter";
+import { PublicHeader } from "../components/public/PublicHeader";
 
 export function PublicLayout() {
   return (
-    <div>
-      <Navbar />
-      <main className="mx-auto max-w-7xl px-6 py-8">
+    <div className="min-h-screen">
+      <PublicHeader />
+      <main className="mx-auto max-w-7xl px-5 py-8 md:py-10">
         <Outlet />
       </main>
+      <PublicFooter />
     </div>
   );
 }

@@ -15,6 +15,7 @@ import { ProfessionalAppointmentsPage } from "../pages/ProfessionalAppointmentsP
 import { ProfessionalCatalogPage } from "../pages/ProfessionalCatalogPage";
 import { ProfessionalMetricsPage } from "../pages/ProfessionalMetricsPage";
 import { ProfessionalsPage } from "../pages/ProfessionalsPage";
+import { RegisterPage } from "../pages/RegisterPage";
 import { DesignSystemPage } from "../pages/DesignSystemPage";
 import { RequireAuth } from "./RequireAuth";
 
@@ -29,6 +30,7 @@ export const router = createBrowserRouter([
       { path: "/professionals", element: <ProfessionalsPage /> },
       { path: "/mock-meeting/:meetingId", element: <MockMeetingPage /> },
       { path: "/login", element: <LoginPage /> },
+      { path: "/register", element: <RegisterPage /> },
     ],
   },
   {

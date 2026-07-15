@@ -21,6 +21,7 @@ import type {
   CategoryWrite,
   ClientSelfProfile,
   ClientSelfProfileUpdate,
+  ClientRegisterPayload,
   ClientDashboard,
   ProfessionalMetrics,
   ProfessionalAppointment,
@@ -43,6 +44,11 @@ import type {
 export async function login(email: string, password: string): Promise<string> {
   const { data } = await api.post("/auth/login", { email, password });
   return data.access_token;
+}
+
+export async function registerClient(payload: ClientRegisterPayload): Promise<User> {
+  const { data } = await api.post("/auth/register-client", payload);
+  return data;
 }
 
 export async function fetchMe(): Promise<User> {

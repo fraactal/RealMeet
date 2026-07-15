@@ -17,6 +17,21 @@ export interface UserSelfUpdate {
   phone?: string | null;
 }
 
+export interface ClientRegisterPayload {
+  user: {
+    email: string;
+    password: string;
+    first_name: string;
+    last_name: string;
+    phone?: string | null;
+    role: "client";
+  };
+  client_profile?: {
+    birth_date?: string | null;
+    notes?: string | null;
+  } | null;
+}
+
 export interface ClientSelfProfile {
   user: User;
   birth_date?: string | null;
