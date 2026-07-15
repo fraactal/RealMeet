@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="RealMeet">
+  <rect width="64" height="64" rx="16" fill="#0b5563"/>
+  <path d="M16 20h18c7 0 12 4 12 10 0 4-2 8-6 10l8 12H36l-7-10h-3v10H16V20Zm10 8v6h8c2 0 4-1 4-3s-2-3-4-3h-8Z" fill="#ffffff"/>
+  <path d="M44 14h6v10h-6zM50 18h8v6h-8z" fill="#2fb7a0"/>
+</svg>
