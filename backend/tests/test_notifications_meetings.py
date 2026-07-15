@@ -79,7 +79,7 @@ def test_notification_body_does_not_include_private_notes() -> None:
         professional_name="Demo Professional",
         client_name="Demo Client",
     )
-    body = AppointmentNotificationService._build_body(_appointment(), context, "Reserva confirmada", include_meeting=True)
+    body = AppointmentNotificationService._build_email_body(_appointment(), context, "Reserva confirmada", include_meeting=True)
 
     assert "private clinical note" not in body
     assert "http://localhost:15173/mock-meeting/mock-1" in body
