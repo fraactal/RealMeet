@@ -51,6 +51,15 @@ from app.integrations.google_workspace.schemas import (
     GoogleWorkspaceStatusRead,
 )
 from app.integrations.google_workspace.service import GoogleWorkspaceService
+from app.integrations.google_workspace.sheets_exports import (
+    GoogleSheetsAppointmentExportService,
+    GoogleSheetsExportConfigCreate,
+    GoogleSheetsExportConfigRead,
+    GoogleSheetsExportConfigUpdate,
+    GoogleSheetsExportExecutionRead,
+    GoogleSheetsExportRunRequest,
+    GoogleSheetsExportValidationRead,
+)
 from app.models.audit_log import AuditLog
 from app.models.appointment import Appointment, AppointmentStatus
 from app.models.integration import Integration
@@ -936,6 +945,125 @@ def google_workspace_service_health(
 ) -> GoogleWorkspaceStatusRead:
     del admin_user
     return GoogleWorkspaceService(db).health(integration_id, service)
+
+
+@router.get("/integrations/{integration_id}/google/workspace/sheets/exports", response_model=list[GoogleSheetsExportConfigRead])
+def list_google_sheets_exports(
+    integration_id: int,
+    admin_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> list[GoogleSheetsExportConfigRead]:
+    del admin_user
+    return [GoogleSheetsExportConfigRead.model_validate(item) for item in GoogleSheetsAppointmentExportService(db).list_configs(integration_id)]
+
+
+@router.post("/integrations/{integration_id}/google/workspace/sheets/exports", response_model=GoogleSheetsExportConfigRead)
+def create_google_sheets_export(
+    integration_id: int,
+    payload: GoogleSheetsExportConfigCreate,
+    admin_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> GoogleSheetsExportConfigRead:
+    del admin_user
+    try:
+        item = GoogleSheetsAppointmentExportService(db).create_config(integration_id, payload)
+    except IntegrationError as exc:
+        raise _integration_http_error(exc) from exc
+    return GoogleSheetsExportConfigRead.model_validate(item)
+
+
+@router.get("/integrations/{integration_id}/google/workspace/sheets/exports/{config_id}", response_model=GoogleSheetsExportConfigRead)
+def get_google_sheets_export(
+    integration_id: int,
+    config_id: int,
+    admin_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> GoogleSheetsExportConfigRead:
+    del admin_user
+    return GoogleSheetsExportConfigRead.model_validate(GoogleSheetsAppointmentExportService(db).get_config(integration_id, config_id))
+
+
+@router.patch("/integrations/{integration_id}/google/workspace/sheets/exports/{config_id}", response_model=GoogleSheetsExportConfigRead)
+def update_google_sheets_export(
+    integration_id: int,
+    config_id: int,
+    payload: GoogleSheetsExportConfigUpdate,
+    admin_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> GoogleSheetsExportConfigRead:
+    del admin_user
+    try:
+        item = GoogleSheetsAppointmentExportService(db).update_config(integration_id, config_id, payload)
+    except IntegrationError as exc:
+        raise _integration_http_error(exc) from exc
+    return GoogleSheetsExportConfigRead.model_validate(item)
+
+
+@router.post("/integrations/{integration_id}/google/workspace/sheets/exports/{config_id}/validate", response_model=GoogleSheetsExportValidationRead)
+def validate_google_sheets_export(
+    integration_id: int,
+    config_id: int,
+    admin_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> GoogleSheetsExportValidationRead:
+    del admin_user
+    try:
+        return GoogleSheetsAppointmentExportService(db).validate_config(integration_id, config_id)
+    except IntegrationError as exc:
+        raise _integration_http_error(exc) from exc
+
+
+@router.post("/integrations/{integration_id}/google/workspace/sheets/exports/{config_id}/run", response_model=GoogleSheetsExportExecutionRead)
+def run_google_sheets_export(
+    integration_id: int,
+    config_id: int,
+    payload: GoogleSheetsExportRunRequest,
+    admin_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> GoogleSheetsExportExecutionRead:
+    try:
+        execution = GoogleSheetsAppointmentExportService(db).run_export(integration_id, config_id, payload, admin_user)
+    except IntegrationError as exc:
+        raise _integration_http_error(exc) from exc
+    return GoogleSheetsExportExecutionRead.model_validate(execution)
+
+
+@router.get("/integrations/{integration_id}/google/workspace/sheets/exports/{config_id}/executions", response_model=list[GoogleSheetsExportExecutionRead])
+def list_google_sheets_export_executions(
+    integration_id: int,
+    config_id: int,
+    admin_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> list[GoogleSheetsExportExecutionRead]:
+    del admin_user
+    return [GoogleSheetsExportExecutionRead.model_validate(item) for item in GoogleSheetsAppointmentExportService(db).list_executions(integration_id, config_id)]
+
+
+@router.get("/integrations/{integration_id}/google/workspace/sheets/exports/{config_id}/executions/{execution_id}", response_model=GoogleSheetsExportExecutionRead)
+def get_google_sheets_export_execution(
+    integration_id: int,
+    config_id: int,
+    execution_id: int,
+    admin_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> GoogleSheetsExportExecutionRead:
+    del admin_user
+    return GoogleSheetsExportExecutionRead.model_validate(GoogleSheetsAppointmentExportService(db).get_execution(integration_id, config_id, execution_id))
+
+
+@router.post("/integrations/{integration_id}/google/workspace/sheets/exports/{config_id}/executions/{execution_id}/retry", response_model=GoogleSheetsExportExecutionRead)
+def retry_google_sheets_export_execution(
+    integration_id: int,
+    config_id: int,
+    execution_id: int,
+    admin_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> GoogleSheetsExportExecutionRead:
+    try:
+        execution = GoogleSheetsAppointmentExportService(db).retry_execution(integration_id, config_id, execution_id, admin_user)
+    except IntegrationError as exc:
+        raise _integration_http_error(exc) from exc
+    return GoogleSheetsExportExecutionRead.model_validate(execution)
 
 
 @router.post("/integrations/{integration_id}/meetings", response_model=GoogleMeetMeetingRead)

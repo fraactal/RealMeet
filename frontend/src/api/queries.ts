@@ -40,6 +40,11 @@ import type {
   GoogleWorkspaceServiceKey,
   GoogleWorkspaceSettingsUpdate,
   GoogleWorkspaceStatus,
+  GoogleSheetsExportConfig,
+  GoogleSheetsExportConfigWrite,
+  GoogleSheetsExportExecution,
+  GoogleSheetsExportRunPayload,
+  GoogleSheetsExportValidation,
   GoogleMeetMeeting,
   GoogleMeetMeetingCancelPayload,
   GoogleMeetMeetingCreatePayload,
@@ -702,6 +707,41 @@ export async function disableGoogleWorkspaceService(integrationId: number, servi
 
 export async function healthCheckGoogleWorkspaceService(integrationId: number, service: GoogleWorkspaceServiceKey): Promise<GoogleWorkspaceStatus> {
   const { data } = await api.post(`/admin/integrations/${integrationId}/google/workspace/services/${service}/health`);
+  return data;
+}
+
+export async function fetchGoogleSheetsExports(integrationId: number): Promise<GoogleSheetsExportConfig[]> {
+  const { data } = await api.get(`/admin/integrations/${integrationId}/google/workspace/sheets/exports`);
+  return data;
+}
+
+export async function createGoogleSheetsExport(integrationId: number, payload: GoogleSheetsExportConfigWrite): Promise<GoogleSheetsExportConfig> {
+  const { data } = await api.post(`/admin/integrations/${integrationId}/google/workspace/sheets/exports`, payload);
+  return data;
+}
+
+export async function updateGoogleSheetsExport(integrationId: number, configId: number, payload: Partial<GoogleSheetsExportConfigWrite>): Promise<GoogleSheetsExportConfig> {
+  const { data } = await api.patch(`/admin/integrations/${integrationId}/google/workspace/sheets/exports/${configId}`, payload);
+  return data;
+}
+
+export async function validateGoogleSheetsExport(integrationId: number, configId: number): Promise<GoogleSheetsExportValidation> {
+  const { data } = await api.post(`/admin/integrations/${integrationId}/google/workspace/sheets/exports/${configId}/validate`);
+  return data;
+}
+
+export async function runGoogleSheetsExport(integrationId: number, configId: number, payload: GoogleSheetsExportRunPayload): Promise<GoogleSheetsExportExecution> {
+  const { data } = await api.post(`/admin/integrations/${integrationId}/google/workspace/sheets/exports/${configId}/run`, payload);
+  return data;
+}
+
+export async function fetchGoogleSheetsExportExecutions(integrationId: number, configId: number): Promise<GoogleSheetsExportExecution[]> {
+  const { data } = await api.get(`/admin/integrations/${integrationId}/google/workspace/sheets/exports/${configId}/executions`);
+  return data;
+}
+
+export async function retryGoogleSheetsExportExecution(integrationId: number, configId: number, executionId: number): Promise<GoogleSheetsExportExecution> {
+  const { data } = await api.post(`/admin/integrations/${integrationId}/google/workspace/sheets/exports/${configId}/executions/${executionId}/retry`);
   return data;
 }
 

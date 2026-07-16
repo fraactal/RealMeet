@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createGoogleOAuthAuthorizationUrl,
   createGoogleMeetMeeting,
+  createGoogleSheetsExport,
   createAdminIntegration,
   createN8nWorkflow,
   createWebhookSubscription,
@@ -28,6 +29,8 @@ import {
   fetchWebhookDeliveries,
   fetchWebhookSubscriptions,
   fetchGoogleOAuthStatus,
+  fetchGoogleSheetsExportExecutions,
+  fetchGoogleSheetsExports,
   fetchGoogleWorkspaceStatus,
   fetchWhatsAppConsents,
   fetchWhatsAppNotificationPolicy,
@@ -46,18 +49,22 @@ import {
   retryAppointmentNotification,
   retryWebhookDelivery,
   reconcileAppointmentNotification,
+  retryGoogleSheetsExportExecution,
   sendWhatsAppMessage,
   startGoogleWorkspaceOAuth,
   testAdminIntegration,
   testN8nWorkflow,
   testWebhookSubscription,
   updateAdminIntegration,
+  updateGoogleSheetsExport,
   updateWebhookSubscription,
   updateWhatsAppNotificationPolicy,
   updateWhatsAppTemplate,
   syncWhatsAppTemplates,
   validateAdminIntegration,
+  validateGoogleSheetsExport,
   validateWhatsAppConfiguration,
+  runGoogleSheetsExport,
 } from "../api/queries";
 import { WhatsAppFoundationPanel } from "../components/admin/integrations/WhatsAppFoundationPanel";
 import { Badge, Button, EmptyState, ErrorState, Input, Label, LoadingState, PageHeader, SectionCard, Select } from "../components/ui";
@@ -82,6 +89,11 @@ import type {
   N8nWorkflow,
   N8nWorkflowWrite,
   GoogleOAuthStatus,
+  GoogleSheetsExportConfig,
+  GoogleSheetsExportConfigWrite,
+  GoogleSheetsExportExecution,
+  GoogleSheetsExportMode,
+  GoogleSheetsExportValidation,
   GoogleWorkspaceServiceKey,
   GoogleWorkspaceStatus,
   GoogleMeetMeeting,
@@ -193,6 +205,9 @@ export function AdminIntegrationsPage() {
   const [testKeyById, setTestKeyById] = useState<Record<number, string>>({});
   const [lastResult, setLastResult] = useState<IntegrationOperationResult | null>(null);
   const [googleMeetingResult, setGoogleMeetingResult] = useState<GoogleMeetMeeting | null>(null);
+  const [selectedSheetsExportId, setSelectedSheetsExportId] = useState<number | null>(null);
+  const [googleSheetsValidation, setGoogleSheetsValidation] = useState<GoogleSheetsExportValidation | null>(null);
+  const [googleSheetsExecution, setGoogleSheetsExecution] = useState<GoogleSheetsExportExecution | null>(null);
   const [whatsappValidationResult, setWhatsappValidationResult] = useState<WhatsAppValidationResult | null>(null);
 
   const integrationsQuery = useQuery({
@@ -226,6 +241,20 @@ export function AdminIntegrationsPage() {
     queryKey: ["admin-google-workspace", selectedIntegration?.id],
     queryFn: () => fetchGoogleWorkspaceStatus(selectedIntegration?.id ?? 0),
     enabled: selectedIntegration?.provider === "google_meet",
+  });
+  const googleSheetsExportsQuery = useQuery({
+    queryKey: ["admin-google-sheets-exports", selectedIntegration?.id],
+    queryFn: () => fetchGoogleSheetsExports(selectedIntegration?.id ?? 0),
+    enabled: selectedIntegration?.provider === "google_meet",
+  });
+  const selectedSheetsExport = useMemo(
+    () => googleSheetsExportsQuery.data?.find((item) => item.id === selectedSheetsExportId) ?? googleSheetsExportsQuery.data?.[0] ?? null,
+    [googleSheetsExportsQuery.data, selectedSheetsExportId],
+  );
+  const googleSheetsExecutionsQuery = useQuery({
+    queryKey: ["admin-google-sheets-export-executions", selectedIntegration?.id, selectedSheetsExport?.id],
+    queryFn: () => fetchGoogleSheetsExportExecutions(selectedIntegration?.id ?? 0, selectedSheetsExport?.id ?? 0),
+    enabled: selectedIntegration?.provider === "google_meet" && Boolean(selectedSheetsExport?.id),
   });
   const whatsappEnabled = selectedIntegration?.provider === "whatsapp_cloud";
   const whatsappStatusQuery = useQuery({
@@ -293,6 +322,8 @@ export function AdminIntegrationsPage() {
       void queryClient.invalidateQueries({ queryKey: ["admin-integration-executions", selectedIntegration.id] });
       void queryClient.invalidateQueries({ queryKey: ["admin-google-oauth-status", selectedIntegration.id] });
       void queryClient.invalidateQueries({ queryKey: ["admin-google-workspace", selectedIntegration.id] });
+      void queryClient.invalidateQueries({ queryKey: ["admin-google-sheets-exports", selectedIntegration.id] });
+      void queryClient.invalidateQueries({ queryKey: ["admin-google-sheets-export-executions", selectedIntegration.id] });
       void queryClient.invalidateQueries({ queryKey: ["admin-whatsapp-status", selectedIntegration.id] });
       void queryClient.invalidateQueries({ queryKey: ["admin-whatsapp-webhook-status", selectedIntegration.id] });
       void queryClient.invalidateQueries({ queryKey: ["admin-whatsapp-webhook-events", selectedIntegration.id] });
@@ -382,6 +413,41 @@ export function AdminIntegrationsPage() {
   const googleWorkspaceDisableMutation = useMutation({
     mutationFn: ({ id, service }: { id: number; service: GoogleWorkspaceServiceKey }) => disableGoogleWorkspaceService(id, service),
     onSuccess: () => refreshIntegrations(),
+  });
+  const createGoogleSheetsExportMutation = useMutation({
+    mutationFn: ({ id, payload }: { id: number; payload: GoogleSheetsExportConfigWrite }) => createGoogleSheetsExport(id, payload),
+    onSuccess: (item) => {
+      setSelectedSheetsExportId(item.id);
+      refreshIntegrations();
+    },
+  });
+  const updateGoogleSheetsExportMutation = useMutation({
+    mutationFn: ({ id, configId, payload }: { id: number; configId: number; payload: Partial<GoogleSheetsExportConfigWrite> }) => updateGoogleSheetsExport(id, configId, payload),
+    onSuccess: (item) => {
+      setSelectedSheetsExportId(item.id);
+      refreshIntegrations();
+    },
+  });
+  const validateGoogleSheetsExportMutation = useMutation({
+    mutationFn: ({ id, configId }: { id: number; configId: number }) => validateGoogleSheetsExport(id, configId),
+    onSuccess: (result) => {
+      setGoogleSheetsValidation(result);
+      refreshIntegrations();
+    },
+  });
+  const runGoogleSheetsExportMutation = useMutation({
+    mutationFn: ({ id, configId, payload }: { id: number; configId: number; payload: Parameters<typeof runGoogleSheetsExport>[2] }) => runGoogleSheetsExport(id, configId, payload),
+    onSuccess: (result) => {
+      setGoogleSheetsExecution(result);
+      refreshIntegrations();
+    },
+  });
+  const retryGoogleSheetsExportMutation = useMutation({
+    mutationFn: ({ id, configId, executionId }: { id: number; configId: number; executionId: number }) => retryGoogleSheetsExportExecution(id, configId, executionId),
+    onSuccess: (result) => {
+      setGoogleSheetsExecution(result);
+      refreshIntegrations();
+    },
   });
   const createGoogleMeetingMutation = useMutation({
     mutationFn: ({ id, payload }: { id: number; payload: GoogleMeetMeetingCreatePayload }) => createGoogleMeetMeeting(id, payload),
@@ -749,15 +815,31 @@ export function AdminIntegrationsPage() {
                     googleWorkspaceHealthMutation.isPending ||
                     googleWorkspaceServiceHealthMutation.isPending ||
                     googleWorkspaceEnableMutation.isPending ||
-                    googleWorkspaceDisableMutation.isPending
+                    googleWorkspaceDisableMutation.isPending ||
+                    createGoogleSheetsExportMutation.isPending ||
+                    updateGoogleSheetsExportMutation.isPending ||
+                    validateGoogleSheetsExportMutation.isPending ||
+                    runGoogleSheetsExportMutation.isPending ||
+                    retryGoogleSheetsExportMutation.isPending
                   }
+                  exports={googleSheetsExportsQuery.data ?? []}
+                  executions={googleSheetsExecutionsQuery.data ?? []}
                   loading={googleWorkspaceQuery.isLoading}
                   onAuthorize={(services) => googleWorkspaceOAuthMutation.mutate({ id: selectedIntegration.id, services })}
+                  onCreateExport={(payload) => createGoogleSheetsExportMutation.mutate({ id: selectedIntegration.id, payload })}
                   onDisableService={(service) => googleWorkspaceDisableMutation.mutate({ id: selectedIntegration.id, service })}
                   onEnableService={(service) => googleWorkspaceEnableMutation.mutate({ id: selectedIntegration.id, service })}
                   onHealthAll={() => googleWorkspaceHealthMutation.mutate(selectedIntegration.id)}
                   onHealthService={(service) => googleWorkspaceServiceHealthMutation.mutate({ id: selectedIntegration.id, service })}
+                  onRetryExport={(executionId) => selectedSheetsExport && retryGoogleSheetsExportMutation.mutate({ id: selectedIntegration.id, configId: selectedSheetsExport.id, executionId })}
+                  onRunExport={(configId, payload) => runGoogleSheetsExportMutation.mutate({ id: selectedIntegration.id, configId, payload })}
+                  onSelectExport={setSelectedSheetsExportId}
+                  onUpdateExport={(configId, payload) => updateGoogleSheetsExportMutation.mutate({ id: selectedIntegration.id, configId, payload })}
+                  onValidateExport={(configId) => validateGoogleSheetsExportMutation.mutate({ id: selectedIntegration.id, configId })}
+                  selectedExport={selectedSheetsExport}
                   status={googleWorkspaceQuery.data}
+                  validation={googleSheetsValidation}
+                  lastExecution={googleSheetsExecution}
                 />
               ) : null}
               {selectedIntegration.provider === "whatsapp_cloud" ? (
@@ -1170,18 +1252,40 @@ function GoogleOAuthPanel({
 
 function GoogleWorkspacePanel({
   status,
+  exports,
+  selectedExport,
+  executions,
+  validation,
+  lastExecution,
   loading,
   busy,
   onAuthorize,
+  onCreateExport,
+  onUpdateExport,
+  onValidateExport,
+  onRunExport,
+  onRetryExport,
+  onSelectExport,
   onEnableService,
   onDisableService,
   onHealthService,
   onHealthAll,
 }: {
   status?: GoogleWorkspaceStatus;
+  exports: GoogleSheetsExportConfig[];
+  selectedExport: GoogleSheetsExportConfig | null;
+  executions: GoogleSheetsExportExecution[];
+  validation: GoogleSheetsExportValidation | null;
+  lastExecution: GoogleSheetsExportExecution | null;
   loading: boolean;
   busy: boolean;
   onAuthorize: (services: GoogleWorkspaceServiceKey[]) => void;
+  onCreateExport: (payload: GoogleSheetsExportConfigWrite) => void;
+  onUpdateExport: (configId: number, payload: Partial<GoogleSheetsExportConfigWrite>) => void;
+  onValidateExport: (configId: number) => void;
+  onRunExport: (configId: number, payload: { starts_from: string; starts_to: string; include_cancelled?: boolean | null }) => void;
+  onRetryExport: (executionId: number) => void;
+  onSelectExport: (configId: number | null) => void;
   onEnableService: (service: GoogleWorkspaceServiceKey) => void;
   onDisableService: (service: GoogleWorkspaceServiceKey) => void;
   onHealthService: (service: GoogleWorkspaceServiceKey) => void;
@@ -1255,6 +1359,179 @@ function GoogleWorkspacePanel({
           );
         })}
       </div>
+      <GoogleSheetsExportsPanel
+        busy={busy}
+        executions={executions}
+        exports={exports}
+        lastExecution={lastExecution}
+        onCreate={onCreateExport}
+        onRetry={onRetryExport}
+        onRun={onRunExport}
+        onSelect={onSelectExport}
+        onUpdate={onUpdateExport}
+        onValidate={onValidateExport}
+        selectedExport={selectedExport}
+        sheetsReady={Boolean(status.services.find((service) => service.service === "sheets" && service.enabled && service.authorized))}
+        validation={validation}
+      />
+    </div>
+  );
+}
+
+function GoogleSheetsExportsPanel({
+  exports,
+  selectedExport,
+  executions,
+  validation,
+  lastExecution,
+  sheetsReady,
+  busy,
+  onCreate,
+  onUpdate,
+  onValidate,
+  onRun,
+  onRetry,
+  onSelect,
+}: {
+  exports: GoogleSheetsExportConfig[];
+  selectedExport: GoogleSheetsExportConfig | null;
+  executions: GoogleSheetsExportExecution[];
+  validation: GoogleSheetsExportValidation | null;
+  lastExecution: GoogleSheetsExportExecution | null;
+  sheetsReady: boolean;
+  busy: boolean;
+  onCreate: (payload: GoogleSheetsExportConfigWrite) => void;
+  onUpdate: (configId: number, payload: Partial<GoogleSheetsExportConfigWrite>) => void;
+  onValidate: (configId: number) => void;
+  onRun: (configId: number, payload: { starts_from: string; starts_to: string; include_cancelled?: boolean | null }) => void;
+  onRetry: (executionId: number) => void;
+  onSelect: (configId: number | null) => void;
+}) {
+  const [name, setName] = useState("Reservas RealMeet");
+  const [spreadsheetId, setSpreadsheetId] = useState("");
+  const [sheetName, setSheetName] = useState("Reservas");
+  const [mode, setMode] = useState<GoogleSheetsExportMode>("upsert");
+  const [includeCancelled, setIncludeCancelled] = useState(false);
+  const start = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const end = new Date(Date.now() + 24 * 60 * 60 * 1000);
+  const [startsFrom, setStartsFrom] = useState(toDatetimeLocal(start));
+  const [startsTo, setStartsTo] = useState(toDatetimeLocal(end));
+  const active = selectedExport;
+
+  useEffect(() => {
+    if (!active) return;
+    setName(active.name);
+    setSpreadsheetId(active.spreadsheet_id);
+    setSheetName(active.sheet_name);
+    setMode(active.export_mode);
+    setIncludeCancelled(active.include_cancelled);
+  }, [active]);
+
+  const payload: GoogleSheetsExportConfigWrite = {
+    name: name.trim(),
+    spreadsheet_id: spreadsheetId.trim(),
+    sheet_name: sheetName.trim(),
+    enabled: true,
+    export_mode: mode,
+    include_cancelled: includeCancelled,
+  };
+
+  return (
+    <div className="mt-6 rounded-lg border border-slate-200 bg-slate-50 p-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h3 className="text-base font-semibold text-ink-900">Exportaciones a Google Sheets</h3>
+          <p className="mt-1 text-sm leading-6 text-ink-500">Exportacion manual de reservas con columnas estandar. RealMeet sigue siendo la fuente de verdad.</p>
+        </div>
+        <Badge label={sheetsReady ? "Sheets listo" : "Requiere Sheets"} tone={sheetsReady ? "success" : "warning"} />
+      </div>
+      <p className="mt-3 text-sm text-ink-600">Usa solo el ID del spreadsheet. En una URL de Google Sheets corresponde al texto entre <span className="font-semibold">/d/</span> y <span className="font-semibold">/edit</span>.</p>
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <Field id="sheets-export-name" label="Nombre">
+          <Input id="sheets-export-name" value={name} onChange={(event) => setName(event.target.value)} />
+        </Field>
+        <Field id="sheets-export-spreadsheet" label="Spreadsheet ID">
+          <Input id="sheets-export-spreadsheet" value={spreadsheetId} onChange={(event) => setSpreadsheetId(event.target.value)} placeholder="1abcDEFghi_jklMNop" />
+        </Field>
+        <Field id="sheets-export-sheet" label="Pestana">
+          <Input id="sheets-export-sheet" value={sheetName} onChange={(event) => setSheetName(event.target.value)} />
+        </Field>
+        <Field id="sheets-export-mode" label="Modo">
+          <Select id="sheets-export-mode" value={mode} onChange={(event) => setMode(event.target.value as GoogleSheetsExportMode)}>
+            <option value="upsert">Actualizar o insertar</option>
+            <option value="append_only">Solo agregar nuevas</option>
+          </Select>
+        </Field>
+        <label className="flex items-center gap-2 text-sm font-semibold text-ink-700">
+          <input checked={includeCancelled} onChange={(event) => setIncludeCancelled(event.target.checked)} type="checkbox" />
+          Incluir reservas canceladas
+        </label>
+      </div>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <Button disabled={!sheetsReady || !payload.name || !payload.spreadsheet_id || !payload.sheet_name} isLoading={busy} onClick={() => (active ? onUpdate(active.id, payload) : onCreate(payload))}>
+          {active ? "Guardar configuracion" : "Crear configuracion"}
+        </Button>
+        {active ? <Button isLoading={busy} onClick={() => onValidate(active.id)} variant="secondary">Validar acceso</Button> : null}
+      </div>
+      {exports.length > 0 ? (
+        <div className="mt-5 grid gap-2">
+          {exports.map((item) => (
+            <button className={`rounded-md border p-3 text-left text-sm ${active?.id === item.id ? "border-brand-300 bg-white" : "border-slate-200 bg-white"}`} key={item.id} onClick={() => onSelect(item.id)} type="button">
+              <span className="font-semibold text-ink-900">{item.name}</span>
+              <span className="ml-2 text-ink-500">{item.sheet_name} · {getGoogleSheetsExportModeLabel(item.export_mode)}</span>
+            </button>
+          ))}
+        </div>
+      ) : null}
+      {validation ? <p className="mt-4 rounded-md border border-success-200 bg-success-50 p-3 text-sm text-success-700">Validacion correcta: {validation.spreadsheet.title ?? "Spreadsheet"} / {validation.sheet.name ?? "Pestana"} ({validation.headers.status}).</p> : null}
+      {active ? (
+        <div className="mt-5 rounded-lg border border-slate-200 bg-white p-4">
+          <h4 className="font-semibold text-ink-900">Exportacion manual</h4>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <Field id="sheets-run-from" label="Desde">
+              <Input id="sheets-run-from" type="datetime-local" value={startsFrom} onChange={(event) => setStartsFrom(event.target.value)} />
+            </Field>
+            <Field id="sheets-run-to" label="Hasta">
+              <Input id="sheets-run-to" type="datetime-local" value={startsTo} onChange={(event) => setStartsTo(event.target.value)} />
+            </Field>
+          </div>
+          <Button className="mt-4" isLoading={busy} onClick={() => onRun(active.id, { starts_from: new Date(startsFrom).toISOString(), starts_to: new Date(startsTo).toISOString(), include_cancelled: includeCancelled })}>
+            Ejecutar exportacion
+          </Button>
+          {lastExecution ? <GoogleSheetsExecutionSummary execution={lastExecution} /> : null}
+        </div>
+      ) : null}
+      <div className="mt-5 space-y-3">
+        <h4 className="font-semibold text-ink-900">Historial reciente</h4>
+        {executions.length === 0 ? <EmptyState title="Sin ejecuciones registradas" /> : null}
+        {executions.map((execution) => (
+          <article className="rounded-lg border border-slate-200 bg-white p-3 text-sm" key={execution.id}>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="font-semibold text-ink-900">{getGoogleSheetsExecutionStatusLabel(execution.status)}</p>
+                <p className="text-ink-500">{formatOptionalDate(execution.created_at)} · {formatDateTime(execution.range_start)} a {formatDateTime(execution.range_end)}</p>
+              </div>
+              <Badge label={getGoogleSheetsExecutionStatusLabel(execution.status)} tone={execution.status === "succeeded" ? "success" : execution.status === "failed" ? "danger" : "warning"} />
+            </div>
+            <GoogleSheetsExecutionSummary execution={execution} compact />
+            {execution.status === "failed" || execution.status === "partially_succeeded" ? <Button className="mt-3" isLoading={busy} onClick={() => onRetry(execution.id)} size="sm" variant="secondary">Reintentar</Button> : null}
+          </article>
+        ))}
+      </div>
+      <p className="mt-4 text-xs text-ink-500">No se exportan notas, diagnosticos, historial medico, telefonos, tokens ni configuraciones internas.</p>
+    </div>
+  );
+}
+
+function GoogleSheetsExecutionSummary({ execution, compact = false }: { execution: GoogleSheetsExportExecution; compact?: boolean }) {
+  return (
+    <div className={`grid gap-2 text-sm text-ink-600 ${compact ? "mt-3 sm:grid-cols-5" : "mt-4 sm:grid-cols-5"}`}>
+      <InfoItem label="Total" value={String(execution.total_records)} />
+      <InfoItem label="Insertadas" value={String(execution.inserted_records)} />
+      <InfoItem label="Actualizadas" value={String(execution.updated_records)} />
+      <InfoItem label="Omitidas" value={String(execution.skipped_records)} />
+      <InfoItem label="Fallidas" value={String(execution.failed_records)} />
+      {execution.error_message ? <div className="sm:col-span-5"><InfoItem label="Error" value={execution.error_message} /></div> : null}
     </div>
   );
 }
@@ -1694,6 +1971,21 @@ function getGoogleWorkspaceErrorLabel(code: string): string {
     google_refresh_token_missing: "Falta refresh token",
   };
   return labels[code] ?? "Error controlado";
+}
+
+function getGoogleSheetsExportModeLabel(mode: GoogleSheetsExportMode): string {
+  return mode === "upsert" ? "Actualizar o insertar" : "Solo agregar nuevas";
+}
+
+function getGoogleSheetsExecutionStatusLabel(status: GoogleSheetsExportExecution["status"]): string {
+  const labels: Record<GoogleSheetsExportExecution["status"], string> = {
+    pending: "Pendiente",
+    running: "En ejecucion",
+    succeeded: "Exitosa",
+    partially_succeeded: "Parcial",
+    failed: "Fallida",
+  };
+  return labels[status];
 }
 
 function IntegrationFormModal({ form, isSaving, onChange, onClose, onSave }: { form: FormState; isSaving: boolean; onChange: (form: FormState) => void; onClose: () => void; onSave: () => void }) {

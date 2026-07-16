@@ -857,6 +857,69 @@ export interface GoogleWorkspaceStatus {
   services: GoogleWorkspaceServiceStatus[];
 }
 
+export type GoogleSheetsExportMode = "upsert" | "append_only";
+export type GoogleSheetsExportExecutionStatus = "pending" | "running" | "succeeded" | "partially_succeeded" | "failed";
+
+export interface GoogleSheetsExportConfig {
+  id: number;
+  integration_id: number;
+  name: string;
+  spreadsheet_id: string;
+  sheet_name: string;
+  enabled: boolean;
+  export_mode: GoogleSheetsExportMode;
+  date_range_mode: string;
+  include_cancelled: boolean;
+  last_exported_at?: string | null;
+  last_success_at?: string | null;
+  last_error_at?: string | null;
+  last_error_code?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GoogleSheetsExportConfigWrite {
+  name: string;
+  spreadsheet_id: string;
+  sheet_name: string;
+  enabled: boolean;
+  export_mode: GoogleSheetsExportMode;
+  include_cancelled: boolean;
+}
+
+export interface GoogleSheetsExportRunPayload {
+  starts_from: string;
+  starts_to: string;
+  include_cancelled?: boolean | null;
+}
+
+export interface GoogleSheetsExportExecution {
+  id: number;
+  config_id: number;
+  status: GoogleSheetsExportExecutionStatus;
+  started_at?: string | null;
+  finished_at?: string | null;
+  requested_by_user_id?: number | null;
+  range_start: string;
+  range_end: string;
+  include_cancelled: boolean;
+  total_records: number;
+  inserted_records: number;
+  updated_records: number;
+  skipped_records: number;
+  failed_records: number;
+  error_code?: string | null;
+  error_message?: string | null;
+  created_at: string;
+}
+
+export interface GoogleSheetsExportValidation {
+  valid: boolean;
+  spreadsheet: { title?: string | null };
+  sheet: { name?: string | null };
+  headers: { status: string };
+}
+
 export interface GoogleMeetMeeting {
   provider: string;
   external_event_id: string;

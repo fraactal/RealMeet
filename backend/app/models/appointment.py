@@ -91,7 +91,7 @@ class Appointment(Base, TimestampMixin):
         default=AppointmentStatus.pending,
         nullable=False,
     )
-    consultation_mode: Mapped[ConsultationMode] = mapped_column(Enum(ConsultationMode, name="appointment_consultation_mode"))
+    consultation_mode: Mapped[ConsultationMode] = mapped_column(Enum(ConsultationMode, name="consultation_mode"))
     meeting_provider: Mapped[MeetingProvider | None] = mapped_column(Enum(MeetingProvider, name="meeting_provider"))
     meeting_url: Mapped[str | None] = mapped_column(String(255))
     external_meeting_id: Mapped[str | None] = mapped_column(String(120))

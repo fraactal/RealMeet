@@ -5,6 +5,7 @@ from app.models.category import Category
 from app.models.client_profile import ClientProfile
 from app.models.external_calendar import CalendarSyncSettings, ExternalCalendar
 from app.models.integration import ExternalMeeting, GoogleWorkspaceSettings, Integration, IntegrationCredential, IntegrationExecution, IntegrationOAuthState
+from app.integrations.google_workspace.sheets_exports import GoogleSheetsExportConfig, GoogleSheetsExportExecution
 from app.models.n8n import N8nWorkflow
 from app.models.professional_profile import ProfessionalProfile, ProfessionalSpecialty
 from app.models.specialty import Specialty
@@ -29,6 +30,8 @@ __all__ = [
     "Integration",
     "ExternalMeeting",
     "GoogleWorkspaceSettings",
+    "GoogleSheetsExportConfig",
+    "GoogleSheetsExportExecution",
     "IntegrationCredential",
     "IntegrationExecution",
     "IntegrationOAuthState",
