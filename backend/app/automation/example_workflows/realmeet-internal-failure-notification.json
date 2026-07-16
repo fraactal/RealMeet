@@ -1,0 +1,115 @@
+{
+  "name": "RealMeet - Notificacion interna de errores",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "realmeet/internal/failures",
+        "httpMethod": "POST",
+        "responseMode": "responseNode"
+      },
+      "id": "realmeet-webhook",
+      "name": "RealMeet Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json.body.event_type}}",
+              "operation": "equal",
+              "value2": "notification.failed"
+            }
+          ]
+        }
+      },
+      "id": "filter-failure",
+      "name": "Filtrar fallo",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [500, 300]
+    },
+    {
+      "parameters": {
+        "keepOnlySet": true,
+        "values": {
+          "string": [
+            { "name": "text", "value": "=RealMeet detecto un fallo {{$json.body.payload.notification.channel}}: {{$json.body.payload.notification.error_code}}" },
+            { "name": "event_id", "value": "={{$json.body.payload.event_id}}" },
+            { "name": "appointment_id", "value": "={{$json.body.payload.notification.appointment_id}}" },
+            { "name": "occurred_at", "value": "={{$json.body.payload.occurred_at}}" }
+          ]
+        }
+      },
+      "id": "shape-message",
+      "name": "Construir mensaje",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [760, 220]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://internal-notifications.example.com/hooks/realmeet",
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": "={{JSON.stringify({ text: $json.text, event_id: $json.event_id, appointment_id: $json.appointment_id, occurred_at: $json.occurred_at })}}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "notify-internal",
+      "name": "Enviar notificacion interna",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1020, 220],
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\"ok\": true}"
+      },
+      "id": "respond-ok",
+      "name": "Responder OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1280, 220]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseCode": 202,
+        "responseBody": "={\"ok\": true, \"skipped\": true}"
+      },
+      "id": "respond-skipped",
+      "name": "Responder omitido",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [760, 420]
+    }
+  ],
+  "connections": {
+    "RealMeet Webhook": {
+      "main": [[{ "node": "Filtrar fallo", "type": "main", "index": 0 }]]
+    },
+    "Filtrar fallo": {
+      "main": [
+        [{ "node": "Construir mensaje", "type": "main", "index": 0 }],
+        [{ "node": "Responder omitido", "type": "main", "index": 0 }]
+      ]
+    },
+    "Construir mensaje": {
+      "main": [[{ "node": "Enviar notificacion interna", "type": "main", "index": 0 }]]
+    },
+    "Enviar notificacion interna": {
+      "main": [[{ "node": "Responder OK", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false
+}

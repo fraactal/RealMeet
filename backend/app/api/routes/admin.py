@@ -15,6 +15,7 @@ from app.automation.schemas import (
     WebhookTestResult,
 )
 from app.automation.service import WebhookDeliveryService
+from app.automation.examples import get_automation_example_detail, list_automation_examples
 from app.automation.n8n import N8nWorkflowService
 from app.automation.n8n_schemas import N8nWorkflowCreate, N8nWorkflowRead, N8nWorkflowUpdate
 from app.integrations.exceptions import (
@@ -204,6 +205,16 @@ def retry_webhook_delivery(
     db: Session = Depends(get_db),
 ) -> WebhookDeliveryRead:
     return WebhookDeliveryRead.model_validate(WebhookDeliveryService(db).retry_delivery(delivery_id, admin_user))
+
+
+@router.get("/automation/examples")
+def list_automation_connector_examples() -> list[dict]:
+    return list_automation_examples()
+
+
+@router.get("/automation/examples/{example_key}")
+def get_automation_connector_example(example_key: str) -> dict:
+    return get_automation_example_detail(example_key)
 
 
 @router.get("/integrations/{integration_id}/n8n/workflows", response_model=list[N8nWorkflowRead])

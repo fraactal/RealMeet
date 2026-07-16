@@ -8,6 +8,8 @@ import type {
   AdminUserUpdate,
   Appointment,
   AppointmentNotification,
+  AutomationExample,
+  AutomationExampleDetail,
   AppointmentCreate,
   AppointmentPrivateNotesUpdate,
   AppointmentProfessionalStatusUpdate,
@@ -495,6 +497,16 @@ export async function testN8nWorkflow(integrationId: number, workflowId: number)
 
 export async function fetchN8nWorkflowDeliveries(integrationId: number, workflowId: number): Promise<WebhookDelivery[]> {
   const { data } = await api.get(`/admin/integrations/${integrationId}/n8n/workflows/${workflowId}/deliveries`);
+  return data;
+}
+
+export async function fetchAutomationExamples(): Promise<AutomationExample[]> {
+  const { data } = await api.get("/admin/automation/examples");
+  return data;
+}
+
+export async function fetchAutomationExample(exampleKey: string): Promise<AutomationExampleDetail> {
+  const { data } = await api.get(`/admin/automation/examples/${encodeURIComponent(exampleKey)}`);
   return data;
 }
 

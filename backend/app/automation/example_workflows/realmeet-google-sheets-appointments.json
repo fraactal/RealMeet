@@ -1,0 +1,124 @@
+{
+  "name": "RealMeet - Registrar reservas en Google Sheets",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "realmeet/google-sheets/appointments",
+        "httpMethod": "POST",
+        "responseMode": "responseNode"
+      },
+      "id": "realmeet-webhook",
+      "name": "RealMeet Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json.body.event_type}}",
+              "operation": "in",
+              "value2": "appointment.created,appointment.cancelled"
+            }
+          ]
+        }
+      },
+      "id": "validate-event-type",
+      "name": "Validar tipo de evento",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [500, 300]
+    },
+    {
+      "parameters": {
+        "keepOnlySet": true,
+        "values": {
+          "string": [
+            { "name": "event_id", "value": "={{$json.body.payload.event_id}}" },
+            { "name": "event_type", "value": "={{$json.body.payload.event_type}}" },
+            { "name": "appointment_id", "value": "={{$json.body.payload.appointment.id}}" },
+            { "name": "status", "value": "={{$json.body.payload.appointment.status}}" },
+            { "name": "starts_at", "value": "={{$json.body.payload.appointment.starts_at}}" },
+            { "name": "ends_at", "value": "={{$json.body.payload.appointment.ends_at}}" },
+            { "name": "professional_name", "value": "={{$json.body.payload.professional.display_name}}" },
+            { "name": "client_name", "value": "={{$json.body.payload.client.display_name}}" },
+            { "name": "client_email", "value": "={{$json.body.payload.client.email}}" },
+            { "name": "occurred_at", "value": "={{$json.body.payload.occurred_at}}" }
+          ]
+        }
+      },
+      "id": "shape-row",
+      "name": "Transformar fila",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [760, 220]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": "REPLACE_WITH_GOOGLE_SHEET_DOCUMENT_ID",
+        "sheetName": "REPLACE_WITH_SHEET_NAME",
+        "columns": {
+          "mappingMode": "autoMapInputData"
+        }
+      },
+      "id": "append-google-sheet",
+      "name": "Agregar fila Google Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [1020, 220],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_WITH_N8N_CREDENTIAL_ID",
+          "name": "REPLACE_WITH_GOOGLE_SHEETS_OAUTH2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\"ok\": true}"
+      },
+      "id": "respond-ok",
+      "name": "Responder OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1280, 220]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseCode": 202,
+        "responseBody": "={\"ok\": true, \"skipped\": true}"
+      },
+      "id": "respond-skipped",
+      "name": "Responder omitido",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [760, 420]
+    }
+  ],
+  "connections": {
+    "RealMeet Webhook": {
+      "main": [[{ "node": "Validar tipo de evento", "type": "main", "index": 0 }]]
+    },
+    "Validar tipo de evento": {
+      "main": [
+        [{ "node": "Transformar fila", "type": "main", "index": 0 }],
+        [{ "node": "Responder omitido", "type": "main", "index": 0 }]
+      ]
+    },
+    "Transformar fila": {
+      "main": [[{ "node": "Agregar fila Google Sheets", "type": "main", "index": 0 }]]
+    },
+    "Agregar fila Google Sheets": {
+      "main": [[{ "node": "Responder OK", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false
+}

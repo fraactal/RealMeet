@@ -611,6 +611,8 @@ APIs admin n8n:
 
 n8n no administra credenciales, no importa/exporta workflows, no ejecuta llamadas inbound hacia RealMeet y no implementa colas ni retries automaticos en 14.2.
 
+Modulo 14.3 agrega contratos de payload operativos y ejemplos importables para n8n en `docs/n8n/examples/`. El backoffice lista ejemplos para Google Sheets, CRM generico y notificacion interna, y los endpoints admin permiten obtener el JSON catalogado sin exponer rutas internas. RealMeet no se conecta directamente a Google Sheets, CRM o Slack; solo emite eventos firmados hacia workflows configurados fuera de RealMeet.
+
 ## Plan sugerido de commits
 
 El repositorio tiene commits incrementales por modulo. El Modulo 8 debe cerrarse con un unico commit y sin push salvo instruccion explicita.

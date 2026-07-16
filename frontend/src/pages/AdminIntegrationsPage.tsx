@@ -18,6 +18,8 @@ import {
   enableAdminIntegration,
   enableN8nWorkflow,
   enableWebhookSubscription,
+  fetchAutomationExample,
+  fetchAutomationExamples,
   fetchAdminIntegrationExecutions,
   fetchAdminIntegrations,
   fetchN8nWorkflows,
@@ -55,6 +57,8 @@ import { WhatsAppFoundationPanel } from "../components/admin/integrations/WhatsA
 import { Badge, Button, EmptyState, ErrorState, Input, Label, LoadingState, PageHeader, SectionCard, Select } from "../components/ui";
 import type {
   Integration,
+  AutomationExample,
+  AutomationExampleDetail,
   IntegrationConfig,
   IntegrationCreatePayload,
   IntegrationExecution,
@@ -258,6 +262,10 @@ export function AdminIntegrationsPage() {
   const webhookDeliveriesQuery = useQuery({
     queryKey: ["admin-webhook-deliveries"],
     queryFn: () => fetchWebhookDeliveries({ limit: 30 }),
+  });
+  const automationExamplesQuery = useQuery({
+    queryKey: ["admin-automation-examples"],
+    queryFn: fetchAutomationExamples,
   });
   const n8nEnabled = selectedIntegration?.provider === "n8n";
   const n8nWorkflowsQuery = useQuery({
@@ -808,6 +816,8 @@ export function AdminIntegrationsPage() {
         onRetry={(id) => retryWebhookDeliveryMutation.mutate(id)}
       />
 
+      <AutomationExamplesPanel examples={automationExamplesQuery.data ?? []} loading={automationExamplesQuery.isLoading} />
+
       {formOpen ? (
         <IntegrationFormModal
           form={form}
@@ -1261,6 +1271,70 @@ function N8nWorkflowDeliveries({ deliveries }: { deliveries: WebhookDelivery[] }
         ))}
       </div>
     </div>
+  );
+}
+
+function AutomationExamplesPanel({ examples, loading }: { examples: AutomationExample[]; loading: boolean }) {
+  const [selected, setSelected] = useState<AutomationExampleDetail | null>(null);
+  const [error, setError] = useState("");
+  const exampleMutation = useMutation({
+    mutationFn: (key: string) => fetchAutomationExample(key),
+    onSuccess: (detail) => {
+      setSelected(detail);
+      setError("");
+    },
+    onError: () => setError("No pudimos obtener el workflow de ejemplo."),
+  });
+
+  function downloadWorkflow(detail: AutomationExampleDetail) {
+    const blob = new Blob([JSON.stringify(detail.workflow, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = detail.example.workflow_filename;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }
+
+  return (
+    <SectionCard title="Ejemplos de automatizacion" description="Workflows n8n importables para casos operativos comunes. Deben importarse y revisarse dentro de n8n.">
+      {loading ? <LoadingState label="Cargando ejemplos de automatizacion" /> : null}
+      {error ? <ErrorState title={error} /> : null}
+      {!loading && examples.length === 0 ? <EmptyState title="No hay ejemplos disponibles" /> : null}
+      <div className="grid gap-3 lg:grid-cols-3">
+        {examples.map((example) => (
+          <article className="rounded-lg border border-slate-200 bg-white p-4" key={example.key}>
+            <div className="flex h-full flex-col gap-3">
+              <div>
+                <h3 className="font-semibold text-ink-900">{example.name}</h3>
+                <p className="mt-1 text-sm leading-6 text-ink-500">{example.description}</p>
+              </div>
+              <div className="space-y-2 text-xs text-ink-600">
+                <p><span className="font-semibold">Eventos:</span> {example.recommended_event_types.map(getWebhookEventTypeLabel).join(", ")}</p>
+                <p><span className="font-semibold">Credenciales n8n:</span> {example.required_n8n_credentials.join(", ")}</p>
+                <p><span className="font-semibold">Archivo:</span> {example.workflow_filename}</p>
+              </div>
+              <div className="mt-auto flex flex-wrap gap-2">
+                <Button isLoading={exampleMutation.isPending} onClick={() => exampleMutation.mutate(example.key)} size="sm" variant="secondary">Ver JSON</Button>
+              </div>
+            </div>
+          </article>
+        ))}
+      </div>
+      {selected ? (
+        <div className="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h3 className="font-semibold text-ink-900">{selected.example.name}</h3>
+              <p className="mt-1 text-sm text-ink-500">Importa este JSON en n8n y reemplaza los placeholders antes de habilitarlo.</p>
+            </div>
+            <Button onClick={() => downloadWorkflow(selected)} size="sm">Descargar JSON</Button>
+          </div>
+          <pre className="mt-4 max-h-96 overflow-auto rounded-md bg-ink-900 p-3 text-xs text-white">{JSON.stringify(selected.workflow, null, 2)}</pre>
+        </div>
+      ) : null}
+      <p className="mt-4 text-xs leading-5 text-ink-500">Los ejemplos no contienen credenciales y no deben usarse en produccion sin revisar seguridad, autenticacion, permisos y manejo de errores.</p>
+    </SectionCard>
   );
 }
 

@@ -1,0 +1,116 @@
+{
+  "name": "RealMeet - Upsert contacto CRM generico",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "realmeet/crm/upsert",
+        "httpMethod": "POST",
+        "responseMode": "responseNode"
+      },
+      "id": "realmeet-webhook",
+      "name": "RealMeet Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json.body.event_type}}",
+              "operation": "equal",
+              "value2": "appointment.created"
+            }
+          ]
+        }
+      },
+      "id": "filter-created",
+      "name": "Filtrar reserva creada",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [500, 300]
+    },
+    {
+      "parameters": {
+        "keepOnlySet": true,
+        "values": {
+          "string": [
+            { "name": "external_id", "value": "=realmeet-client-{{$json.body.payload.client.id}}" },
+            { "name": "name", "value": "={{$json.body.payload.client.display_name}}" },
+            { "name": "email", "value": "={{$json.body.payload.client.email}}" },
+            { "name": "source", "value": "RealMeet" },
+            { "name": "appointment_id", "value": "={{$json.body.payload.appointment.id}}" },
+            { "name": "appointment_starts_at", "value": "={{$json.body.payload.appointment.starts_at}}" }
+          ]
+        }
+      },
+      "id": "shape-contact",
+      "name": "Transformar contacto",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [760, 220]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://crm.example.com/api/contacts/upsert",
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": "={{JSON.stringify($json)}}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "crm-upsert",
+      "name": "HTTP CRM upsert",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1020, 220]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\"ok\": true}"
+      },
+      "id": "respond-ok",
+      "name": "Responder OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1280, 220]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseCode": 202,
+        "responseBody": "={\"ok\": true, \"skipped\": true}"
+      },
+      "id": "respond-skipped",
+      "name": "Responder omitido",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [760, 420]
+    }
+  ],
+  "connections": {
+    "RealMeet Webhook": {
+      "main": [[{ "node": "Filtrar reserva creada", "type": "main", "index": 0 }]]
+    },
+    "Filtrar reserva creada": {
+      "main": [
+        [{ "node": "Transformar contacto", "type": "main", "index": 0 }],
+        [{ "node": "Responder omitido", "type": "main", "index": 0 }]
+      ]
+    },
+    "Transformar contacto": {
+      "main": [[{ "node": "HTTP CRM upsert", "type": "main", "index": 0 }]]
+    },
+    "HTTP CRM upsert": {
+      "main": [[{ "node": "Responder OK", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false
+}

@@ -637,6 +637,20 @@ export interface N8nWorkflowWrite {
   secret_reference: string;
 }
 
+export interface AutomationExample {
+  key: string;
+  name: string;
+  description: string;
+  recommended_event_types: WebhookEventType[];
+  required_n8n_credentials: string[];
+  workflow_filename: string;
+}
+
+export interface AutomationExampleDetail {
+  example: AutomationExample;
+  workflow: Record<string, unknown>;
+}
+
 export interface GoogleOAuthAuthorizationUrl {
   authorization_url: string;
   state_expires_at: string;

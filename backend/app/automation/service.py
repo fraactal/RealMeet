@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from app.automation.client import HttpOutboundWebhookClient, OutboundWebhookClient
 from app.automation.contracts import DomainEvent
 from app.automation.enums import WebhookDeliveryStatus, WebhookEventType
+from app.automation.payloads import AutomationPayloadBuilder
 from app.automation.schemas import WebhookSubscriptionCreate, WebhookSubscriptionUpdate
 from app.core.config import settings
 from app.integrations.enums import IntegrationProvider
@@ -231,6 +232,7 @@ class DomainEventPublisher:
     def __init__(self, db: Session, delivery_service: WebhookDeliveryService | None = None) -> None:
         self.db = db
         self.delivery_service = delivery_service or WebhookDeliveryService(db)
+        self.payload_builder = AutomationPayloadBuilder()
 
     def publish_appointment_created(self, appointment: Appointment) -> list[WebhookDelivery]:
         return self.delivery_service.publish(self._appointment_event(WebhookEventType.appointment_created, appointment))
@@ -239,19 +241,22 @@ class DomainEventPublisher:
         return self.delivery_service.publish(self._appointment_event(WebhookEventType.appointment_cancelled, appointment))
 
     def _appointment_event(self, event_type: WebhookEventType, appointment: Appointment) -> DomainEvent:
-        return DomainEvent.create(
+        event = DomainEvent.create(
             event_type=event_type,
             entity_type="appointment",
             entity_id=appointment.id,
             correlation_id=f"appointment:{appointment.id}",
-            payload={
-                "appointment_id": appointment.id,
-                "status": appointment.status.value,
-                "starts_at": appointment.start_datetime.isoformat(),
-                "professional_id": appointment.professional_id,
-                "client_id": appointment.client_id,
-                "modality": appointment.consultation_mode.value,
-            },
+            payload={},
+        )
+        return DomainEvent(
+            event_id=event.event_id,
+            event_type=event.event_type,
+            event_version=event.event_version,
+            occurred_at=event.occurred_at,
+            entity_type=event.entity_type,
+            entity_id=event.entity_id,
+            correlation_id=event.correlation_id,
+            payload=self.payload_builder.build(event_type, appointment, event_id=event.event_id, occurred_at=event.occurred_at),
         )
 
 
