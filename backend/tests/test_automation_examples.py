@@ -140,6 +140,16 @@ def test_admin_can_list_examples_and_get_valid_workflow_json(api_client: TestCli
     assert detail.json()["workflow"]["active"] is False
 
 
+def test_admin_integrations_list_returns_page_contract(api_client: TestClient, db_session) -> None:
+    admin = _create_user(db_session, UserRole.admin, "integrations-list-admin")
+
+    response = api_client.get("/api/v1/admin/integrations", headers=_auth_headers(admin))
+
+    assert response.status_code == 200
+    assert "items" in response.json()
+    assert "meta" in response.json()
+
+
 def test_unknown_example_returns_404(api_client: TestClient, db_session) -> None:
     admin = _create_user(db_session, UserRole.admin, "missing-admin")
 

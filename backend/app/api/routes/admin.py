@@ -121,6 +121,10 @@ def list_integrations(
         page=page,
         page_size=page_size,
     )
+    return IntegrationListResponse(
+        items=[IntegrationRead.model_validate(item) for item in items],
+        meta=_integration_page_meta(page, page_size, total),
+    )
 
 
 @router.get("/webhook-subscriptions", response_model=list[WebhookSubscriptionRead])
@@ -286,10 +290,6 @@ def list_n8n_workflow_deliveries(
     db: Session = Depends(get_db),
 ) -> list[WebhookDeliveryRead]:
     return [WebhookDeliveryRead.model_validate(item) for item in N8nWorkflowService(db).list_deliveries(integration_id, workflow_id, limit=limit)]
-    return IntegrationListResponse(
-        items=[IntegrationRead.model_validate(item) for item in items],
-        meta=_integration_page_meta(page, page_size, total),
-    )
 
 
 @router.post("/integrations", response_model=IntegrationRead)
