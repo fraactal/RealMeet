@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createGoogleOAuthAuthorizationUrl,
   createGoogleMeetMeeting,
+  createGoogleDocsTemplate,
   createGoogleSheetsExport,
   createAdminIntegration,
   createN8nWorkflow,
@@ -17,8 +18,10 @@ import {
   disableWebhookSubscription,
   disconnectGoogleOAuth,
   disableGoogleWorkspaceService,
+  disableGoogleDocsTemplate,
   enableAdminIntegration,
   enableGoogleWorkspaceService,
+  enableGoogleDocsTemplate,
   enableN8nWorkflow,
   enableWebhookSubscription,
   fetchAutomationExample,
@@ -29,6 +32,8 @@ import {
   fetchWebhookDeliveries,
   fetchWebhookSubscriptions,
   fetchGoogleOAuthStatus,
+  fetchGoogleDocsTemplates,
+  fetchGoogleDocsVariables,
   fetchGoogleSheetsExportExecutions,
   fetchGoogleSheetsExports,
   fetchGoogleWorkspaceStatus,
@@ -56,12 +61,14 @@ import {
   testN8nWorkflow,
   testWebhookSubscription,
   updateAdminIntegration,
+  updateGoogleDocsTemplate,
   updateGoogleSheetsExport,
   updateWebhookSubscription,
   updateWhatsAppNotificationPolicy,
   updateWhatsAppTemplate,
   syncWhatsAppTemplates,
   validateAdminIntegration,
+  validateGoogleDocsTemplate,
   validateGoogleSheetsExport,
   validateWhatsAppConfiguration,
   runGoogleSheetsExport,
@@ -94,6 +101,12 @@ import type {
   GoogleSheetsExportExecution,
   GoogleSheetsExportMode,
   GoogleSheetsExportValidation,
+  GoogleDocsDocumentType,
+  GoogleDocsSharingPolicy,
+  GoogleDocsTemplate,
+  GoogleDocsTemplateVariable,
+  GoogleDocsTemplateValidation,
+  GoogleDocsTemplateWrite,
   GoogleWorkspaceServiceKey,
   GoogleWorkspaceStatus,
   GoogleMeetMeeting,
@@ -208,6 +221,8 @@ export function AdminIntegrationsPage() {
   const [selectedSheetsExportId, setSelectedSheetsExportId] = useState<number | null>(null);
   const [googleSheetsValidation, setGoogleSheetsValidation] = useState<GoogleSheetsExportValidation | null>(null);
   const [googleSheetsExecution, setGoogleSheetsExecution] = useState<GoogleSheetsExportExecution | null>(null);
+  const [selectedDocsTemplateId, setSelectedDocsTemplateId] = useState<number | null>(null);
+  const [googleDocsValidation, setGoogleDocsValidation] = useState<GoogleDocsTemplateValidation | null>(null);
   const [whatsappValidationResult, setWhatsappValidationResult] = useState<WhatsAppValidationResult | null>(null);
 
   const integrationsQuery = useQuery({
@@ -256,6 +271,20 @@ export function AdminIntegrationsPage() {
     queryFn: () => fetchGoogleSheetsExportExecutions(selectedIntegration?.id ?? 0, selectedSheetsExport?.id ?? 0),
     enabled: selectedIntegration?.provider === "google_meet" && Boolean(selectedSheetsExport?.id),
   });
+  const googleDocsTemplatesQuery = useQuery({
+    queryKey: ["admin-google-docs-templates", selectedIntegration?.id],
+    queryFn: () => fetchGoogleDocsTemplates(selectedIntegration?.id ?? 0),
+    enabled: selectedIntegration?.provider === "google_meet",
+  });
+  const googleDocsVariablesQuery = useQuery({
+    queryKey: ["admin-google-docs-variables", selectedIntegration?.id],
+    queryFn: () => fetchGoogleDocsVariables(selectedIntegration?.id ?? 0),
+    enabled: selectedIntegration?.provider === "google_meet",
+  });
+  const selectedDocsTemplate = useMemo(
+    () => googleDocsTemplatesQuery.data?.find((item) => item.id === selectedDocsTemplateId) ?? googleDocsTemplatesQuery.data?.[0] ?? null,
+    [googleDocsTemplatesQuery.data, selectedDocsTemplateId],
+  );
   const whatsappEnabled = selectedIntegration?.provider === "whatsapp_cloud";
   const whatsappStatusQuery = useQuery({
     queryKey: ["admin-whatsapp-status", selectedIntegration?.id],
@@ -324,6 +353,8 @@ export function AdminIntegrationsPage() {
       void queryClient.invalidateQueries({ queryKey: ["admin-google-workspace", selectedIntegration.id] });
       void queryClient.invalidateQueries({ queryKey: ["admin-google-sheets-exports", selectedIntegration.id] });
       void queryClient.invalidateQueries({ queryKey: ["admin-google-sheets-export-executions", selectedIntegration.id] });
+      void queryClient.invalidateQueries({ queryKey: ["admin-google-docs-templates", selectedIntegration.id] });
+      void queryClient.invalidateQueries({ queryKey: ["admin-google-docs-variables", selectedIntegration.id] });
       void queryClient.invalidateQueries({ queryKey: ["admin-whatsapp-status", selectedIntegration.id] });
       void queryClient.invalidateQueries({ queryKey: ["admin-whatsapp-webhook-status", selectedIntegration.id] });
       void queryClient.invalidateQueries({ queryKey: ["admin-whatsapp-webhook-events", selectedIntegration.id] });
@@ -448,6 +479,35 @@ export function AdminIntegrationsPage() {
       setGoogleSheetsExecution(result);
       refreshIntegrations();
     },
+  });
+  const createGoogleDocsTemplateMutation = useMutation({
+    mutationFn: ({ id, payload }: { id: number; payload: GoogleDocsTemplateWrite }) => createGoogleDocsTemplate(id, payload),
+    onSuccess: (item) => {
+      setSelectedDocsTemplateId(item.id);
+      refreshIntegrations();
+    },
+  });
+  const updateGoogleDocsTemplateMutation = useMutation({
+    mutationFn: ({ id, templateId, payload }: { id: number; templateId: number; payload: Partial<GoogleDocsTemplateWrite> }) => updateGoogleDocsTemplate(id, templateId, payload),
+    onSuccess: (item) => {
+      setSelectedDocsTemplateId(item.id);
+      refreshIntegrations();
+    },
+  });
+  const validateGoogleDocsTemplateMutation = useMutation({
+    mutationFn: ({ id, templateId }: { id: number; templateId: number }) => validateGoogleDocsTemplate(id, templateId),
+    onSuccess: (result) => {
+      setGoogleDocsValidation(result);
+      refreshIntegrations();
+    },
+  });
+  const enableGoogleDocsTemplateMutation = useMutation({
+    mutationFn: ({ id, templateId }: { id: number; templateId: number }) => enableGoogleDocsTemplate(id, templateId),
+    onSuccess: () => refreshIntegrations(),
+  });
+  const disableGoogleDocsTemplateMutation = useMutation({
+    mutationFn: ({ id, templateId }: { id: number; templateId: number }) => disableGoogleDocsTemplate(id, templateId),
+    onSuccess: () => refreshIntegrations(),
   });
   const createGoogleMeetingMutation = useMutation({
     mutationFn: ({ id, payload }: { id: number; payload: GoogleMeetMeetingCreatePayload }) => createGoogleMeetMeeting(id, payload),
@@ -821,24 +881,39 @@ export function AdminIntegrationsPage() {
                     validateGoogleSheetsExportMutation.isPending ||
                     runGoogleSheetsExportMutation.isPending ||
                     retryGoogleSheetsExportMutation.isPending
+                    || createGoogleDocsTemplateMutation.isPending
+                    || updateGoogleDocsTemplateMutation.isPending
+                    || validateGoogleDocsTemplateMutation.isPending
+                    || enableGoogleDocsTemplateMutation.isPending
+                    || disableGoogleDocsTemplateMutation.isPending
                   }
+                  docsTemplates={googleDocsTemplatesQuery.data ?? []}
+                  docsVariables={googleDocsVariablesQuery.data ?? []}
                   exports={googleSheetsExportsQuery.data ?? []}
                   executions={googleSheetsExecutionsQuery.data ?? []}
                   loading={googleWorkspaceQuery.isLoading}
                   onAuthorize={(services) => googleWorkspaceOAuthMutation.mutate({ id: selectedIntegration.id, services })}
                   onCreateExport={(payload) => createGoogleSheetsExportMutation.mutate({ id: selectedIntegration.id, payload })}
+                  onCreateTemplate={(payload) => createGoogleDocsTemplateMutation.mutate({ id: selectedIntegration.id, payload })}
                   onDisableService={(service) => googleWorkspaceDisableMutation.mutate({ id: selectedIntegration.id, service })}
+                  onDisableTemplate={(templateId) => disableGoogleDocsTemplateMutation.mutate({ id: selectedIntegration.id, templateId })}
                   onEnableService={(service) => googleWorkspaceEnableMutation.mutate({ id: selectedIntegration.id, service })}
+                  onEnableTemplate={(templateId) => enableGoogleDocsTemplateMutation.mutate({ id: selectedIntegration.id, templateId })}
                   onHealthAll={() => googleWorkspaceHealthMutation.mutate(selectedIntegration.id)}
                   onHealthService={(service) => googleWorkspaceServiceHealthMutation.mutate({ id: selectedIntegration.id, service })}
                   onRetryExport={(executionId) => selectedSheetsExport && retryGoogleSheetsExportMutation.mutate({ id: selectedIntegration.id, configId: selectedSheetsExport.id, executionId })}
                   onRunExport={(configId, payload) => runGoogleSheetsExportMutation.mutate({ id: selectedIntegration.id, configId, payload })}
                   onSelectExport={setSelectedSheetsExportId}
+                  onSelectTemplate={setSelectedDocsTemplateId}
+                  onUpdateTemplate={(templateId, payload) => updateGoogleDocsTemplateMutation.mutate({ id: selectedIntegration.id, templateId, payload })}
                   onUpdateExport={(configId, payload) => updateGoogleSheetsExportMutation.mutate({ id: selectedIntegration.id, configId, payload })}
+                  onValidateTemplate={(templateId) => validateGoogleDocsTemplateMutation.mutate({ id: selectedIntegration.id, templateId })}
                   onValidateExport={(configId) => validateGoogleSheetsExportMutation.mutate({ id: selectedIntegration.id, configId })}
                   selectedExport={selectedSheetsExport}
+                  selectedTemplate={selectedDocsTemplate}
                   status={googleWorkspaceQuery.data}
                   validation={googleSheetsValidation}
+                  docsValidation={googleDocsValidation}
                   lastExecution={googleSheetsExecution}
                 />
               ) : null}
@@ -1257,6 +1332,10 @@ function GoogleWorkspacePanel({
   executions,
   validation,
   lastExecution,
+  docsTemplates,
+  selectedTemplate,
+  docsVariables,
+  docsValidation,
   loading,
   busy,
   onAuthorize,
@@ -1266,6 +1345,12 @@ function GoogleWorkspacePanel({
   onRunExport,
   onRetryExport,
   onSelectExport,
+  onCreateTemplate,
+  onUpdateTemplate,
+  onValidateTemplate,
+  onEnableTemplate,
+  onDisableTemplate,
+  onSelectTemplate,
   onEnableService,
   onDisableService,
   onHealthService,
@@ -1277,6 +1362,10 @@ function GoogleWorkspacePanel({
   executions: GoogleSheetsExportExecution[];
   validation: GoogleSheetsExportValidation | null;
   lastExecution: GoogleSheetsExportExecution | null;
+  docsTemplates: GoogleDocsTemplate[];
+  selectedTemplate: GoogleDocsTemplate | null;
+  docsVariables: GoogleDocsTemplateVariable[];
+  docsValidation: GoogleDocsTemplateValidation | null;
   loading: boolean;
   busy: boolean;
   onAuthorize: (services: GoogleWorkspaceServiceKey[]) => void;
@@ -1286,6 +1375,12 @@ function GoogleWorkspacePanel({
   onRunExport: (configId: number, payload: { starts_from: string; starts_to: string; include_cancelled?: boolean | null }) => void;
   onRetryExport: (executionId: number) => void;
   onSelectExport: (configId: number | null) => void;
+  onCreateTemplate: (payload: GoogleDocsTemplateWrite) => void;
+  onUpdateTemplate: (templateId: number, payload: Partial<GoogleDocsTemplateWrite>) => void;
+  onValidateTemplate: (templateId: number) => void;
+  onEnableTemplate: (templateId: number) => void;
+  onDisableTemplate: (templateId: number) => void;
+  onSelectTemplate: (templateId: number | null) => void;
   onEnableService: (service: GoogleWorkspaceServiceKey) => void;
   onDisableService: (service: GoogleWorkspaceServiceKey) => void;
   onHealthService: (service: GoogleWorkspaceServiceKey) => void;
@@ -1374,6 +1469,123 @@ function GoogleWorkspacePanel({
         sheetsReady={Boolean(status.services.find((service) => service.service === "sheets" && service.enabled && service.authorized))}
         validation={validation}
       />
+      <GoogleDocsTemplatesPanel
+        busy={busy}
+        docsReady={Boolean(status.services.find((service) => service.service === "docs" && service.enabled && service.authorized)) && Boolean(status.services.find((service) => service.service === "drive" && service.enabled && service.authorized))}
+        onCreate={onCreateTemplate}
+        onDisable={onDisableTemplate}
+        onEnable={onEnableTemplate}
+        onSelect={onSelectTemplate}
+        onUpdate={onUpdateTemplate}
+        onValidate={onValidateTemplate}
+        selectedTemplate={selectedTemplate}
+        templates={docsTemplates}
+        validation={docsValidation}
+        variables={docsVariables}
+      />
+    </div>
+  );
+}
+
+function GoogleDocsTemplatesPanel({
+  templates,
+  selectedTemplate,
+  variables,
+  validation,
+  docsReady,
+  busy,
+  onCreate,
+  onUpdate,
+  onValidate,
+  onEnable,
+  onDisable,
+  onSelect,
+}: {
+  templates: GoogleDocsTemplate[];
+  selectedTemplate: GoogleDocsTemplate | null;
+  variables: GoogleDocsTemplateVariable[];
+  validation: GoogleDocsTemplateValidation | null;
+  docsReady: boolean;
+  busy: boolean;
+  onCreate: (payload: GoogleDocsTemplateWrite) => void;
+  onUpdate: (templateId: number, payload: Partial<GoogleDocsTemplateWrite>) => void;
+  onValidate: (templateId: number) => void;
+  onEnable: (templateId: number) => void;
+  onDisable: (templateId: number) => void;
+  onSelect: (templateId: number | null) => void;
+}) {
+  const [name, setName] = useState("Plantilla operacional RealMeet");
+  const [description, setDescription] = useState("Documento operativo generado desde una reserva.");
+  const [documentType, setDocumentType] = useState<GoogleDocsDocumentType>("appointment_summary");
+  const [sourceDocumentId, setSourceDocumentId] = useState("");
+  const [destinationFolderId, setDestinationFolderId] = useState("");
+  const [sharingPolicy, setSharingPolicy] = useState<GoogleDocsSharingPolicy>("private");
+  const [allowedVariables, setAllowedVariables] = useState<string[]>(["appointment_id", "appointment_status", "appointment_start", "professional_name", "client_name", "meeting_url", "generated_at"]);
+  const active = selectedTemplate;
+
+  useEffect(() => {
+    if (!active) return;
+    setName(active.name);
+    setDescription(active.description ?? "");
+    setDocumentType(active.document_type);
+    setSourceDocumentId(active.source_document_id);
+    setDestinationFolderId(active.destination_folder_id ?? "");
+    setSharingPolicy(active.sharing_policy);
+    setAllowedVariables(active.allowed_variables);
+  }, [active]);
+
+  const payload: GoogleDocsTemplateWrite = {
+    name: name.trim(),
+    description: description.trim() || null,
+    document_type: documentType,
+    source_document_id: sourceDocumentId.trim(),
+    destination_folder_id: destinationFolderId.trim() || null,
+    enabled: true,
+    allowed_variables: allowedVariables,
+    sharing_policy: sharingPolicy,
+  };
+
+  function toggleVariable(key: string) {
+    setAllowedVariables((current) => (current.includes(key) ? current.filter((item) => item !== key) : [...current, key]));
+  }
+
+  return (
+    <div className="mt-6 rounded-lg border border-slate-200 bg-slate-50 p-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h3 className="text-base font-semibold text-ink-900">Plantillas Google Docs</h3>
+          <p className="mt-1 text-sm leading-6 text-ink-500">Registra plantillas operativas y variables permitidas. No se admiten variables clinicas.</p>
+        </div>
+        <Badge label={docsReady ? "Docs y Drive listos" : "Requiere Docs y Drive"} tone={docsReady ? "success" : "warning"} />
+      </div>
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <Field id="docs-template-name" label="Nombre"><Input id="docs-template-name" value={name} onChange={(event) => setName(event.target.value)} /></Field>
+        <Field id="docs-template-type" label="Tipo"><Select id="docs-template-type" value={documentType} onChange={(event) => setDocumentType(event.target.value as GoogleDocsDocumentType)}><option value="appointment_summary">Resumen de reserva</option><option value="appointment_confirmation">Confirmacion</option><option value="pre_session_instructions">Instrucciones previas</option><option value="post_session_instructions">Instrucciones posteriores</option><option value="administrative_receipt">Comprobante administrativo</option><option value="custom_operational">Operativo personalizado</option></Select></Field>
+        <Field id="docs-source-id" label="Documento fuente ID"><Input id="docs-source-id" value={sourceDocumentId} onChange={(event) => setSourceDocumentId(event.target.value)} placeholder="Google Docs ID" /></Field>
+        <Field id="docs-folder-id" label="Carpeta destino opcional"><Input id="docs-folder-id" value={destinationFolderId} onChange={(event) => setDestinationFolderId(event.target.value)} placeholder="Google Drive folder ID" /></Field>
+        <Field id="docs-sharing-policy" label="Comparticion"><Select id="docs-sharing-policy" value={sharingPolicy} onChange={(event) => setSharingPolicy(event.target.value as GoogleDocsSharingPolicy)}><option value="private">Privado</option><option value="professional_only">Solo profesional</option><option value="professional_and_client">Profesional y cliente</option></Select></Field>
+        <Field id="docs-description" label="Descripcion"><Input id="docs-description" value={description} onChange={(event) => setDescription(event.target.value)} /></Field>
+      </div>
+      <div className="mt-4">
+        <p className="mb-2 text-sm font-semibold text-ink-700">Variables permitidas</p>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {variables.map((variable) => (
+            <label className="flex items-start gap-2 rounded-md border border-slate-200 bg-white p-2 text-sm text-ink-700" key={variable.key}>
+              <input checked={allowedVariables.includes(variable.key)} onChange={() => toggleVariable(variable.key)} type="checkbox" />
+              <span><span className="font-semibold">{variable.placeholder}</span><span className="block text-ink-500">{variable.label}</span></span>
+            </label>
+          ))}
+        </div>
+      </div>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <Button disabled={!docsReady || !payload.name || !payload.source_document_id || allowedVariables.length === 0} isLoading={busy} onClick={() => (active ? onUpdate(active.id, payload) : onCreate(payload))}>{active ? "Guardar plantilla" : "Crear plantilla"}</Button>
+        {active ? <Button isLoading={busy} onClick={() => onValidate(active.id)} variant="secondary">Validar plantilla</Button> : null}
+        {active && active.enabled ? <Button isLoading={busy} onClick={() => onDisable(active.id)} variant="secondary">Deshabilitar</Button> : null}
+        {active && !active.enabled ? <Button isLoading={busy} onClick={() => onEnable(active.id)} variant="secondary">Habilitar</Button> : null}
+      </div>
+      {templates.length > 0 ? <div className="mt-5 grid gap-2">{templates.map((item) => <button className={`rounded-md border p-3 text-left text-sm ${active?.id === item.id ? "border-brand-300 bg-white" : "border-slate-200 bg-white"}`} key={item.id} onClick={() => onSelect(item.id)} type="button"><span className="font-semibold text-ink-900">{item.name}</span><span className="ml-2 text-ink-500">{item.document_type} · {item.enabled ? "habilitada" : "deshabilitada"}</span></button>)}</div> : null}
+      {validation ? <p className="mt-4 rounded-md border border-success-200 bg-success-50 p-3 text-sm text-success-700">Validacion correcta: {validation.document.name ?? "Documento"} · variables: {validation.placeholders.length}</p> : null}
+      <p className="mt-4 text-xs text-ink-500">No se muestran ni almacenan contenidos completos, tokens, notas clinicas, diagnosticos ni historial medico.</p>
     </div>
   );
 }

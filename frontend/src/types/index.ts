@@ -920,6 +920,93 @@ export interface GoogleSheetsExportValidation {
   headers: { status: string };
 }
 
+export type GoogleDocsDocumentType =
+  | "appointment_summary"
+  | "appointment_confirmation"
+  | "pre_session_instructions"
+  | "post_session_instructions"
+  | "administrative_receipt"
+  | "custom_operational";
+export type GoogleDocsSharingPolicy = "private" | "professional_only" | "professional_and_client";
+export type AppointmentGeneratedDocumentStatus = "pending" | "generated" | "partially_generated" | "failed" | "reconcile_required";
+export type AppointmentGeneratedDocumentSharingStatus = "not_requested" | "private" | "shared" | "partially_shared" | "failed";
+
+export interface GoogleDocsTemplateVariable {
+  key: string;
+  placeholder: string;
+  label: string;
+  description: string;
+  source: string;
+  sensitive: boolean;
+  supported_document_types: GoogleDocsDocumentType[];
+}
+
+export interface GoogleDocsTemplate {
+  id: number;
+  integration_id: number;
+  name: string;
+  description?: string | null;
+  document_type: GoogleDocsDocumentType;
+  source_document_id: string;
+  destination_folder_id?: string | null;
+  enabled: boolean;
+  allowed_variables: string[];
+  sharing_policy: GoogleDocsSharingPolicy;
+  last_validated_at?: string | null;
+  last_validation_error_at?: string | null;
+  last_validation_error_code?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GoogleDocsTemplateWrite {
+  name: string;
+  description?: string | null;
+  document_type: GoogleDocsDocumentType;
+  source_document_id: string;
+  destination_folder_id?: string | null;
+  enabled: boolean;
+  allowed_variables: string[];
+  sharing_policy: GoogleDocsSharingPolicy;
+}
+
+export interface GoogleDocsTemplateValidation {
+  valid: boolean;
+  document: { id?: string | null; name?: string | null };
+  folder?: { id?: string | null; name?: string | null } | null;
+  placeholders: string[];
+  unknown_variables: string[];
+}
+
+export interface AppointmentGeneratedDocument {
+  id: number;
+  appointment_id: number;
+  template_id: number;
+  integration_id: number;
+  provider: IntegrationProvider;
+  external_document_id?: string | null;
+  external_file_id?: string | null;
+  document_name: string;
+  status: AppointmentGeneratedDocumentStatus;
+  sharing_status: AppointmentGeneratedDocumentSharingStatus;
+  sharing_policy: GoogleDocsSharingPolicy;
+  generation_request_id: string;
+  generated_by_user_id?: number | null;
+  generated_at?: string | null;
+  last_error_at?: string | null;
+  last_error_code?: string | null;
+  last_error_message?: string | null;
+  created_at: string;
+  updated_at: string;
+  document_url?: string | null;
+}
+
+export interface GenerateAppointmentDocumentPayload {
+  template_id: number;
+  sharing_policy?: GoogleDocsSharingPolicy | null;
+  generation_request_id: string;
+}
+
 export interface GoogleMeetMeeting {
   provider: string;
   external_event_id: string;

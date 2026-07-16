@@ -60,6 +60,19 @@ from app.integrations.google_workspace.sheets_exports import (
     GoogleSheetsExportRunRequest,
     GoogleSheetsExportValidationRead,
 )
+from app.integrations.google_workspace.docs_templates import (
+    AppointmentGeneratedDocumentRead,
+    GenerateDocumentRequest,
+    GoogleDocsTemplateCreate,
+    GoogleDocsTemplateRead,
+    GoogleDocsTemplateService,
+    GoogleDocsTemplateUpdate,
+    GoogleDocsTemplateValidationRead,
+    ReconcileDocumentRead,
+    TemplateVariableRead,
+    read_document,
+    variable_catalog,
+)
 from app.models.audit_log import AuditLog
 from app.models.appointment import Appointment, AppointmentStatus
 from app.models.integration import Integration
@@ -1064,6 +1077,127 @@ def retry_google_sheets_export_execution(
     except IntegrationError as exc:
         raise _integration_http_error(exc) from exc
     return GoogleSheetsExportExecutionRead.model_validate(execution)
+
+
+@router.get("/integrations/{integration_id}/google/workspace/docs/variables", response_model=list[TemplateVariableRead])
+def list_google_docs_variables(
+    integration_id: int,
+    admin_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> list[TemplateVariableRead]:
+    del admin_user
+    GoogleDocsTemplateService(db).list_templates(integration_id)
+    return variable_catalog()
+
+
+@router.get("/integrations/{integration_id}/google/workspace/docs/templates", response_model=list[GoogleDocsTemplateRead])
+def list_google_docs_templates(
+    integration_id: int,
+    admin_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> list[GoogleDocsTemplateRead]:
+    del admin_user
+    return [GoogleDocsTemplateRead.model_validate(item) for item in GoogleDocsTemplateService(db).list_templates(integration_id)]
+
+
+@router.post("/integrations/{integration_id}/google/workspace/docs/templates", response_model=GoogleDocsTemplateRead)
+def create_google_docs_template(
+    integration_id: int,
+    payload: GoogleDocsTemplateCreate,
+    admin_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> GoogleDocsTemplateRead:
+    del admin_user
+    try:
+        item = GoogleDocsTemplateService(db).create_template(integration_id, payload)
+    except IntegrationError as exc:
+        raise _integration_http_error(exc) from exc
+    return GoogleDocsTemplateRead.model_validate(item)
+
+
+@router.get("/integrations/{integration_id}/google/workspace/docs/templates/{template_id}", response_model=GoogleDocsTemplateRead)
+def get_google_docs_template(integration_id: int, template_id: int, db: Session = Depends(get_db)) -> GoogleDocsTemplateRead:
+    return GoogleDocsTemplateRead.model_validate(GoogleDocsTemplateService(db).get_template(integration_id, template_id))
+
+
+@router.patch("/integrations/{integration_id}/google/workspace/docs/templates/{template_id}", response_model=GoogleDocsTemplateRead)
+def update_google_docs_template(
+    integration_id: int,
+    template_id: int,
+    payload: GoogleDocsTemplateUpdate,
+    admin_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> GoogleDocsTemplateRead:
+    del admin_user
+    try:
+        item = GoogleDocsTemplateService(db).update_template(integration_id, template_id, payload)
+    except IntegrationError as exc:
+        raise _integration_http_error(exc) from exc
+    return GoogleDocsTemplateRead.model_validate(item)
+
+
+@router.post("/integrations/{integration_id}/google/workspace/docs/templates/{template_id}/enable", response_model=GoogleDocsTemplateRead)
+def enable_google_docs_template(integration_id: int, template_id: int, admin_user: User = Depends(require_admin), db: Session = Depends(get_db)) -> GoogleDocsTemplateRead:
+    del admin_user
+    return GoogleDocsTemplateRead.model_validate(GoogleDocsTemplateService(db).set_enabled(integration_id, template_id, True))
+
+
+@router.post("/integrations/{integration_id}/google/workspace/docs/templates/{template_id}/disable", response_model=GoogleDocsTemplateRead)
+def disable_google_docs_template(integration_id: int, template_id: int, admin_user: User = Depends(require_admin), db: Session = Depends(get_db)) -> GoogleDocsTemplateRead:
+    del admin_user
+    return GoogleDocsTemplateRead.model_validate(GoogleDocsTemplateService(db).set_enabled(integration_id, template_id, False))
+
+
+@router.post("/integrations/{integration_id}/google/workspace/docs/templates/{template_id}/validate", response_model=GoogleDocsTemplateValidationRead)
+def validate_google_docs_template(integration_id: int, template_id: int, admin_user: User = Depends(require_admin), db: Session = Depends(get_db)) -> GoogleDocsTemplateValidationRead:
+    del admin_user
+    try:
+        return GoogleDocsTemplateService(db).validate_template(integration_id, template_id)
+    except IntegrationError as exc:
+        raise _integration_http_error(exc) from exc
+
+
+@router.get("/appointments/{appointment_id}/documents", response_model=list[AppointmentGeneratedDocumentRead])
+def list_appointment_documents(appointment_id: int, admin_user: User = Depends(require_admin), db: Session = Depends(get_db)) -> list[AppointmentGeneratedDocumentRead]:
+    del admin_user
+    return [read_document(item) for item in GoogleDocsTemplateService(db).list_documents(appointment_id)]
+
+
+@router.post("/appointments/{appointment_id}/documents/generate", response_model=AppointmentGeneratedDocumentRead)
+def generate_appointment_document(
+    appointment_id: int,
+    payload: GenerateDocumentRequest,
+    admin_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> AppointmentGeneratedDocumentRead:
+    try:
+        return read_document(GoogleDocsTemplateService(db).generate(appointment_id, payload, admin_user))
+    except IntegrationError as exc:
+        raise _integration_http_error(exc) from exc
+
+
+@router.get("/appointments/{appointment_id}/documents/{document_id}", response_model=AppointmentGeneratedDocumentRead)
+def get_appointment_document(appointment_id: int, document_id: int, admin_user: User = Depends(require_admin), db: Session = Depends(get_db)) -> AppointmentGeneratedDocumentRead:
+    del admin_user
+    return read_document(GoogleDocsTemplateService(db).get_document(appointment_id, document_id))
+
+
+@router.post("/appointments/{appointment_id}/documents/{document_id}/retry", response_model=AppointmentGeneratedDocumentRead)
+def retry_appointment_document(appointment_id: int, document_id: int, admin_user: User = Depends(require_admin), db: Session = Depends(get_db)) -> AppointmentGeneratedDocumentRead:
+    del admin_user
+    try:
+        return read_document(GoogleDocsTemplateService(db).retry(appointment_id, document_id))
+    except IntegrationError as exc:
+        raise _integration_http_error(exc) from exc
+
+
+@router.post("/appointments/{appointment_id}/documents/{document_id}/reconcile", response_model=ReconcileDocumentRead)
+def reconcile_appointment_document(appointment_id: int, document_id: int, admin_user: User = Depends(require_admin), db: Session = Depends(get_db)) -> ReconcileDocumentRead:
+    del admin_user
+    try:
+        return GoogleDocsTemplateService(db).reconcile(appointment_id, document_id)
+    except IntegrationError as exc:
+        raise _integration_http_error(exc) from exc
 
 
 @router.post("/integrations/{integration_id}/meetings", response_model=GoogleMeetMeetingRead)

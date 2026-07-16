@@ -7,14 +7,20 @@ import {
   disableAdminExternalCalendar,
   enableAdminExternalCalendar,
   fetchAdminAppointments,
+  fetchAdminIntegrations,
+  fetchAppointmentDocuments,
+  fetchGoogleDocsTemplates,
   fetchAdminAvailableGoogleCalendars,
   fetchAdminCalendarSyncSettings,
   fetchAdminExternalCalendars,
   fetchAdminProfessionals,
   fetchAdminUsers,
   reconcileAdminAppointmentMeeting,
+  reconcileAppointmentDocument,
+  generateAppointmentDocument,
   retryAdminAppointmentMeetingCancel,
   retryAdminAppointmentMeetingCreate,
+  retryAppointmentDocument,
   testAdminExternalCalendar,
   updateAdminCalendarSyncSettings,
   updateAdminProfessional,
@@ -24,7 +30,7 @@ import { AdminAppointmentCard } from "../components/admin/AdminAppointmentCard";
 import { AdminPagination } from "../components/admin/AdminPagination";
 import { AdminStatusPill } from "../components/admin/AdminStatusPill";
 import { Badge, Button, EmptyState, ErrorState, Input, Label, LoadingState, PageHeader, SectionCard, Select, StatusBadge } from "../components/ui";
-import type { Appointment, AppointmentStatus, ExternalCalendar, ExternalConflictFailurePolicy, UserRole } from "../types";
+import type { Appointment, AppointmentGeneratedDocument, AppointmentStatus, ExternalCalendar, ExternalConflictFailurePolicy, GoogleDocsSharingPolicy, UserRole } from "../types";
 import { formatDateTime } from "../utils/dates";
 import { getAppointmentStatusLabel, getConsultationModeLabel, getRoleLabel } from "../utils/labels";
 
@@ -40,6 +46,9 @@ export function AdminManagementPage() {
   const [professionalsPage, setProfessionalsPage] = useState(1);
   const [appointmentsPage, setAppointmentsPage] = useState(1);
   const [selectedProfessionalId, setSelectedProfessionalId] = useState<number | null>(null);
+  const [selectedDocumentAppointmentId, setSelectedDocumentAppointmentId] = useState<number | null>(null);
+  const [documentTemplateId, setDocumentTemplateId] = useState("");
+  const [documentSharingPolicy, setDocumentSharingPolicy] = useState<GoogleDocsSharingPolicy>("private");
   const [adminConflictForm, setAdminConflictForm] = useState({ starts_at: "", ends_at: "" });
 
   const baseParams = useMemo(() => ({ search: search.trim() || undefined, page_size: PAGE_SIZE }), [search]);
@@ -71,6 +80,21 @@ export function AdminManagementPage() {
         page: appointmentsPage,
         page_size: PAGE_SIZE,
       }),
+  });
+  const googleIntegrationsQuery = useQuery({
+    queryKey: ["admin-google-integrations-for-docs"],
+    queryFn: () => fetchAdminIntegrations({ provider: "google_meet", page_size: 10 }),
+  });
+  const googleIntegrationId = googleIntegrationsQuery.data?.items[0]?.id ?? null;
+  const googleDocsTemplatesQuery = useQuery({
+    queryKey: ["admin-google-docs-templates-for-appointments", googleIntegrationId],
+    queryFn: () => fetchGoogleDocsTemplates(googleIntegrationId ?? 0),
+    enabled: Boolean(googleIntegrationId),
+  });
+  const appointmentDocumentsQuery = useQuery({
+    queryKey: ["admin-appointment-documents", selectedDocumentAppointmentId],
+    queryFn: () => fetchAppointmentDocuments(selectedDocumentAppointmentId ?? 0),
+    enabled: Boolean(selectedDocumentAppointmentId),
   });
   const effectiveProfessionalId = selectedProfessionalId ?? professionalsQuery.data?.items[0]?.id ?? null;
   const externalCalendarsQuery = useQuery({
@@ -105,6 +129,22 @@ export function AdminManagementPage() {
       return reconcileAdminAppointmentMeeting(id);
     },
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["admin-appointments"] }),
+  });
+  const refreshAppointmentDocuments = () => {
+    void queryClient.invalidateQueries({ queryKey: ["admin-appointment-documents"] });
+  };
+  const generateDocumentMutation = useMutation({
+    mutationFn: ({ appointmentId, templateId, sharingPolicy }: { appointmentId: number; templateId: number; sharingPolicy: GoogleDocsSharingPolicy }) =>
+      generateAppointmentDocument(appointmentId, { template_id: templateId, sharing_policy: sharingPolicy, generation_request_id: `manual:${appointmentId}:${templateId}:${Date.now()}` }),
+    onSuccess: refreshAppointmentDocuments,
+  });
+  const retryDocumentMutation = useMutation({
+    mutationFn: ({ appointmentId, documentId }: { appointmentId: number; documentId: number }) => retryAppointmentDocument(appointmentId, documentId),
+    onSuccess: refreshAppointmentDocuments,
+  });
+  const reconcileDocumentMutation = useMutation({
+    mutationFn: ({ appointmentId, documentId }: { appointmentId: number; documentId: number }) => reconcileAppointmentDocument(appointmentId, documentId),
+    onSuccess: refreshAppointmentDocuments,
   });
   const refreshAdminCalendars = () => {
     void queryClient.invalidateQueries({ queryKey: ["admin-external-calendars"] });
@@ -529,6 +569,7 @@ export function AdminManagementPage() {
                   <td className="px-4 py-4 text-ink-500">Profesional registrado</td>
                   <td className="px-4 py-4">
                     <MeetingAdminActions appointment={appointment} isLoading={meetingOperationMutation.isPending && meetingOperationMutation.variables?.id === appointment.id} onRun={(operation) => meetingOperationMutation.mutate({ id: appointment.id, operation })} />
+                    <div className="mt-2 text-right"><Button onClick={() => setSelectedDocumentAppointmentId(appointment.id)} size="sm" variant="secondary">Documentos</Button></div>
                   </td>
                 </tr>
               ))}
@@ -541,10 +582,26 @@ export function AdminManagementPage() {
             <div className="space-y-2" key={appointment.id}>
               <AdminAppointmentCard appointment={appointment} />
               <MeetingAdminActions appointment={appointment} isLoading={meetingOperationMutation.isPending && meetingOperationMutation.variables?.id === appointment.id} onRun={(operation) => meetingOperationMutation.mutate({ id: appointment.id, operation })} />
+              <Button onClick={() => setSelectedDocumentAppointmentId(appointment.id)} size="sm" variant="secondary">Documentos</Button>
             </div>
           ))}
         </div>
         <AdminPagination meta={appointmentsQuery.data?.meta} onPageChange={setAppointmentsPage} />
+        {selectedDocumentAppointmentId ? (
+          <AppointmentDocumentsPanel
+            appointmentId={selectedDocumentAppointmentId}
+            busy={generateDocumentMutation.isPending || retryDocumentMutation.isPending || reconcileDocumentMutation.isPending}
+            documents={appointmentDocumentsQuery.data ?? []}
+            onGenerate={() => documentTemplateId && generateDocumentMutation.mutate({ appointmentId: selectedDocumentAppointmentId, templateId: Number(documentTemplateId), sharingPolicy: documentSharingPolicy })}
+            onReconcile={(documentId) => reconcileDocumentMutation.mutate({ appointmentId: selectedDocumentAppointmentId, documentId })}
+            onRetry={(documentId) => retryDocumentMutation.mutate({ appointmentId: selectedDocumentAppointmentId, documentId })}
+            onSelectTemplate={setDocumentTemplateId}
+            onSharingPolicyChange={setDocumentSharingPolicy}
+            selectedTemplateId={documentTemplateId}
+            sharingPolicy={documentSharingPolicy}
+            templates={googleDocsTemplatesQuery.data ?? []}
+          />
+        ) : null}
       </SectionCard>
     </div>
   );
@@ -567,6 +624,82 @@ function AdminExternalCalendarCard({ calendar, busy, onDisable, onEnable, onTest
         <Button isLoading={busy} onClick={onTest} size="sm" variant="secondary">Probar fake</Button>
       </div>
     </article>
+  );
+}
+
+function AppointmentDocumentsPanel({
+  appointmentId,
+  templates,
+  documents,
+  selectedTemplateId,
+  sharingPolicy,
+  busy,
+  onSelectTemplate,
+  onSharingPolicyChange,
+  onGenerate,
+  onRetry,
+  onReconcile,
+}: {
+  appointmentId: number;
+  templates: Array<{ id: number; name: string; enabled: boolean; document_type: string }>;
+  documents: AppointmentGeneratedDocument[];
+  selectedTemplateId: string;
+  sharingPolicy: GoogleDocsSharingPolicy;
+  busy: boolean;
+  onSelectTemplate: (value: string) => void;
+  onSharingPolicyChange: (value: GoogleDocsSharingPolicy) => void;
+  onGenerate: () => void;
+  onRetry: (documentId: number) => void;
+  onReconcile: (documentId: number) => void;
+}) {
+  return (
+    <div className="mt-5 rounded-lg border border-slate-200 bg-white p-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h3 className="font-semibold text-ink-900">Documentos Google Docs</h3>
+          <p className="mt-1 text-sm text-ink-500">Reserva #{appointmentId}. Generacion manual desde plantillas operativas.</p>
+        </div>
+        <Badge label={`${documents.length} documento(s)`} tone="info" />
+      </div>
+      <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_220px_auto] sm:items-end">
+        <div>
+          <Label htmlFor="appointment-doc-template">Plantilla</Label>
+          <Select id="appointment-doc-template" value={selectedTemplateId} onChange={(event) => onSelectTemplate(event.target.value)}>
+            <option value="">Seleccionar</option>
+            {templates.filter((template) => template.enabled).map((template) => <option key={template.id} value={template.id}>{template.name} · {template.document_type}</option>)}
+          </Select>
+        </div>
+        <div>
+          <Label htmlFor="appointment-doc-sharing">Comparticion</Label>
+          <Select id="appointment-doc-sharing" value={sharingPolicy} onChange={(event) => onSharingPolicyChange(event.target.value as GoogleDocsSharingPolicy)}>
+            <option value="private">Privado</option>
+            <option value="professional_only">Solo profesional</option>
+            <option value="professional_and_client">Profesional y cliente</option>
+          </Select>
+        </div>
+        <Button disabled={!selectedTemplateId} isLoading={busy} onClick={onGenerate}>Generar</Button>
+      </div>
+      <div className="mt-4 grid gap-3">
+        {documents.length === 0 ? <EmptyState title="Sin documentos generados" /> : null}
+        {documents.map((document) => (
+          <article className="rounded-md border border-slate-200 bg-slate-50 p-3" key={document.id}>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="font-semibold text-ink-900">{document.document_name}</p>
+                <p className="text-sm text-ink-500">{document.status} · {document.sharing_status} · {formatDateTime(document.created_at)}</p>
+                {document.last_error_message ? <p className="mt-1 text-sm text-danger-700">{document.last_error_message}</p> : null}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {document.document_url ? <Button onClick={() => window.open(document.document_url ?? "", "_blank", "noopener,noreferrer")} size="sm" variant="secondary">Abrir</Button> : null}
+                {["failed", "partially_generated", "reconcile_required"].includes(document.status) ? <Button isLoading={busy} onClick={() => onRetry(document.id)} size="sm" variant="secondary">Reintentar</Button> : null}
+                <Button isLoading={busy} onClick={() => onReconcile(document.id)} size="sm" variant="secondary">Reconciliar</Button>
+              </div>
+            </div>
+          </article>
+        ))}
+      </div>
+      <p className="mt-3 text-xs text-ink-500">No se muestra contenido del documento ni se gestionan permisos publicos o writer.</p>
+    </div>
   );
 }
 

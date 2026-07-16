@@ -45,6 +45,12 @@ import type {
   GoogleSheetsExportExecution,
   GoogleSheetsExportRunPayload,
   GoogleSheetsExportValidation,
+  GoogleDocsTemplate,
+  GoogleDocsTemplateVariable,
+  GoogleDocsTemplateWrite,
+  GoogleDocsTemplateValidation,
+  AppointmentGeneratedDocument,
+  GenerateAppointmentDocumentPayload,
   GoogleMeetMeeting,
   GoogleMeetMeetingCancelPayload,
   GoogleMeetMeetingCreatePayload,
@@ -742,6 +748,61 @@ export async function fetchGoogleSheetsExportExecutions(integrationId: number, c
 
 export async function retryGoogleSheetsExportExecution(integrationId: number, configId: number, executionId: number): Promise<GoogleSheetsExportExecution> {
   const { data } = await api.post(`/admin/integrations/${integrationId}/google/workspace/sheets/exports/${configId}/executions/${executionId}/retry`);
+  return data;
+}
+
+export async function fetchGoogleDocsVariables(integrationId: number): Promise<GoogleDocsTemplateVariable[]> {
+  const { data } = await api.get(`/admin/integrations/${integrationId}/google/workspace/docs/variables`);
+  return data;
+}
+
+export async function fetchGoogleDocsTemplates(integrationId: number): Promise<GoogleDocsTemplate[]> {
+  const { data } = await api.get(`/admin/integrations/${integrationId}/google/workspace/docs/templates`);
+  return data;
+}
+
+export async function createGoogleDocsTemplate(integrationId: number, payload: GoogleDocsTemplateWrite): Promise<GoogleDocsTemplate> {
+  const { data } = await api.post(`/admin/integrations/${integrationId}/google/workspace/docs/templates`, payload);
+  return data;
+}
+
+export async function updateGoogleDocsTemplate(integrationId: number, templateId: number, payload: Partial<GoogleDocsTemplateWrite>): Promise<GoogleDocsTemplate> {
+  const { data } = await api.patch(`/admin/integrations/${integrationId}/google/workspace/docs/templates/${templateId}`, payload);
+  return data;
+}
+
+export async function enableGoogleDocsTemplate(integrationId: number, templateId: number): Promise<GoogleDocsTemplate> {
+  const { data } = await api.post(`/admin/integrations/${integrationId}/google/workspace/docs/templates/${templateId}/enable`);
+  return data;
+}
+
+export async function disableGoogleDocsTemplate(integrationId: number, templateId: number): Promise<GoogleDocsTemplate> {
+  const { data } = await api.post(`/admin/integrations/${integrationId}/google/workspace/docs/templates/${templateId}/disable`);
+  return data;
+}
+
+export async function validateGoogleDocsTemplate(integrationId: number, templateId: number): Promise<GoogleDocsTemplateValidation> {
+  const { data } = await api.post(`/admin/integrations/${integrationId}/google/workspace/docs/templates/${templateId}/validate`);
+  return data;
+}
+
+export async function fetchAppointmentDocuments(appointmentId: number): Promise<AppointmentGeneratedDocument[]> {
+  const { data } = await api.get(`/admin/appointments/${appointmentId}/documents`);
+  return data;
+}
+
+export async function generateAppointmentDocument(appointmentId: number, payload: GenerateAppointmentDocumentPayload): Promise<AppointmentGeneratedDocument> {
+  const { data } = await api.post(`/admin/appointments/${appointmentId}/documents/generate`, payload);
+  return data;
+}
+
+export async function retryAppointmentDocument(appointmentId: number, documentId: number): Promise<AppointmentGeneratedDocument> {
+  const { data } = await api.post(`/admin/appointments/${appointmentId}/documents/${documentId}/retry`);
+  return data;
+}
+
+export async function reconcileAppointmentDocument(appointmentId: number, documentId: number): Promise<{ result: string; document: AppointmentGeneratedDocument }> {
+  const { data } = await api.post(`/admin/appointments/${appointmentId}/documents/${documentId}/reconcile`);
   return data;
 }
 
