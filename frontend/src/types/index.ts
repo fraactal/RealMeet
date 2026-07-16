@@ -795,6 +795,68 @@ export interface GoogleOAuthDisconnectResult {
   message: string;
 }
 
+export type GoogleWorkspaceServiceKey = "calendar" | "meet" | "sheets" | "drive" | "docs";
+export type GoogleWorkspaceHealthStatus =
+  | "healthy"
+  | "authorized_not_resource_tested"
+  | "authorization_required"
+  | "disabled"
+  | "unavailable"
+  | "error";
+
+export interface GoogleWorkspaceSettingsUpdate {
+  calendar_enabled?: boolean;
+  meet_enabled?: boolean;
+  sheets_enabled?: boolean;
+  drive_enabled?: boolean;
+  docs_enabled?: boolean;
+}
+
+export interface GoogleWorkspaceOAuthStartPayload {
+  services: GoogleWorkspaceServiceKey[];
+}
+
+export interface GoogleWorkspaceOAuthStartResult {
+  authorization_url: string;
+  state_expires_at: string;
+  services: GoogleWorkspaceServiceKey[];
+  scopes: string[];
+}
+
+export interface GoogleWorkspaceServiceDefinition {
+  key: GoogleWorkspaceServiceKey;
+  name: string;
+  description: string;
+  required_scopes: string[];
+  optional_scopes: string[];
+  implemented: boolean;
+  health_check_supported: boolean;
+}
+
+export interface GoogleWorkspaceAccount {
+  email?: string | null;
+  name?: string | null;
+  granted_scopes: string[];
+  token_expires_at?: string | null;
+  connection_status: string;
+}
+
+export interface GoogleWorkspaceServiceStatus {
+  service: GoogleWorkspaceServiceKey;
+  enabled: boolean;
+  authorized: boolean;
+  status: GoogleWorkspaceHealthStatus;
+  checked_at?: string | null;
+  last_error_code?: string | null;
+}
+
+export interface GoogleWorkspaceStatus {
+  integration_id: number;
+  account: GoogleWorkspaceAccount;
+  catalog: GoogleWorkspaceServiceDefinition[];
+  services: GoogleWorkspaceServiceStatus[];
+}
+
 export interface GoogleMeetMeeting {
   provider: string;
   external_event_id: string;

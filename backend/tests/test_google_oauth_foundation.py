@@ -30,8 +30,18 @@ class FakeGoogleOAuthClient:
         self.refresh_calls = 0
         self.revoke_calls = 0
 
-    def build_authorization_url(self, *, state: str, settings) -> str:
-        return f"https://accounts.google.test/oauth?state={state}&redirect_uri={settings.google_oauth_redirect_uri}"
+    def build_authorization_url(
+        self,
+        *,
+        state: str,
+        settings,
+        scopes: list[str] | None = None,
+        incremental: bool = False,
+        prompt_consent: bool = True,
+    ) -> str:
+        del incremental, prompt_consent
+        scope = " ".join(scopes or settings.google_oauth_scopes)
+        return f"https://accounts.google.test/oauth?state={state}&redirect_uri={settings.google_oauth_redirect_uri}&scope={scope}"
 
     def exchange_code(self, *, code: str, settings) -> GoogleTokenResponse:
         self.exchange_calls += 1

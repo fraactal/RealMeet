@@ -42,7 +42,7 @@ class GoogleAccountInfo:
 
 
 class GoogleOAuthClient(Protocol):
-    def build_authorization_url(self, *, state: str, settings: Settings) -> str:
+    def build_authorization_url(self, *, state: str, settings: Settings, scopes: list[str] | None = None, incremental: bool = False, prompt_consent: bool = True) -> str:
         ...
 
     def exchange_code(self, *, code: str, settings: Settings) -> GoogleTokenResponse:
@@ -64,19 +64,21 @@ class GoogleOAuthHTTPClient:
     revoke_endpoint = "https://oauth2.googleapis.com/revoke"
     token_info_endpoint = "https://oauth2.googleapis.com/tokeninfo"
 
-    def build_authorization_url(self, *, state: str, settings: Settings) -> str:
+    def build_authorization_url(self, *, state: str, settings: Settings, scopes: list[str] | None = None, incremental: bool = False, prompt_consent: bool = True) -> str:
         _ensure_oauth_settings(settings)
-        query = urlencode(
-            {
-                "client_id": settings.google_oauth_client_id,
-                "redirect_uri": settings.google_oauth_redirect_uri,
-                "response_type": "code",
-                "scope": " ".join(settings.google_oauth_scopes),
-                "access_type": "offline",
-                "prompt": "consent",
-                "state": state,
-            }
-        )
+        params = {
+            "client_id": settings.google_oauth_client_id,
+            "redirect_uri": settings.google_oauth_redirect_uri,
+            "response_type": "code",
+            "scope": " ".join(scopes or settings.google_oauth_scopes),
+            "access_type": "offline",
+            "state": state,
+        }
+        if incremental:
+            params["include_granted_scopes"] = "true"
+        if prompt_consent:
+            params["prompt"] = "consent"
+        query = urlencode(params)
         return f"{self.authorization_endpoint}?{query}"
 
     def exchange_code(self, *, code: str, settings: Settings) -> GoogleTokenResponse:
@@ -148,6 +150,23 @@ class GoogleOAuthService:
         self.db.commit()
         return url, expires_at
 
+    def incremental_authorization_url(self, integration_id: int, admin_user: User, *, services: list[str], scopes: list[str]) -> tuple[str, datetime]:
+        integration = self._get_google_integration(integration_id)
+        _ensure_oauth_settings(self.settings)
+        credential = self._active_credential(integration.id)
+        all_scopes = list(dict.fromkeys([*(credential.scopes if credential else []), *scopes]))
+        state, expires_at = self._create_state(integration, admin_user, requested_services=services)
+        url = self.oauth_client.build_authorization_url(
+            state=state,
+            settings=self.settings,
+            scopes=all_scopes,
+            incremental=True,
+            prompt_consent=credential is None or not credential.encrypted_refresh_token,
+        )
+        self._audit(admin_user, "google_workspace_oauth_authorization_started", integration, {"result": "started", "services": services})
+        self.db.commit()
+        return url, expires_at
+
     def callback(self, *, code: str, state: str) -> IntegrationCredential:
         state_row = self._consume_state(state)
         integration = self._get_google_integration(state_row.integration_id)
@@ -156,6 +175,9 @@ class GoogleOAuthService:
             token_response = self.oauth_client.exchange_code(code=code, settings=self.settings)
             account = self.oauth_client.fetch_account_info(access_token=token_response.access_token)
             credential = self._upsert_credential(integration, token_response, account)
+            from app.integrations.google_workspace.service import GoogleWorkspaceService
+
+            GoogleWorkspaceService(self.db, oauth_service=self).update_authorization_from_scopes(integration.id, credential.scopes or [])
             integration.status = IntegrationStatus.configured
             integration.last_error_message = None
             if admin_user:
@@ -262,7 +284,7 @@ class GoogleOAuthService:
         self._audit(admin_user, "google_oauth_disconnected", integration, {"result": "disconnected"})
         self.db.commit()
 
-    def _create_state(self, integration: Integration, admin_user: User) -> tuple[str, datetime]:
+    def _create_state(self, integration: Integration, admin_user: User, requested_services: list[str] | None = None) -> tuple[str, datetime]:
         nonce = secrets.token_urlsafe(32)
         expires_at = self._now() + timedelta(seconds=self.settings.google_oauth_state_ttl_seconds)
         payload = {
@@ -270,6 +292,7 @@ class GoogleOAuthService:
             "admin_user_id": admin_user.id,
             "provider": IntegrationProvider.google_meet.value,
             "nonce": nonce,
+            "services": requested_services or [],
             "exp": int(expires_at.timestamp()),
         }
         token = jwt.encode(payload, self.settings.secret_key, algorithm="HS256")
@@ -279,6 +302,7 @@ class GoogleOAuthService:
                 admin_user_id=admin_user.id,
                 provider=IntegrationProvider.google_meet,
                 nonce_hash=_hash_nonce(nonce),
+                requested_services=requested_services or [],
                 expires_at=expires_at,
             )
         )

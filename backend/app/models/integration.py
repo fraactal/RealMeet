@@ -90,11 +90,40 @@ class IntegrationOAuthState(Base):
     admin_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
     provider: Mapped[IntegrationProvider] = mapped_column(Enum(IntegrationProvider, name="integration_provider"), nullable=False)
     nonce_hash: Mapped[str] = mapped_column(String(128), nullable=False, unique=True)
+    requested_services: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     integration: Mapped[Integration] = relationship("Integration", back_populates="oauth_states")
+
+
+class GoogleWorkspaceSettings(Base, TimestampMixin):
+    __tablename__ = "google_workspace_settings"
+    __table_args__ = (UniqueConstraint("integration_id", name="uq_google_workspace_settings_integration"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    integration_id: Mapped[int] = mapped_column(ForeignKey("integrations.id", ondelete="CASCADE"), nullable=False)
+    calendar_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    meet_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    sheets_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    drive_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    docs_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    calendar_authorized: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    meet_authorized: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    sheets_authorized: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    drive_authorized: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    docs_authorized: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    last_calendar_check_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_meet_check_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_sheets_check_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_drive_check_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_docs_check_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_error_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_error_service: Mapped[str | None] = mapped_column(String(40))
+    last_error_code: Mapped[str | None] = mapped_column(String(120))
+
+    integration: Mapped[Integration] = relationship("Integration")
 
 
 class ExternalMeeting(Base, TimestampMixin):

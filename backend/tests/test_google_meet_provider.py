@@ -24,7 +24,16 @@ from app.services.integrations import IntegrationService
 
 
 class FakeOAuthClient:
-    def build_authorization_url(self, *, state: str, settings) -> str:
+    def build_authorization_url(
+        self,
+        *,
+        state: str,
+        settings,
+        scopes: list[str] | None = None,
+        incremental: bool = False,
+        prompt_consent: bool = True,
+    ) -> str:
+        del settings, scopes, incremental, prompt_consent
         return f"https://accounts.google.test/oauth?state={state}"
 
     def exchange_code(self, *, code: str, settings) -> GoogleTokenResponse:

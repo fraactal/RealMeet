@@ -35,6 +35,11 @@ import type {
   GoogleOAuthAuthorizationUrl,
   GoogleOAuthDisconnectResult,
   GoogleOAuthStatus,
+  GoogleWorkspaceOAuthStartPayload,
+  GoogleWorkspaceOAuthStartResult,
+  GoogleWorkspaceServiceKey,
+  GoogleWorkspaceSettingsUpdate,
+  GoogleWorkspaceStatus,
   GoogleMeetMeeting,
   GoogleMeetMeetingCancelPayload,
   GoogleMeetMeetingCreatePayload,
@@ -662,6 +667,41 @@ export async function refreshGoogleOAuth(integrationId: number): Promise<GoogleO
 
 export async function disconnectGoogleOAuth(integrationId: number): Promise<GoogleOAuthDisconnectResult> {
   const { data } = await api.post(`/admin/integrations/${integrationId}/oauth/disconnect`);
+  return data;
+}
+
+export async function fetchGoogleWorkspaceStatus(integrationId: number): Promise<GoogleWorkspaceStatus> {
+  const { data } = await api.get(`/admin/integrations/${integrationId}/google/workspace`);
+  return data;
+}
+
+export async function updateGoogleWorkspaceSettings(integrationId: number, payload: GoogleWorkspaceSettingsUpdate): Promise<GoogleWorkspaceStatus> {
+  const { data } = await api.patch(`/admin/integrations/${integrationId}/google/workspace`, payload);
+  return data;
+}
+
+export async function startGoogleWorkspaceOAuth(integrationId: number, payload: GoogleWorkspaceOAuthStartPayload): Promise<GoogleWorkspaceOAuthStartResult> {
+  const { data } = await api.post(`/admin/integrations/${integrationId}/google/workspace/oauth/start`, payload);
+  return data;
+}
+
+export async function healthCheckGoogleWorkspace(integrationId: number): Promise<GoogleWorkspaceStatus> {
+  const { data } = await api.post(`/admin/integrations/${integrationId}/google/workspace/health`);
+  return data;
+}
+
+export async function enableGoogleWorkspaceService(integrationId: number, service: GoogleWorkspaceServiceKey): Promise<GoogleWorkspaceStatus> {
+  const { data } = await api.post(`/admin/integrations/${integrationId}/google/workspace/services/${service}/enable`);
+  return data;
+}
+
+export async function disableGoogleWorkspaceService(integrationId: number, service: GoogleWorkspaceServiceKey): Promise<GoogleWorkspaceStatus> {
+  const { data } = await api.post(`/admin/integrations/${integrationId}/google/workspace/services/${service}/disable`);
+  return data;
+}
+
+export async function healthCheckGoogleWorkspaceService(integrationId: number, service: GoogleWorkspaceServiceKey): Promise<GoogleWorkspaceStatus> {
+  const { data } = await api.post(`/admin/integrations/${integrationId}/google/workspace/services/${service}/health`);
   return data;
 }
 

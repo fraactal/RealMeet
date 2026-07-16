@@ -15,7 +15,9 @@ import {
   disableN8nWorkflow,
   disableWebhookSubscription,
   disconnectGoogleOAuth,
+  disableGoogleWorkspaceService,
   enableAdminIntegration,
+  enableGoogleWorkspaceService,
   enableN8nWorkflow,
   enableWebhookSubscription,
   fetchAutomationExample,
@@ -26,6 +28,7 @@ import {
   fetchWebhookDeliveries,
   fetchWebhookSubscriptions,
   fetchGoogleOAuthStatus,
+  fetchGoogleWorkspaceStatus,
   fetchWhatsAppConsents,
   fetchWhatsAppNotificationPolicy,
   fetchWhatsAppStatus,
@@ -35,6 +38,8 @@ import {
   fetchWhatsAppMessages,
   fetchAppointmentNotifications,
   healthCheckAdminIntegration,
+  healthCheckGoogleWorkspace,
+  healthCheckGoogleWorkspaceService,
   healthCheckWhatsApp,
   refreshGoogleOAuth,
   retryWhatsAppMessage,
@@ -42,6 +47,7 @@ import {
   retryWebhookDelivery,
   reconcileAppointmentNotification,
   sendWhatsAppMessage,
+  startGoogleWorkspaceOAuth,
   testAdminIntegration,
   testN8nWorkflow,
   testWebhookSubscription,
@@ -76,6 +82,8 @@ import type {
   N8nWorkflow,
   N8nWorkflowWrite,
   GoogleOAuthStatus,
+  GoogleWorkspaceServiceKey,
+  GoogleWorkspaceStatus,
   GoogleMeetMeeting,
   GoogleMeetMeetingCreatePayload,
   WhatsAppConsentCorrectionPayload,
@@ -214,6 +222,11 @@ export function AdminIntegrationsPage() {
     queryFn: () => fetchGoogleOAuthStatus(selectedIntegration?.id ?? 0),
     enabled: selectedIntegration?.provider === "google_meet",
   });
+  const googleWorkspaceQuery = useQuery({
+    queryKey: ["admin-google-workspace", selectedIntegration?.id],
+    queryFn: () => fetchGoogleWorkspaceStatus(selectedIntegration?.id ?? 0),
+    enabled: selectedIntegration?.provider === "google_meet",
+  });
   const whatsappEnabled = selectedIntegration?.provider === "whatsapp_cloud";
   const whatsappStatusQuery = useQuery({
     queryKey: ["admin-whatsapp-status", selectedIntegration?.id],
@@ -279,6 +292,7 @@ export function AdminIntegrationsPage() {
     if (selectedIntegration?.id) {
       void queryClient.invalidateQueries({ queryKey: ["admin-integration-executions", selectedIntegration.id] });
       void queryClient.invalidateQueries({ queryKey: ["admin-google-oauth-status", selectedIntegration.id] });
+      void queryClient.invalidateQueries({ queryKey: ["admin-google-workspace", selectedIntegration.id] });
       void queryClient.invalidateQueries({ queryKey: ["admin-whatsapp-status", selectedIntegration.id] });
       void queryClient.invalidateQueries({ queryKey: ["admin-whatsapp-webhook-status", selectedIntegration.id] });
       void queryClient.invalidateQueries({ queryKey: ["admin-whatsapp-webhook-events", selectedIntegration.id] });
@@ -345,6 +359,28 @@ export function AdminIntegrationsPage() {
   });
   const googleDisconnectMutation = useMutation({
     mutationFn: (id: number) => disconnectGoogleOAuth(id),
+    onSuccess: () => refreshIntegrations(),
+  });
+  const googleWorkspaceOAuthMutation = useMutation({
+    mutationFn: ({ id, services }: { id: number; services: GoogleWorkspaceServiceKey[] }) => startGoogleWorkspaceOAuth(id, { services }),
+    onSuccess: (result) => {
+      window.location.assign(result.authorization_url);
+    },
+  });
+  const googleWorkspaceHealthMutation = useMutation({
+    mutationFn: (id: number) => healthCheckGoogleWorkspace(id),
+    onSuccess: () => refreshIntegrations(),
+  });
+  const googleWorkspaceServiceHealthMutation = useMutation({
+    mutationFn: ({ id, service }: { id: number; service: GoogleWorkspaceServiceKey }) => healthCheckGoogleWorkspaceService(id, service),
+    onSuccess: () => refreshIntegrations(),
+  });
+  const googleWorkspaceEnableMutation = useMutation({
+    mutationFn: ({ id, service }: { id: number; service: GoogleWorkspaceServiceKey }) => enableGoogleWorkspaceService(id, service),
+    onSuccess: () => refreshIntegrations(),
+  });
+  const googleWorkspaceDisableMutation = useMutation({
+    mutationFn: ({ id, service }: { id: number; service: GoogleWorkspaceServiceKey }) => disableGoogleWorkspaceService(id, service),
     onSuccess: () => refreshIntegrations(),
   });
   const createGoogleMeetingMutation = useMutation({
@@ -704,6 +740,24 @@ export function AdminIntegrationsPage() {
                   meetingBusy={createGoogleMeetingMutation.isPending || cancelGoogleMeetingMutation.isPending}
                   status={googleOAuthStatusQuery.data}
                   statusLoading={googleOAuthStatusQuery.isLoading}
+                />
+              ) : null}
+              {selectedIntegration.provider === "google_meet" ? (
+                <GoogleWorkspacePanel
+                  busy={
+                    googleWorkspaceOAuthMutation.isPending ||
+                    googleWorkspaceHealthMutation.isPending ||
+                    googleWorkspaceServiceHealthMutation.isPending ||
+                    googleWorkspaceEnableMutation.isPending ||
+                    googleWorkspaceDisableMutation.isPending
+                  }
+                  loading={googleWorkspaceQuery.isLoading}
+                  onAuthorize={(services) => googleWorkspaceOAuthMutation.mutate({ id: selectedIntegration.id, services })}
+                  onDisableService={(service) => googleWorkspaceDisableMutation.mutate({ id: selectedIntegration.id, service })}
+                  onEnableService={(service) => googleWorkspaceEnableMutation.mutate({ id: selectedIntegration.id, service })}
+                  onHealthAll={() => googleWorkspaceHealthMutation.mutate(selectedIntegration.id)}
+                  onHealthService={(service) => googleWorkspaceServiceHealthMutation.mutate({ id: selectedIntegration.id, service })}
+                  status={googleWorkspaceQuery.data}
                 />
               ) : null}
               {selectedIntegration.provider === "whatsapp_cloud" ? (
@@ -1114,6 +1168,97 @@ function GoogleOAuthPanel({
   );
 }
 
+function GoogleWorkspacePanel({
+  status,
+  loading,
+  busy,
+  onAuthorize,
+  onEnableService,
+  onDisableService,
+  onHealthService,
+  onHealthAll,
+}: {
+  status?: GoogleWorkspaceStatus;
+  loading: boolean;
+  busy: boolean;
+  onAuthorize: (services: GoogleWorkspaceServiceKey[]) => void;
+  onEnableService: (service: GoogleWorkspaceServiceKey) => void;
+  onDisableService: (service: GoogleWorkspaceServiceKey) => void;
+  onHealthService: (service: GoogleWorkspaceServiceKey) => void;
+  onHealthAll: () => void;
+}) {
+  if (loading) {
+    return <LoadingState label="Cargando permisos Google Workspace" />;
+  }
+  if (!status) {
+    return <ErrorState title="No pudimos cargar Google Workspace" message="Reintenta desde el panel de integraciones." />;
+  }
+  const servicesNeedingAuth = status.services.filter((service) => service.enabled && !service.authorized).map((service) => service.service);
+  return (
+    <div className="mt-4 rounded-lg border border-slate-200 bg-white p-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h3 className="text-base font-semibold text-ink-900">Google Workspace</h3>
+          <p className="mt-1 text-sm leading-6 text-ink-500">
+            Permisos incrementales para Calendar, Meet, Sheets, Drive y Docs. RealMeet reutiliza la misma autorizacion Google y no muestra tokens.
+          </p>
+        </div>
+        <Badge label={status.account.email ? "Cuenta conectada" : "Sin cuenta"} tone={status.account.email ? "success" : "warning"} />
+      </div>
+      <div className="mt-4 grid gap-3 text-sm text-ink-600 sm:grid-cols-2">
+        <InfoItem label="Cuenta" value={status.account.email ?? "Sin cuenta Google conectada"} />
+        <InfoItem label="Scopes concedidos" value={status.account.granted_scopes.length ? `${status.account.granted_scopes.length} permisos` : "Sin permisos"} />
+      </div>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <Button disabled={servicesNeedingAuth.length === 0} isLoading={busy} onClick={() => onAuthorize(servicesNeedingAuth)}>
+          Autorizar permisos pendientes
+        </Button>
+        <Button isLoading={busy} onClick={onHealthAll} variant="secondary">Health check Workspace</Button>
+      </div>
+      <p className="mt-3 rounded-md border border-warning-200 bg-warning-50 p-3 text-sm text-warning-800">
+        Activar un servicio solo prepara su uso dentro de RealMeet. Sheets, Drive y Docs quedan como base tecnica; la generacion de documentos o exportaciones se implementara despues.
+      </p>
+      <div className="mt-5 grid gap-3 lg:grid-cols-2">
+        {status.services.map((service) => {
+          const definition = status.catalog.find((item) => item.key === service.service);
+          const canHealth = service.enabled && service.authorized && definition?.health_check_supported;
+          return (
+            <article className="rounded-lg border border-slate-200 bg-slate-50 p-4" key={service.service}>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <h4 className="font-semibold text-ink-900">{definition?.name ?? getGoogleWorkspaceServiceLabel(service.service)}</h4>
+                  <p className="mt-1 text-sm leading-6 text-ink-500">{definition?.description ?? "Servicio Google Workspace."}</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Badge label={getGoogleWorkspaceStatusLabel(service.status)} tone={getGoogleWorkspaceStatusTone(service.status)} />
+                  <Badge label={service.enabled ? "Habilitado" : "Deshabilitado"} tone={service.enabled ? "success" : "neutral"} />
+                  <Badge label={service.authorized ? "Autorizado" : "Sin permiso"} tone={service.authorized ? "success" : "warning"} />
+                </div>
+              </div>
+              <div className="mt-3 grid gap-2 text-sm text-ink-600 sm:grid-cols-2">
+                <InfoItem label="Ultimo chequeo" value={formatOptionalDate(service.checked_at)} />
+                <InfoItem label="Ultimo error" value={service.last_error_code ? getGoogleWorkspaceErrorLabel(service.last_error_code) : "Sin error"} />
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {service.enabled ? (
+                  <Button isLoading={busy} onClick={() => onDisableService(service.service)} size="sm" variant="secondary">Deshabilitar</Button>
+                ) : (
+                  <Button isLoading={busy} onClick={() => onEnableService(service.service)} size="sm" variant="secondary">Habilitar</Button>
+                )}
+                {!service.authorized ? <Button isLoading={busy} onClick={() => onAuthorize([service.service])} size="sm">Autorizar</Button> : null}
+                <Button disabled={!canHealth} isLoading={busy} onClick={() => onHealthService(service.service)} size="sm" title={canHealth ? undefined : "Requiere servicio habilitado y autorizado"} variant="secondary">
+                  Health check
+                </Button>
+              </div>
+              <p className="mt-3 text-xs text-ink-500">Scopes: {definition?.required_scopes.join(", ") ?? "Sin scopes declarados"}</p>
+            </article>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 const WEBHOOK_EVENTS: WebhookEventType[] = [
   "appointment.created",
   "appointment.cancelled",
@@ -1507,6 +1652,48 @@ function getGoogleOAuthStatusLabel(status: GoogleOAuthStatus["status"]): string 
     error: "Con error",
   };
   return labels[status];
+}
+
+function getGoogleWorkspaceServiceLabel(service: GoogleWorkspaceServiceKey): string {
+  const labels: Record<GoogleWorkspaceServiceKey, string> = {
+    calendar: "Google Calendar",
+    meet: "Google Meet",
+    sheets: "Google Sheets",
+    drive: "Google Drive",
+    docs: "Google Docs",
+  };
+  return labels[service];
+}
+
+function getGoogleWorkspaceStatusLabel(status: GoogleWorkspaceStatus["services"][number]["status"]): string {
+  const labels: Record<GoogleWorkspaceStatus["services"][number]["status"], string> = {
+    healthy: "Saludable",
+    authorized_not_resource_tested: "Autorizado sin recurso probado",
+    authorization_required: "Requiere autorizacion",
+    disabled: "Deshabilitado",
+    unavailable: "No disponible",
+    error: "Con error",
+  };
+  return labels[status];
+}
+
+function getGoogleWorkspaceStatusTone(status: GoogleWorkspaceStatus["services"][number]["status"]): "success" | "danger" | "info" | "neutral" | "warning" {
+  if (status === "healthy" || status === "authorized_not_resource_tested") return "success";
+  if (status === "authorization_required") return "warning";
+  if (status === "disabled") return "neutral";
+  if (status === "unavailable" || status === "error") return "danger";
+  return "info";
+}
+
+function getGoogleWorkspaceErrorLabel(code: string): string {
+  const labels: Record<string, string> = {
+    authorization_required: "Falta autorizar permisos",
+    google_workspace_unavailable: "Google Workspace no disponible",
+    google_drive_unavailable: "Google Drive no disponible",
+    google_oauth_not_connected: "Cuenta Google no conectada",
+    google_refresh_token_missing: "Falta refresh token",
+  };
+  return labels[code] ?? "Error controlado";
 }
 
 function IntegrationFormModal({ form, isSaving, onChange, onClose, onSave }: { form: FormState; isSaving: boolean; onChange: (form: FormState) => void; onClose: () => void; onSave: () => void }) {

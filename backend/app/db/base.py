@@ -4,7 +4,7 @@ from app.models.availability import AvailabilityBlock, AvailabilityRule
 from app.models.category import Category
 from app.models.client_profile import ClientProfile
 from app.models.external_calendar import CalendarSyncSettings, ExternalCalendar
-from app.models.integration import ExternalMeeting, Integration, IntegrationCredential, IntegrationExecution, IntegrationOAuthState
+from app.models.integration import ExternalMeeting, GoogleWorkspaceSettings, Integration, IntegrationCredential, IntegrationExecution, IntegrationOAuthState
 from app.models.n8n import N8nWorkflow
 from app.models.professional_profile import ProfessionalProfile, ProfessionalSpecialty
 from app.models.specialty import Specialty
@@ -28,6 +28,7 @@ __all__ = [
     "CalendarSyncSettings",
     "Integration",
     "ExternalMeeting",
+    "GoogleWorkspaceSettings",
     "IntegrationCredential",
     "IntegrationExecution",
     "IntegrationOAuthState",

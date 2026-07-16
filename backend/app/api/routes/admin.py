@@ -43,6 +43,14 @@ from app.integrations.exceptions import (
     IntegrationProviderUnsupportedError,
 )
 from app.integrations.google_oauth import GoogleOAuthService
+from app.integrations.google_workspace.enums import GoogleWorkspaceServiceKey
+from app.integrations.google_workspace.schemas import (
+    GoogleWorkspaceOAuthStartRead,
+    GoogleWorkspaceOAuthStartRequest,
+    GoogleWorkspaceSettingsUpdate,
+    GoogleWorkspaceStatusRead,
+)
+from app.integrations.google_workspace.service import GoogleWorkspaceService
 from app.models.audit_log import AuditLog
 from app.models.appointment import Appointment, AppointmentStatus
 from app.models.integration import Integration
@@ -845,6 +853,89 @@ def disconnect_google_oauth(
     except IntegrationError as exc:
         raise _integration_http_error(exc) from exc
     return GoogleOAuthDisconnectRead(success=True, status="revoked", message="Cuenta Google desconectada.")
+
+
+@router.get("/integrations/{integration_id}/google/workspace", response_model=GoogleWorkspaceStatusRead)
+def google_workspace_status(
+    integration_id: int,
+    admin_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> GoogleWorkspaceStatusRead:
+    del admin_user
+    return GoogleWorkspaceService(db).status(integration_id)
+
+
+@router.patch("/integrations/{integration_id}/google/workspace", response_model=GoogleWorkspaceStatusRead)
+def update_google_workspace_settings(
+    integration_id: int,
+    payload: GoogleWorkspaceSettingsUpdate,
+    admin_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> GoogleWorkspaceStatusRead:
+    del admin_user
+    return GoogleWorkspaceService(db).update(integration_id, payload)
+
+
+@router.post("/integrations/{integration_id}/google/workspace/oauth/start", response_model=GoogleWorkspaceOAuthStartRead)
+def start_google_workspace_oauth(
+    integration_id: int,
+    payload: GoogleWorkspaceOAuthStartRequest,
+    admin_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> GoogleWorkspaceOAuthStartRead:
+    try:
+        authorization_url, expires_at, scopes = GoogleWorkspaceService(db).start_oauth(integration_id, admin_user, payload.services)
+    except IntegrationError as exc:
+        raise _integration_http_error(exc) from exc
+    return GoogleWorkspaceOAuthStartRead(
+        authorization_url=authorization_url,
+        state_expires_at=expires_at,
+        services=payload.services,
+        scopes=scopes,
+    )
+
+
+@router.post("/integrations/{integration_id}/google/workspace/health", response_model=GoogleWorkspaceStatusRead)
+def google_workspace_health(
+    integration_id: int,
+    admin_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> GoogleWorkspaceStatusRead:
+    del admin_user
+    return GoogleWorkspaceService(db).health(integration_id)
+
+
+@router.post("/integrations/{integration_id}/google/workspace/services/{service}/enable", response_model=GoogleWorkspaceStatusRead)
+def enable_google_workspace_service(
+    integration_id: int,
+    service: GoogleWorkspaceServiceKey,
+    admin_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> GoogleWorkspaceStatusRead:
+    del admin_user
+    return GoogleWorkspaceService(db).set_service_enabled(integration_id, service, True)
+
+
+@router.post("/integrations/{integration_id}/google/workspace/services/{service}/disable", response_model=GoogleWorkspaceStatusRead)
+def disable_google_workspace_service(
+    integration_id: int,
+    service: GoogleWorkspaceServiceKey,
+    admin_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> GoogleWorkspaceStatusRead:
+    del admin_user
+    return GoogleWorkspaceService(db).set_service_enabled(integration_id, service, False)
+
+
+@router.post("/integrations/{integration_id}/google/workspace/services/{service}/health", response_model=GoogleWorkspaceStatusRead)
+def google_workspace_service_health(
+    integration_id: int,
+    service: GoogleWorkspaceServiceKey,
+    admin_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> GoogleWorkspaceStatusRead:
+    del admin_user
+    return GoogleWorkspaceService(db).health(integration_id, service)
 
 
 @router.post("/integrations/{integration_id}/meetings", response_model=GoogleMeetMeetingRead)
