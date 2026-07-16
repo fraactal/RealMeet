@@ -707,10 +707,32 @@ export interface CalendarSyncSettingsUpdate {
 
 export interface ExternalCalendarTestResult {
   health: { healthy: boolean; code: string; message: string };
-  calendars: Array<{ external_calendar_id: string; name: string; description?: string | null; timezone: string; is_primary: boolean }>;
+  calendars: Array<{ external_calendar_id: string; name: string; description?: string | null; timezone: string; is_primary: boolean; read_only: boolean }>;
   busy_periods: Array<{ starts_at: string; ends_at: string; source_calendar_id: string; external_event_id: string; availability: string }>;
   created_event_id?: string | null;
   deleted_event_id?: string | null;
+}
+
+export interface AvailableExternalCalendar {
+  external_calendar_id: string;
+  name: string;
+  description?: string | null;
+  timezone: string;
+  is_primary: boolean;
+  read_only: boolean;
+}
+
+export interface CalendarConflictCheckPayload {
+  starts_at: string;
+  ends_at: string;
+}
+
+export interface CalendarConflictCheckResult {
+  has_conflict: boolean;
+  status: "checked" | "partial" | "unavailable" | "external_check_skipped";
+  candidate: { starts_at: string; ends_at: string };
+  conflicts: Array<{ calendar_id: number; external_calendar_id: string; starts_at: string; ends_at: string; availability: string }>;
+  errors: string[];
 }
 
 export interface AutomationExample {

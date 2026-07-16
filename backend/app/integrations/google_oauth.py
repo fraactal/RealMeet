@@ -219,6 +219,29 @@ class GoogleOAuthService:
         self.db.refresh(credential)
         return credential
 
+    def access_token(self, integration_id: int) -> str:
+        integration = self._get_google_integration(integration_id)
+        credential = self._require_active_credential(integration.id)
+        cipher = TokenCipher(self.settings.google_token_encryption_key)
+        if credential.expires_at and credential.expires_at <= self._now() + timedelta(minutes=2):
+            if not credential.encrypted_refresh_token:
+                raise GoogleOAuthError("La autorizacion Google no tiene refresh token", code="google_refresh_token_missing")
+            refresh_token = cipher.decrypt(credential.encrypted_refresh_token)
+            response = self.oauth_client.refresh_access_token(refresh_token=refresh_token, settings=self.settings)
+            credential.encrypted_access_token = cipher.encrypt(response.access_token)
+            if response.refresh_token:
+                credential.encrypted_refresh_token = cipher.encrypt(response.refresh_token)
+            credential.token_type = response.token_type
+            credential.expires_at = self._now() + timedelta(seconds=response.expires_in)
+            credential.scopes = response.scopes
+            credential.last_refresh_at = self._now()
+            credential.last_error_message = None
+            self.db.commit()
+            return response.access_token
+        if not credential.encrypted_access_token:
+            raise GoogleOAuthError("La integracion Google no esta conectada", code="google_oauth_not_connected")
+        return cipher.decrypt(credential.encrypted_access_token)
+
     def disconnect(self, integration_id: int, admin_user: User) -> None:
         integration = self._get_google_integration(integration_id)
         credential = self._active_credential(integration.id)

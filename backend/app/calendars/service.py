@@ -13,6 +13,7 @@ from app.calendars.registry import ExternalCalendarProviderRegistry
 from app.calendars.schemas import CalendarSyncSettingsUpdate, ExternalCalendarCreate, ExternalCalendarTestRead, ExternalCalendarUpdate
 from app.models.external_calendar import CalendarConflictPolicy, CalendarSyncSettings, ExternalCalendar, ExternalCalendarProvider, ExternalCalendarSyncStatus
 from app.models.integration import Integration
+from app.integrations.enums import IntegrationProvider
 from app.models.professional_profile import ProfessionalProfile
 from app.models.user import User
 
@@ -20,7 +21,7 @@ from app.models.user import User
 class ExternalCalendarService:
     def __init__(self, db: Session, registry: ExternalCalendarProviderRegistry | None = None) -> None:
         self.db = db
-        self.registry = registry or ExternalCalendarProviderRegistry()
+        self.registry = registry or ExternalCalendarProviderRegistry(db)
 
     def get_professional_for_user(self, user: User) -> ProfessionalProfile:
         profile = self.db.scalar(select(ProfessionalProfile).where(ProfessionalProfile.user_id == user.id))
@@ -34,11 +35,16 @@ class ExternalCalendarService:
 
     def create_calendar(self, professional_id: int, payload: ExternalCalendarCreate) -> ExternalCalendar:
         self._require_professional(professional_id)
-        self._validate_provider(payload.provider)
-        self._validate_integration(payload.integration_id)
+        integration_id = payload.integration_id
+        if payload.provider == ExternalCalendarProvider.google_calendar and integration_id is None:
+            integration_id = self._default_google_integration_id()
+        self._validate_provider(payload.provider, integration_id)
+        self._validate_integration(integration_id)
+        if payload.provider == ExternalCalendarProvider.google_calendar:
+            self._validate_google_calendar_exists(integration_id, payload.external_calendar_id)
         item = ExternalCalendar(
             professional_id=professional_id,
-            integration_id=payload.integration_id,
+            integration_id=integration_id,
             provider=payload.provider,
             external_calendar_id=payload.external_calendar_id,
             name=payload.name,
@@ -89,7 +95,7 @@ class ExternalCalendarService:
 
     def test_calendar(self, professional_id: int, calendar_id: int, *, simulate_error: bool = False) -> ExternalCalendarTestRead:
         item = self.get_calendar(professional_id, calendar_id)
-        provider = self.registry.resolve(item.provider, simulate_error=simulate_error)
+        provider = self.registry.resolve(item.provider, integration_id=item.integration_id, simulate_error=simulate_error)
         health = provider.health_check()
         if not health.healthy:
             item.sync_status = ExternalCalendarSyncStatus.error
@@ -164,11 +170,28 @@ class ExternalCalendarService:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Professional not found")
         return profile
 
-    def _validate_provider(self, provider: ExternalCalendarProvider) -> None:
-        self.registry.resolve(provider)
+    def list_available_calendars(self, provider: ExternalCalendarProvider, *, integration_id: int | None = None) -> list[dict]:
+        if provider == ExternalCalendarProvider.google_calendar and integration_id is None:
+            integration_id = self._default_google_integration_id()
+        client = self.registry.resolve(provider, integration_id=integration_id)
+        return [asdict(calendar) for calendar in client.list_calendars()]
+
+    def _validate_provider(self, provider: ExternalCalendarProvider, integration_id: int | None = None) -> None:
+        self.registry.resolve(provider, integration_id=integration_id)
 
     def _validate_integration(self, integration_id: int | None) -> None:
         if integration_id is None:
             return
         if not self.db.get(Integration, integration_id):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Integration not found")
+
+    def _validate_google_calendar_exists(self, integration_id: int | None, external_calendar_id: str) -> None:
+        available = self.list_available_calendars(ExternalCalendarProvider.google_calendar, integration_id=integration_id)
+        if external_calendar_id not in {item["external_calendar_id"] for item in available}:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Google calendar is not available for this integration")
+
+    def _default_google_integration_id(self) -> int:
+        integration = self.db.scalar(select(Integration).where(Integration.provider == IntegrationProvider.google_meet).order_by(Integration.id.asc()))
+        if not integration:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Google Calendar is not connected")
+        return integration.id

@@ -23,6 +23,12 @@ class CalendarEventResult:
 
 
 class GoogleCalendarClient(Protocol):
+    def list_calendars(self, *, access_token: str) -> list[dict]:
+        ...
+
+    def freebusy(self, *, access_token: str, calendar_ids: list[str], time_min: datetime, time_max: datetime, timezone: str) -> dict:
+        ...
+
     def create_event(self, *, access_token: str, calendar_id: str, request: MeetingCreateRequest, request_id: str) -> CalendarEventResult:
         ...
 
@@ -38,6 +44,28 @@ class GoogleCalendarClient(Protocol):
 
 class GoogleCalendarHTTPClient:
     base_url = "https://www.googleapis.com/calendar/v3"
+
+    def list_calendars(self, *, access_token: str) -> list[dict]:
+        response = httpx.get(
+            f"{self.base_url}/users/me/calendarList",
+            headers=_headers(access_token),
+            timeout=10,
+        )
+        return _json_or_raise(response).get("items", [])
+
+    def freebusy(self, *, access_token: str, calendar_ids: list[str], time_min: datetime, time_max: datetime, timezone: str) -> dict:
+        response = httpx.post(
+            f"{self.base_url}/freeBusy",
+            headers=_headers(access_token),
+            json={
+                "timeMin": time_min.isoformat(),
+                "timeMax": time_max.isoformat(),
+                "timeZone": timezone,
+                "items": [{"id": calendar_id} for calendar_id in calendar_ids],
+            },
+            timeout=10,
+        )
+        return _json_or_raise(response)
 
     def create_event(self, *, access_token: str, calendar_id: str, request: MeetingCreateRequest, request_id: str) -> CalendarEventResult:
         response = httpx.post(

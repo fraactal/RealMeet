@@ -118,6 +118,7 @@ class ExternalCalendarInfoRead(BaseModel):
     description: str | None
     timezone: str
     is_primary: bool
+    read_only: bool = False
 
 
 class BusyPeriodRead(BaseModel):
@@ -134,3 +135,24 @@ class ExternalCalendarTestRead(BaseModel):
     busy_periods: list[BusyPeriodRead] = Field(default_factory=list)
     created_event_id: str | None = None
     deleted_event_id: str | None = None
+
+
+class CalendarConflictCheckRequest(StrictBaseModel):
+    starts_at: datetime
+    ends_at: datetime
+
+
+class CalendarConflictItemRead(BaseModel):
+    calendar_id: int
+    external_calendar_id: str
+    starts_at: datetime
+    ends_at: datetime
+    availability: str
+
+
+class CalendarConflictCheckRead(BaseModel):
+    has_conflict: bool
+    status: str
+    candidate: dict[str, datetime]
+    conflicts: list[CalendarConflictItemRead] = Field(default_factory=list)
+    errors: list[str] = Field(default_factory=list)

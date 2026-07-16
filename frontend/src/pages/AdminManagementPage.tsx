@@ -2,10 +2,12 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
+  checkAdminExternalCalendarConflicts,
   createAdminExternalCalendar,
   disableAdminExternalCalendar,
   enableAdminExternalCalendar,
   fetchAdminAppointments,
+  fetchAdminAvailableGoogleCalendars,
   fetchAdminCalendarSyncSettings,
   fetchAdminExternalCalendars,
   fetchAdminProfessionals,
@@ -37,6 +39,7 @@ export function AdminManagementPage() {
   const [professionalsPage, setProfessionalsPage] = useState(1);
   const [appointmentsPage, setAppointmentsPage] = useState(1);
   const [selectedProfessionalId, setSelectedProfessionalId] = useState<number | null>(null);
+  const [adminConflictForm, setAdminConflictForm] = useState({ starts_at: "", ends_at: "" });
 
   const baseParams = useMemo(() => ({ search: search.trim() || undefined, page_size: PAGE_SIZE }), [search]);
   const usersQuery = useQuery({
@@ -79,6 +82,12 @@ export function AdminManagementPage() {
     queryFn: () => fetchAdminCalendarSyncSettings(effectiveProfessionalId ?? 0),
     enabled: Boolean(effectiveProfessionalId),
   });
+  const adminAvailableGoogleQuery = useQuery({
+    queryKey: ["admin-available-google-calendars", effectiveProfessionalId],
+    queryFn: () => fetchAdminAvailableGoogleCalendars(effectiveProfessionalId ?? 0),
+    enabled: false,
+    retry: false,
+  });
   const userMutation = useMutation({
     mutationFn: ({ id, is_active }: { id: number; is_active: boolean }) => updateAdminUser(id, { is_active }),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["admin-users"] }),
@@ -118,6 +127,28 @@ export function AdminManagementPage() {
   const enableAdminCalendarMutation = useMutation({ mutationFn: ({ professionalId, calendarId }: { professionalId: number; calendarId: number }) => enableAdminExternalCalendar(professionalId, calendarId), onSuccess: refreshAdminCalendars });
   const disableAdminCalendarMutation = useMutation({ mutationFn: ({ professionalId, calendarId }: { professionalId: number; calendarId: number }) => disableAdminExternalCalendar(professionalId, calendarId), onSuccess: refreshAdminCalendars });
   const testAdminCalendarMutation = useMutation({ mutationFn: ({ professionalId, calendarId }: { professionalId: number; calendarId: number }) => testAdminExternalCalendar(professionalId, calendarId), onSuccess: refreshAdminCalendars });
+  const registerAdminGoogleCalendarMutation = useMutation({
+    mutationFn: ({ professionalId, calendar }: { professionalId: number; calendar: { external_calendar_id: string; name: string; timezone: string; is_primary: boolean } }) =>
+      createAdminExternalCalendar(professionalId, {
+        provider: "google_calendar",
+        external_calendar_id: calendar.external_calendar_id,
+        name: calendar.name,
+        description: "Calendario Google registrado desde backoffice.",
+        timezone: calendar.timezone,
+        read_enabled: true,
+        write_enabled: false,
+        conflict_check_enabled: true,
+        is_primary: calendar.is_primary,
+      }),
+    onSuccess: refreshAdminCalendars,
+  });
+  const adminConflictMutation = useMutation({
+    mutationFn: (professionalId: number) =>
+      checkAdminExternalCalendarConflicts(professionalId, {
+        starts_at: new Date(adminConflictForm.starts_at).toISOString(),
+        ends_at: new Date(adminConflictForm.ends_at).toISOString(),
+      }),
+  });
 
   const resetFilters = () => {
     setSearch("");
@@ -404,6 +435,40 @@ export function AdminManagementPage() {
           {!externalCalendarsQuery.isLoading && externalCalendarsQuery.data?.length === 0 ? <EmptyState title="Sin calendarios externos" description="Registra un calendario fake para validar el flujo administrativo." /> : null}
         </div>
         {calendarSettingsQuery.data ? <p className="mt-4 text-sm text-ink-600">Politica actual: {calendarSettingsQuery.data.conflict_policy}. Lookahead: {calendarSettingsQuery.data.lookahead_days} dias.</p> : null}
+        <div className="mt-5 rounded-lg border border-slate-200 bg-white p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h3 className="font-semibold text-ink-900">Google disponible</h3>
+              <p className="mt-1 text-sm text-ink-500">Consulta calendarios de la cuenta Google conectada. No se exponen tokens.</p>
+            </div>
+            <Button disabled={!effectiveProfessionalId} isLoading={adminAvailableGoogleQuery.isFetching} onClick={() => void adminAvailableGoogleQuery.refetch()} size="sm" variant="secondary">Buscar Google</Button>
+          </div>
+          {adminAvailableGoogleQuery.isError ? <ErrorState title="Google no conectado" /> : null}
+          <div className="mt-3 grid gap-3 lg:grid-cols-2">
+            {adminAvailableGoogleQuery.data?.map((calendar) => (
+              <article className="rounded-md border border-slate-200 bg-slate-50 p-3" key={calendar.external_calendar_id}>
+                <p className="font-semibold text-ink-900">{calendar.name}</p>
+                <p className="break-all text-sm text-ink-500">{calendar.external_calendar_id}</p>
+                <Button className="mt-3" disabled={!effectiveProfessionalId} isLoading={registerAdminGoogleCalendarMutation.isPending} onClick={() => effectiveProfessionalId && registerAdminGoogleCalendarMutation.mutate({ professionalId: effectiveProfessionalId, calendar })} size="sm" variant="secondary">Registrar</Button>
+              </article>
+            ))}
+          </div>
+        </div>
+        <div className="mt-5 rounded-lg border border-slate-200 bg-white p-4">
+          <h3 className="font-semibold text-ink-900">Probar conflicto externo</h3>
+          <div className="mt-3 grid gap-3 md:grid-cols-[1fr_1fr_auto] md:items-end">
+            <div>
+              <Label htmlFor="admin-conflict-start">Inicio</Label>
+              <Input id="admin-conflict-start" type="datetime-local" value={adminConflictForm.starts_at} onChange={(event) => setAdminConflictForm((current) => ({ ...current, starts_at: event.target.value }))} />
+            </div>
+            <div>
+              <Label htmlFor="admin-conflict-end">Termino</Label>
+              <Input id="admin-conflict-end" type="datetime-local" value={adminConflictForm.ends_at} onChange={(event) => setAdminConflictForm((current) => ({ ...current, ends_at: event.target.value }))} />
+            </div>
+            <Button disabled={!effectiveProfessionalId || !adminConflictForm.starts_at || !adminConflictForm.ends_at} isLoading={adminConflictMutation.isPending} onClick={() => effectiveProfessionalId && adminConflictMutation.mutate(effectiveProfessionalId)} size="sm" variant="secondary">Probar</Button>
+          </div>
+          {adminConflictMutation.data ? <p className="mt-3 text-sm text-ink-700">{adminConflictMutation.data.has_conflict ? "Conflicto detectado" : "Sin conflicto"} · {adminConflictMutation.data.status}</p> : null}
+        </div>
       </SectionCard>
 
       <SectionCard title="Reservas" description="Reservas recientes y filtros por estado real.">

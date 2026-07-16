@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
+  checkExternalCalendarConflicts,
   createExternalCalendar,
   createAvailabilityBlock,
   createAvailabilityRule,
@@ -11,6 +12,7 @@ import {
   enableExternalCalendar,
   fetchAvailabilityBlocks,
   fetchAvailabilityRules,
+  fetchAvailableGoogleCalendars,
   fetchCalendarSyncSettings,
   fetchExternalCalendars,
   testExternalCalendar,
@@ -31,12 +33,14 @@ export function ProfessionalAvailabilityPage() {
   const blocksQuery = useQuery({ queryKey: ["availability-blocks"], queryFn: fetchAvailabilityBlocks });
   const calendarsQuery = useQuery({ queryKey: ["external-calendars"], queryFn: fetchExternalCalendars });
   const syncSettingsQuery = useQuery({ queryKey: ["calendar-sync-settings"], queryFn: fetchCalendarSyncSettings });
+  const availableGoogleQuery = useQuery({ queryKey: ["available-google-calendars"], queryFn: fetchAvailableGoogleCalendars, enabled: false, retry: false });
   const [ruleForm, setRuleForm] = useState({ weekday: "0", start_time: "09:00", end_time: "17:00" });
   const [editingRuleId, setEditingRuleId] = useState<number | null>(null);
   const [blockForm, setBlockForm] = useState({ start_datetime: "", end_datetime: "", reason: "" });
   const [editingBlockId, setEditingBlockId] = useState<number | null>(null);
   const [calendarForm, setCalendarForm] = useState({ external_calendar_id: "fake-primary", name: "Calendario fake principal", timezone: "America/Santiago" });
   const [calendarTestMessage, setCalendarTestMessage] = useState("");
+  const [conflictForm, setConflictForm] = useState({ starts_at: "", ends_at: "" });
 
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: ["availability-rules"] });
@@ -92,6 +96,28 @@ export function ProfessionalAvailabilityPage() {
     },
   });
   const updateSettingsMutation = useMutation({ mutationFn: updateCalendarSyncSettings, onSuccess: refreshCalendars });
+  const conflictMutation = useMutation({
+    mutationFn: () =>
+      checkExternalCalendarConflicts({
+        starts_at: new Date(conflictForm.starts_at).toISOString(),
+        ends_at: new Date(conflictForm.ends_at).toISOString(),
+      }),
+  });
+  const registerGoogleMutation = useMutation({
+    mutationFn: (calendar: { external_calendar_id: string; name: string; timezone: string; is_primary: boolean }) =>
+      createExternalCalendar({
+        provider: "google_calendar",
+        external_calendar_id: calendar.external_calendar_id,
+        name: calendar.name,
+        timezone: calendar.timezone,
+        description: "Calendario Google registrado desde RealMeet.",
+        read_enabled: true,
+        write_enabled: false,
+        conflict_check_enabled: true,
+        is_primary: calendar.is_primary,
+      }),
+    onSuccess: refreshCalendars,
+  });
 
   const saveRule = () => {
     saveRuleMutation.mutate({
@@ -174,6 +200,52 @@ export function ProfessionalAvailabilityPage() {
           {!calendarsQuery.isLoading && calendarsQuery.data?.length === 0 ? <EmptyState title="Sin calendarios externos" description="Registra un calendario fake para validar la fundacion del dominio." /> : null}
         </div>
         {calendarTestMessage ? <p className="mt-4 rounded-md border border-success-200 bg-success-50 p-3 text-sm text-success-700">{calendarTestMessage}</p> : null}
+        <div className="mt-5 rounded-lg border border-slate-200 bg-white p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h3 className="font-semibold text-ink-900">Google Calendar</h3>
+              <p className="mt-1 text-sm text-ink-500">Busca calendarios de la cuenta Google conectada. No se muestran tokens ni detalles privados de eventos.</p>
+            </div>
+            <Button isLoading={availableGoogleQuery.isFetching} onClick={() => void availableGoogleQuery.refetch()} variant="secondary">Buscar calendarios de Google</Button>
+          </div>
+          {availableGoogleQuery.isError ? <ErrorState title="Google no conectado" message={normalizeApiError(availableGoogleQuery.error).message} /> : null}
+          <div className="mt-4 grid gap-3 lg:grid-cols-2">
+            {availableGoogleQuery.data?.map((calendar) => (
+              <article className="rounded-md border border-slate-200 bg-slate-50 p-3" key={calendar.external_calendar_id}>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-semibold text-ink-900">{calendar.name}</p>
+                    <p className="mt-1 break-all text-sm text-ink-500">{calendar.external_calendar_id}</p>
+                    <p className="mt-1 text-sm text-ink-500">{calendar.timezone}</p>
+                  </div>
+                  {calendar.is_primary ? <Badge label="Principal" tone="info" /> : null}
+                </div>
+                <Button className="mt-3" isLoading={registerGoogleMutation.isPending} onClick={() => registerGoogleMutation.mutate(calendar)} size="sm" variant="secondary">Registrar</Button>
+              </article>
+            ))}
+          </div>
+        </div>
+        <div className="mt-5 rounded-lg border border-slate-200 bg-white p-4">
+          <h3 className="font-semibold text-ink-900">Probar conflicto</h3>
+          <div className="mt-3 grid gap-3 md:grid-cols-[1fr_1fr_auto] md:items-end">
+            <div>
+              <Label htmlFor="conflict-start">Inicio</Label>
+              <Input id="conflict-start" type="datetime-local" value={conflictForm.starts_at} onChange={(event) => setConflictForm((current) => ({ ...current, starts_at: event.target.value }))} />
+            </div>
+            <div>
+              <Label htmlFor="conflict-end">Termino</Label>
+              <Input id="conflict-end" type="datetime-local" value={conflictForm.ends_at} onChange={(event) => setConflictForm((current) => ({ ...current, ends_at: event.target.value }))} />
+            </div>
+            <Button disabled={!conflictForm.starts_at || !conflictForm.ends_at} isLoading={conflictMutation.isPending} onClick={() => conflictMutation.mutate()} variant="secondary">Probar rango</Button>
+          </div>
+          {conflictMutation.data ? (
+            <div className="mt-4 rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-ink-700">
+              <p className="font-semibold">{conflictMutation.data.has_conflict ? "Conflicto detectado" : "Sin conflicto detectado"} · {conflictMutation.data.status}</p>
+              {conflictMutation.data.conflicts.map((item) => <p className="mt-1" key={`${item.calendar_id}-${item.starts_at}`}>{item.external_calendar_id}: {formatDateTime(item.starts_at)} - {formatDateTime(item.ends_at)}</p>)}
+              {conflictMutation.data.errors.map((item) => <p className="mt-1 text-warning-700" key={item}>{item}</p>)}
+            </div>
+          ) : null}
+        </div>
         {syncSettingsQuery.data ? (
           <div className="mt-5 grid gap-3 rounded-lg border border-slate-200 bg-white p-4 md:grid-cols-[1fr_1fr_1fr_auto] md:items-end">
             <label className="flex items-center gap-2 text-sm font-semibold text-ink-700">

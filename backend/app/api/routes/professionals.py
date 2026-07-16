@@ -4,14 +4,19 @@ from sqlalchemy.orm import Session
 from app.core.deps import get_current_user, require_professional
 from app.db.session import get_db
 from app.calendars.schemas import (
+    CalendarConflictCheckRead,
+    CalendarConflictCheckRequest,
     CalendarSyncSettingsRead,
     CalendarSyncSettingsUpdate,
     ExternalCalendarCreate,
+    ExternalCalendarInfoRead,
     ExternalCalendarRead,
     ExternalCalendarTestRead,
     ExternalCalendarUpdate,
 )
+from app.calendars.conflicts import CalendarConflictService
 from app.calendars.service import ExternalCalendarService
+from app.models.external_calendar import ExternalCalendarProvider
 from app.models.professional_profile import ConsultationMode
 from app.schemas.professionals import (
     ProfessionalPublicProfileRead,
@@ -122,6 +127,13 @@ def create_my_external_calendar(
     return ExternalCalendarRead.model_validate(service.create_calendar(profile.id, payload))
 
 
+@router.get("/me/external-calendars/providers/google/available", response_model=list[ExternalCalendarInfoRead], dependencies=[Depends(require_professional)])
+def list_my_available_google_calendars(user=Depends(get_current_user), db: Session = Depends(get_db)) -> list[ExternalCalendarInfoRead]:
+    service = ExternalCalendarService(db)
+    service.get_professional_for_user(user)
+    return [ExternalCalendarInfoRead.model_validate(item) for item in service.list_available_calendars(ExternalCalendarProvider.google_calendar)]
+
+
 @router.get("/me/external-calendars/{calendar_id}", response_model=ExternalCalendarRead, dependencies=[Depends(require_professional)])
 def get_my_external_calendar(calendar_id: int, user=Depends(get_current_user), db: Session = Depends(get_db)) -> ExternalCalendarRead:
     service = ExternalCalendarService(db)
@@ -160,6 +172,17 @@ def test_my_external_calendar(calendar_id: int, simulate_error: bool = False, us
     service = ExternalCalendarService(db)
     profile = service.get_professional_for_user(user)
     return service.test_calendar(profile.id, calendar_id, simulate_error=simulate_error)
+
+
+@router.post("/me/external-calendars/conflicts/check", response_model=CalendarConflictCheckRead, dependencies=[Depends(require_professional)])
+def check_my_external_calendar_conflicts(
+    payload: CalendarConflictCheckRequest,
+    user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> CalendarConflictCheckRead:
+    service = ExternalCalendarService(db)
+    profile = service.get_professional_for_user(user)
+    return CalendarConflictService(db, service).check(profile.id, starts_at=payload.starts_at, ends_at=payload.ends_at)
 
 
 @router.get("/me/calendar-sync-settings", response_model=CalendarSyncSettingsRead, dependencies=[Depends(require_professional)])

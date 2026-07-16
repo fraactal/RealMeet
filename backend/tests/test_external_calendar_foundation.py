@@ -203,7 +203,7 @@ def test_unimplemented_provider_returns_controlled_error(api_client: TestClient,
     response = api_client.post("/api/v1/professionals/me/external-calendars", headers=_auth_headers(user), json=payload)
 
     assert response.status_code == 400
-    assert "not implemented" in response.json()["detail"]
+    assert "Google Calendar is not connected" in response.json()["detail"]
 
 
 def test_tokens_or_secrets_do_not_appear_in_responses(api_client: TestClient, db_session) -> None:

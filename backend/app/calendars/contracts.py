@@ -12,6 +12,7 @@ class ExternalCalendarInfo:
     description: str | None
     timezone: str
     is_primary: bool = False
+    read_only: bool = False
 
 
 @dataclass(frozen=True)
@@ -19,7 +20,7 @@ class BusyPeriod:
     starts_at: datetime
     ends_at: datetime
     source_calendar_id: str
-    external_event_id: str
+    external_event_id: str | None
     availability: str
 
 

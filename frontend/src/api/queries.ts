@@ -10,6 +10,9 @@ import type {
   AppointmentNotification,
   AutomationExample,
   AutomationExampleDetail,
+  AvailableExternalCalendar,
+  CalendarConflictCheckPayload,
+  CalendarConflictCheckResult,
   CalendarSyncSettings,
   CalendarSyncSettingsUpdate,
   AppointmentCreate,
@@ -546,6 +549,16 @@ export async function testExternalCalendar(calendarId: number, simulateError = f
   return data;
 }
 
+export async function fetchAvailableGoogleCalendars(): Promise<AvailableExternalCalendar[]> {
+  const { data } = await api.get("/professionals/me/external-calendars/providers/google/available");
+  return data;
+}
+
+export async function checkExternalCalendarConflicts(payload: CalendarConflictCheckPayload): Promise<CalendarConflictCheckResult> {
+  const { data } = await api.post("/professionals/me/external-calendars/conflicts/check", payload);
+  return data;
+}
+
 export async function fetchCalendarSyncSettings(): Promise<CalendarSyncSettings> {
   const { data } = await api.get("/professionals/me/calendar-sync-settings");
   return data;
@@ -578,6 +591,16 @@ export async function disableAdminExternalCalendar(professionalId: number, calen
 
 export async function testAdminExternalCalendar(professionalId: number, calendarId: number): Promise<ExternalCalendarTestResult> {
   const { data } = await api.post(`/admin/professionals/${professionalId}/external-calendars/${calendarId}/test`);
+  return data;
+}
+
+export async function fetchAdminAvailableGoogleCalendars(professionalId: number): Promise<AvailableExternalCalendar[]> {
+  const { data } = await api.get(`/admin/professionals/${professionalId}/external-calendars/providers/google/available`);
+  return data;
+}
+
+export async function checkAdminExternalCalendarConflicts(professionalId: number, payload: CalendarConflictCheckPayload): Promise<CalendarConflictCheckResult> {
+  const { data } = await api.post(`/admin/professionals/${professionalId}/external-calendars/conflicts/check`, payload);
   return data;
 }
 
