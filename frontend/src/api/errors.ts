@@ -23,6 +23,11 @@ export function normalizeApiError(error: unknown): ApiErrorDetails {
       return { kind: "timeout", message: "La API tardó demasiado en responder.", status, debug: error.message };
     }
     if (error.response) {
+      const responseData = error.response.data as { detail?: string | { code?: string; message?: string } } | undefined;
+      const detail = responseData?.detail;
+      if (typeof detail === "object" && typeof detail.message === "string") {
+        return { kind: status === 503 ? "unavailable" : "server", message: detail.message, status, debug: error.message };
+      }
       if (status === 401) {
         return { kind: "invalid_credentials", message: "Credenciales inválidas.", status, debug: error.message };
       }

@@ -27,6 +27,11 @@ class CalendarConflictPolicy(str, enum.Enum):
     disabled = "disabled"
 
 
+class ExternalConflictFailurePolicy(str, enum.Enum):
+    fail_closed = "fail_closed"
+    fail_open = "fail_open"
+
+
 class ExternalCalendar(Base, TimestampMixin):
     __tablename__ = "external_calendars"
     __table_args__ = (
@@ -77,6 +82,11 @@ class CalendarSyncSettings(Base, TimestampMixin):
     conflict_policy: Mapped[CalendarConflictPolicy] = mapped_column(
         Enum(CalendarConflictPolicy, name="calendar_conflict_policy"),
         default=CalendarConflictPolicy.internal_only,
+        nullable=False,
+    )
+    external_conflict_failure_policy: Mapped[ExternalConflictFailurePolicy] = mapped_column(
+        Enum(ExternalConflictFailurePolicy, name="external_conflict_failure_policy"),
+        default=ExternalConflictFailurePolicy.fail_closed,
         nullable=False,
     )
     lookback_days: Mapped[int] = mapped_column(Integer, default=0, nullable=False)

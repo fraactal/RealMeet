@@ -3,7 +3,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.models.external_calendar import CalendarConflictPolicy, ExternalCalendarProvider, ExternalCalendarSyncStatus
+from app.models.external_calendar import CalendarConflictPolicy, ExternalCalendarProvider, ExternalCalendarSyncStatus, ExternalConflictFailurePolicy
 
 
 class StrictBaseModel(BaseModel):
@@ -88,6 +88,7 @@ class ExternalCalendarRead(BaseModel):
 class CalendarSyncSettingsUpdate(StrictBaseModel):
     sync_enabled: bool | None = None
     conflict_policy: CalendarConflictPolicy | None = None
+    external_conflict_failure_policy: ExternalConflictFailurePolicy | None = None
     lookback_days: int | None = Field(default=None, ge=0, le=30)
     lookahead_days: int | None = Field(default=None, ge=1, le=365)
     default_external_calendar_id: int | None = None
@@ -99,6 +100,7 @@ class CalendarSyncSettingsRead(BaseModel):
     professional_id: int
     sync_enabled: bool
     conflict_policy: CalendarConflictPolicy
+    external_conflict_failure_policy: ExternalConflictFailurePolicy
     lookback_days: int
     lookahead_days: int
     default_external_calendar_id: int | None

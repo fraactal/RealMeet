@@ -609,6 +609,11 @@ export async function fetchAdminCalendarSyncSettings(professionalId: number): Pr
   return data;
 }
 
+export async function updateAdminCalendarSyncSettings(professionalId: number, payload: CalendarSyncSettingsUpdate): Promise<CalendarSyncSettings> {
+  const { data } = await api.patch(`/admin/professionals/${professionalId}/calendar-sync-settings`, payload);
+  return data;
+}
+
 export async function fetchGoogleOAuthStatus(integrationId: number): Promise<GoogleOAuthStatus> {
   const { data } = await api.get(`/admin/integrations/${integrationId}/oauth/status`);
   return data;

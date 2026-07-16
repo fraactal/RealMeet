@@ -11,7 +11,14 @@ from sqlalchemy.orm import Session
 from app.calendars.contracts import ExternalCalendarEventInput
 from app.calendars.registry import ExternalCalendarProviderRegistry
 from app.calendars.schemas import CalendarSyncSettingsUpdate, ExternalCalendarCreate, ExternalCalendarTestRead, ExternalCalendarUpdate
-from app.models.external_calendar import CalendarConflictPolicy, CalendarSyncSettings, ExternalCalendar, ExternalCalendarProvider, ExternalCalendarSyncStatus
+from app.models.external_calendar import (
+    CalendarConflictPolicy,
+    CalendarSyncSettings,
+    ExternalCalendar,
+    ExternalCalendarProvider,
+    ExternalCalendarSyncStatus,
+    ExternalConflictFailurePolicy,
+)
 from app.models.integration import Integration
 from app.integrations.enums import IntegrationProvider
 from app.models.professional_profile import ProfessionalProfile
@@ -137,6 +144,7 @@ class ExternalCalendarService:
             professional_id=professional_id,
             sync_enabled=False,
             conflict_policy=CalendarConflictPolicy.internal_only,
+            external_conflict_failure_policy=ExternalConflictFailurePolicy.fail_closed,
             lookback_days=0,
             lookahead_days=90,
         )

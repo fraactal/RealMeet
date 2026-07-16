@@ -16,6 +16,7 @@ from app.notifications.service import AppointmentNotificationService
 from app.automation.service import DomainEventPublisher
 from app.schemas.appointments import AppointmentCreate, AppointmentPrivateNotesUpdate, AppointmentProfessionalStatusUpdate, AppointmentStatusUpdate
 from app.services.availability import AvailabilityService
+from app.services.external_availability import ExternalAvailabilityConflict, ExternalAvailabilityService, ExternalAvailabilityUnavailable
 
 
 ACTIVE_STATUSES = [AppointmentStatus.pending, AppointmentStatus.confirmed]
@@ -56,6 +57,7 @@ class AppointmentService:
         end_datetime = start_datetime + timedelta(minutes=duration_minutes)
         self._ensure_no_active_overlap(professional.id, client_profile.id, start_datetime, end_datetime)
         self._ensure_available_slot(professional, start_datetime, end_datetime)
+        self._ensure_external_available(professional.id, start_datetime, end_datetime)
 
         appointment = Appointment(
             professional_id=professional.id,
@@ -213,9 +215,23 @@ class AppointmentService:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Client already has an active appointment at this time")
 
     def _ensure_available_slot(self, professional: ProfessionalProfile, start_datetime: datetime, end_datetime: datetime) -> None:
-        slots = AvailabilityService(self.db).list_slots(professional, start_datetime, end_datetime)
+        slots = AvailabilityService(self.db).list_slots(professional, start_datetime, end_datetime, include_external=False)
         if not any(slot["start_datetime"] == start_datetime and slot["end_datetime"] == end_datetime for slot in slots):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Selected slot is not available")
+
+    def _ensure_external_available(self, professional_id: int, start_datetime: datetime, end_datetime: datetime) -> None:
+        try:
+            ExternalAvailabilityService(self.db).validate_range(professional_id, start_datetime, end_datetime)
+        except ExternalAvailabilityConflict as exc:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={"code": "external_calendar_conflict", "message": "El horario seleccionado ya no esta disponible."},
+            ) from exc
+        except ExternalAvailabilityUnavailable as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail={"code": "external_calendar_unavailable", "message": "No pudimos verificar la disponibilidad externa. Intenta nuevamente."},
+            ) from exc
 
     @staticmethod
     def _create_meeting_payload(professional: ProfessionalProfile, start_datetime: datetime) -> MeetingPayload | None:

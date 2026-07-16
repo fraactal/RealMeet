@@ -16,6 +16,7 @@ import {
   retryAdminAppointmentMeetingCancel,
   retryAdminAppointmentMeetingCreate,
   testAdminExternalCalendar,
+  updateAdminCalendarSyncSettings,
   updateAdminProfessional,
   updateAdminUser,
 } from "../api/queries";
@@ -23,7 +24,7 @@ import { AdminAppointmentCard } from "../components/admin/AdminAppointmentCard";
 import { AdminPagination } from "../components/admin/AdminPagination";
 import { AdminStatusPill } from "../components/admin/AdminStatusPill";
 import { Badge, Button, EmptyState, ErrorState, Input, Label, LoadingState, PageHeader, SectionCard, Select, StatusBadge } from "../components/ui";
-import type { Appointment, AppointmentStatus, ExternalCalendar, UserRole } from "../types";
+import type { Appointment, AppointmentStatus, ExternalCalendar, ExternalConflictFailurePolicy, UserRole } from "../types";
 import { formatDateTime } from "../utils/dates";
 import { getAppointmentStatusLabel, getConsultationModeLabel, getRoleLabel } from "../utils/labels";
 
@@ -127,6 +128,11 @@ export function AdminManagementPage() {
   const enableAdminCalendarMutation = useMutation({ mutationFn: ({ professionalId, calendarId }: { professionalId: number; calendarId: number }) => enableAdminExternalCalendar(professionalId, calendarId), onSuccess: refreshAdminCalendars });
   const disableAdminCalendarMutation = useMutation({ mutationFn: ({ professionalId, calendarId }: { professionalId: number; calendarId: number }) => disableAdminExternalCalendar(professionalId, calendarId), onSuccess: refreshAdminCalendars });
   const testAdminCalendarMutation = useMutation({ mutationFn: ({ professionalId, calendarId }: { professionalId: number; calendarId: number }) => testAdminExternalCalendar(professionalId, calendarId), onSuccess: refreshAdminCalendars });
+  const updateAdminCalendarSettingsMutation = useMutation({
+    mutationFn: ({ professionalId, policy }: { professionalId: number; policy: ExternalConflictFailurePolicy }) =>
+      updateAdminCalendarSyncSettings(professionalId, { external_conflict_failure_policy: policy }),
+    onSuccess: refreshAdminCalendars,
+  });
   const registerAdminGoogleCalendarMutation = useMutation({
     mutationFn: ({ professionalId, calendar }: { professionalId: number; calendar: { external_calendar_id: string; name: string; timezone: string; is_primary: boolean } }) =>
       createAdminExternalCalendar(professionalId, {
@@ -406,7 +412,7 @@ export function AdminManagementPage() {
         <AdminPagination meta={professionalsQuery.data?.meta} onPageChange={setProfessionalsPage} />
       </SectionCard>
 
-      <SectionCard title="Calendarios externos" description="Administracion acotada de calendarios externos por profesional. Solo el provider fake esta operativo en 15.1.">
+      <SectionCard title="Calendarios externos" description="Administracion acotada de calendarios externos por profesional.">
         <div className="grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
           <div>
             <Label htmlFor="admin-calendar-professional">Profesional</Label>
@@ -418,7 +424,7 @@ export function AdminManagementPage() {
           </div>
           <Button disabled={!effectiveProfessionalId} isLoading={createAdminCalendarMutation.isPending} onClick={() => effectiveProfessionalId && createAdminCalendarMutation.mutate(effectiveProfessionalId)}>Registrar fake</Button>
         </div>
-        <p className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-ink-600">Google Calendar y Microsoft 365 quedan catalogados para proximas etapas; no se conectan todavia al flujo real de disponibilidad.</p>
+        <p className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-ink-600">Los calendarios habilitados para lectura pueden bloquear disponibilidad y reservas cuando la politica del profesional lo permite. No se exponen detalles privados de eventos externos.</p>
         {externalCalendarsQuery.isLoading ? <LoadingState label="Cargando calendarios externos" /> : null}
         {externalCalendarsQuery.isError ? <ErrorState title="No pudimos cargar calendarios externos" /> : null}
         <div className="mt-4 grid gap-3 lg:grid-cols-2">
@@ -434,7 +440,26 @@ export function AdminManagementPage() {
           ))}
           {!externalCalendarsQuery.isLoading && externalCalendarsQuery.data?.length === 0 ? <EmptyState title="Sin calendarios externos" description="Registra un calendario fake para validar el flujo administrativo." /> : null}
         </div>
-        {calendarSettingsQuery.data ? <p className="mt-4 text-sm text-ink-600">Politica actual: {calendarSettingsQuery.data.conflict_policy}. Lookahead: {calendarSettingsQuery.data.lookahead_days} dias.</p> : null}
+        {calendarSettingsQuery.data ? (
+          <div className="mt-4 grid gap-3 rounded-lg border border-slate-200 bg-white p-4 md:grid-cols-[1fr_1fr] md:items-end">
+            <p className="text-sm text-ink-600">Politica actual: {calendarSettingsQuery.data.conflict_policy}. Lookahead: {calendarSettingsQuery.data.lookahead_days} dias.</p>
+            <div>
+              <Label htmlFor="admin-failure-policy">Si Google no responde</Label>
+              <Select
+                id="admin-failure-policy"
+                value={calendarSettingsQuery.data.external_conflict_failure_policy}
+                onChange={(event) =>
+                  effectiveProfessionalId &&
+                  updateAdminCalendarSettingsMutation.mutate({ professionalId: effectiveProfessionalId, policy: event.target.value as ExternalConflictFailurePolicy })
+                }
+              >
+                <option value="fail_closed">Bloquear nuevas reservas por seguridad</option>
+                <option value="fail_open">Continuar usando solo RealMeet</option>
+              </Select>
+              <p className="mt-1 text-xs text-ink-500">Bloquear es mas seguro; continuar reduce interrupciones si el proveedor externo falla.</p>
+            </div>
+          </div>
+        ) : null}
         <div className="mt-5 rounded-lg border border-slate-200 bg-white p-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>

@@ -640,6 +640,7 @@ export interface N8nWorkflowWrite {
 export type ExternalCalendarProvider = "fake" | "google_calendar" | "microsoft_365";
 export type ExternalCalendarSyncStatus = "pending" | "active" | "disabled" | "error";
 export type CalendarConflictPolicy = "internal_only" | "external_busy_blocks" | "disabled";
+export type ExternalConflictFailurePolicy = "fail_closed" | "fail_open";
 
 export interface ExternalCalendar {
   id: number;
@@ -690,6 +691,7 @@ export interface CalendarSyncSettings {
   professional_id: number;
   sync_enabled: boolean;
   conflict_policy: CalendarConflictPolicy;
+  external_conflict_failure_policy: ExternalConflictFailurePolicy;
   lookback_days: number;
   lookahead_days: number;
   default_external_calendar_id?: number | null;
@@ -700,6 +702,7 @@ export interface CalendarSyncSettings {
 export interface CalendarSyncSettingsUpdate {
   sync_enabled?: boolean;
   conflict_policy?: CalendarConflictPolicy;
+  external_conflict_failure_policy?: ExternalConflictFailurePolicy;
   lookback_days?: number;
   lookahead_days?: number;
   default_external_calendar_id?: number | null;

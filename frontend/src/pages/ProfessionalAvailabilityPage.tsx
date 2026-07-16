@@ -22,7 +22,7 @@ import {
 } from "../api/queries";
 import { normalizeApiError } from "../api/errors";
 import { Badge, Button, EmptyState, ErrorState, Input, Label, LoadingState, PageHeader, SectionCard, Select } from "../components/ui";
-import type { AvailabilityBlockWrite, AvailabilityRule, AvailabilityRuleWrite, CalendarConflictPolicy, ExternalCalendar } from "../types";
+import type { AvailabilityBlockWrite, AvailabilityRule, AvailabilityRuleWrite, CalendarConflictPolicy, ExternalCalendar, ExternalConflictFailurePolicy } from "../types";
 import { formatDateTime } from "../utils/dates";
 
 const weekdays = ["Lunes", "Martes", "Miercoles", "Jueves", "Viernes", "Sabado", "Domingo"];
@@ -167,8 +167,8 @@ export function ProfessionalAvailabilityPage() {
         description="Define los horarios semanales y bloqueos que usa RealMeet para mostrar horas disponibles a clientes."
       />
 
-      <SectionCard title="Calendarios externos" description="Fundacion para lectura futura de ocupacion externa. En esta etapa solo el proveedor fake esta operativo.">
-        <p className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-ink-600">Google Calendar y Microsoft 365 estaran disponibles en proximas etapas. Esta configuracion todavia no modifica el motor real de disponibilidad.</p>
+      <SectionCard title="Calendarios externos" description="Configura lectura de ocupacion externa para disponibilidad y reservas.">
+        <p className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-ink-600">Cuando la politica usa bloques ocupados externos, RealMeet excluye horarios con conflictos y vuelve a verificar antes de crear una reserva. No se muestran detalles privados de Google.</p>
         <div className="mt-4 grid gap-3 md:grid-cols-[1fr_1fr_1fr_auto] md:items-end">
           <div>
             <Label htmlFor="external-calendar-id">ID externo fake</Label>
@@ -247,7 +247,7 @@ export function ProfessionalAvailabilityPage() {
           ) : null}
         </div>
         {syncSettingsQuery.data ? (
-          <div className="mt-5 grid gap-3 rounded-lg border border-slate-200 bg-white p-4 md:grid-cols-[1fr_1fr_1fr_auto] md:items-end">
+          <div className="mt-5 grid gap-3 rounded-lg border border-slate-200 bg-white p-4 md:grid-cols-2 xl:grid-cols-[1fr_1fr_1fr_1fr_auto] xl:items-end">
             <label className="flex items-center gap-2 text-sm font-semibold text-ink-700">
               <input
                 checked={syncSettingsQuery.data.sync_enabled}
@@ -267,6 +267,18 @@ export function ProfessionalAvailabilityPage() {
                 <option value="external_busy_blocks">Bloques ocupados externos</option>
                 <option value="disabled">Deshabilitada</option>
               </Select>
+            </div>
+            <div>
+              <Label htmlFor="failure-policy">Comportamiento si Google no responde</Label>
+              <Select
+                id="failure-policy"
+                value={syncSettingsQuery.data.external_conflict_failure_policy}
+                onChange={(event) => updateSettingsMutation.mutate({ external_conflict_failure_policy: event.target.value as ExternalConflictFailurePolicy })}
+              >
+                <option value="fail_closed">Bloquear nuevas reservas por seguridad</option>
+                <option value="fail_open">Continuar usando solo RealMeet</option>
+              </Select>
+              <p className="mt-1 text-xs text-ink-500">Bloquear reduce dobles reservas; continuar evita interrupciones, pero puede permitir conflictos externos.</p>
             </div>
             <div>
               <Label htmlFor="lookahead-days">Dias hacia adelante</Label>

@@ -8,6 +8,7 @@ from app.models.appointment import Appointment, AppointmentStatus
 from app.models.availability import AvailabilityBlock, AvailabilityBlockType, AvailabilityRule
 from app.models.professional_profile import ProfessionalProfile
 from app.schemas.availability import AvailabilityBlockCreate, AvailabilityBlockUpdate, AvailabilityRuleCreate, AvailabilityRuleUpdate
+from app.services.external_availability import ExternalAvailabilityService
 
 
 MAX_AVAILABILITY_RANGE_DAYS = 14
@@ -111,7 +112,7 @@ class AvailabilityService:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Block not found")
         return block
 
-    def list_slots(self, professional: ProfessionalProfile, start: datetime, end: datetime) -> list[dict]:
+    def list_slots(self, professional: ProfessionalProfile, start: datetime, end: datetime, *, include_external: bool = True) -> list[dict]:
         start = self._ensure_aware_utc(start)
         end = self._ensure_aware_utc(end)
         self._ensure_query_range(start, end)
@@ -162,7 +163,10 @@ class AvailabilityService:
                     if slot_start >= now and not blocked and not occupied:
                         slots.append({"start_datetime": slot_start, "end_datetime": generated_end})
                     slot_start = generated_end
-        return sorted(slots, key=lambda slot: slot["start_datetime"])
+        sorted_slots = sorted(slots, key=lambda slot: slot["start_datetime"])
+        if not include_external:
+            return sorted_slots
+        return ExternalAvailabilityService(self.db).filter_slots(professional.id, sorted_slots, start, end)
 
     def get_professional_by_user(self, user_id: int) -> ProfessionalProfile:
         profile = self.db.scalar(select(ProfessionalProfile).where(ProfessionalProfile.user_id == user_id))
