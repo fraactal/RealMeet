@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.routes import admin, appointments, auth, availability, categories, integrations, metrics, professionals, specialties, users
+from app.api.routes import admin, appointments, auth, availability, categories, integrations, metrics, payment_orders, professionals, specialties, users
 
 api_router = APIRouter()
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
@@ -12,4 +12,5 @@ api_router.include_router(availability.router, tags=["availability"])
 api_router.include_router(appointments.router, prefix="/appointments", tags=["appointments"])
 api_router.include_router(integrations.router, prefix="/integrations", tags=["integrations"])
 api_router.include_router(metrics.router, tags=["metrics"])
+api_router.include_router(payment_orders.router, tags=["payment-orders"])
 api_router.include_router(admin.router, prefix="/admin", tags=["admin"])

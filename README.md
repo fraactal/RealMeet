@@ -613,6 +613,41 @@ n8n no administra credenciales, no importa/exporta workflows, no ejecuta llamada
 
 Modulo 14.3 agrega contratos de payload operativos y ejemplos importables para n8n en `docs/n8n/examples/`. El backoffice lista ejemplos para Google Sheets, CRM generico y notificacion interna, y los endpoints admin permiten obtener el JSON catalogado sin exponer rutas internas. RealMeet no se conecta directamente a Google Sheets, CRM o Slack; solo emite eventos firmados hacia workflows configurados fuera de RealMeet.
 
+## Pagos y ordenes de cobro
+
+Modulo 17.1 agrega una fundacion provider-agnostic de pagos:
+
+- `PaymentOrder` como intencion interna de cobro.
+- `PaymentOrderStatusHistory` para historial de transiciones.
+- Estados: `draft`, `pending`, `requires_action`, `approved`, `rejected`, `cancelled`, `expired`, `failed` y `refunded`.
+- Moneda inicial unica: `CLP`; se rechazan montos cero, negativos o fraccionarios.
+- Provider `fake` implementado para pruebas deterministicas.
+- Registry con `fake`, `mercado_pago` y `stripe`; los dos ultimos responden como no implementados en 17.1.
+- Idempotencia en creacion mediante `Idempotency-Key` y fingerprint de payload.
+- Maximo una orden activa o aprobada por reserva.
+- Respuestas publicas de cliente/profesional sin fingerprint, idempotency key, referencias internas ni datos de provider sensibles.
+
+No existe una tabla de servicios independiente en el catalogo actual. Cuando una orden se asocia a una reserva, RealMeet toma snapshot del precio del perfil profesional. Si no hay reserva o precio disponible, el backoffice puede indicar un monto manual en 17.1.
+
+APIs principales:
+
+- `GET/POST /api/v1/admin/payment-orders`
+- `GET /api/v1/admin/payment-orders/{payment_order_id}`
+- `POST /api/v1/admin/payment-orders/{payment_order_id}/submit`
+- `POST /api/v1/admin/payment-orders/{payment_order_id}/cancel`
+- `GET /api/v1/admin/payment-orders/{payment_order_id}/history`
+- `POST /api/v1/admin/payment-orders/{payment_order_id}/fake/approve`
+- `POST /api/v1/admin/payment-orders/{payment_order_id}/fake/reject`
+- `POST /api/v1/admin/payment-orders/{payment_order_id}/fake/expire`
+- `POST /api/v1/admin/payment-orders/{payment_order_id}/fake/fail`
+- `POST /api/v1/admin/payment-providers/{provider}/health`
+- `GET /api/v1/professionals/me/payment-orders`
+- `GET /api/v1/professionals/me/payment-orders/{payment_order_id}`
+- `GET /api/v1/clients/me/payment-orders`
+- `GET /api/v1/clients/me/payment-orders/{payment_order_id}`
+
+17.1 no implementa checkout publico, tarjetas, webhooks de pago, confirmacion automatica de reservas, expiracion automatica, reembolsos, impuestos, descuentos, facturacion ni conciliacion.
+
 ## Plan sugerido de commits
 
 El repositorio tiene commits incrementales por modulo. El Modulo 8 debe cerrarse con un unico commit y sin push salvo instruccion explicita.
@@ -620,7 +655,7 @@ El repositorio tiene commits incrementales por modulo. El Modulo 8 debe cerrarse
 ## Limitaciones actuales del MVP
 
 - Integracion automatica de reservas con Google Meet y Zoom no implementada.
-- WhatsApp permite envio manual administrativo y notificaciones transaccionales de reservas con consentimiento; mensajes libres, respuestas, campanas, pagos, suscripciones y facturacion quedan diferidos.
+- WhatsApp permite envio manual administrativo y notificaciones transaccionales de reservas con consentimiento; mensajes libres, respuestas y campanas quedan diferidos. Pagos tiene fundacion interna con provider fake; cobro real, checkout, suscripciones y facturacion quedan diferidos.
 - Recuperacion de contrasena, MFA y roles configurables quedan diferidos.
 - Pruebas frontend automaticas y E2E completas quedan diferidas.
 - El backoffice es minimo y prioriza operacion inicial sobre cobertura total de UX.

@@ -5,6 +5,7 @@ import type {
   IntegrationProvider,
   IntegrationStatus,
   IntegrationType,
+  PaymentOrderStatus,
   UserRole,
   WhatsAppConsentPurpose,
   WhatsAppConsentSource,
@@ -310,4 +311,20 @@ export function getWebhookDeliveryStatusLabel(value: string): string {
     skipped: "Omitida",
   };
   return labels[value] ?? value;
+}
+
+export const paymentOrderStatusLabels: Record<PaymentOrderStatus, string> = {
+  draft: "Borrador",
+  pending: "Pendiente",
+  requires_action: "Requiere accion",
+  approved: "Aprobado",
+  rejected: "Rechazado",
+  cancelled: "Cancelado",
+  expired: "Expirado",
+  failed: "Fallido",
+  refunded: "Reembolsado",
+};
+
+export function getPaymentOrderStatusLabel(value: PaymentOrderStatus | string): string {
+  return paymentOrderStatusLabels[value as PaymentOrderStatus] ?? value;
 }

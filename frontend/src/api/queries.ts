@@ -79,6 +79,14 @@ import type {
   WebhookTestResult,
   N8nWorkflow,
   N8nWorkflowWrite,
+  AdminPaymentOrder,
+  AdminPaymentOrderListResponse,
+  PaymentOrder,
+  PaymentOrderCreatePayload,
+  PaymentOrderHistory,
+  PaymentOrderStatus,
+  PaymentProvider,
+  PaymentProviderHealth,
   WhatsAppConsentCorrectionPayload,
   WhatsAppConsentPurpose,
   WhatsAppConsentSummary,
@@ -385,6 +393,75 @@ export async function fetchAdminAppointments(params: {
   page_size?: number;
 } = {}): Promise<AdminAppointmentListResponse> {
   const { data } = await api.get("/admin/appointments", { params });
+  return data;
+}
+
+export async function fetchAdminPaymentOrders(params: {
+  search?: string;
+  status?: PaymentOrderStatus;
+  provider?: PaymentProvider;
+  appointment_id?: number;
+  client_id?: number;
+  professional_id?: number;
+  page?: number;
+  page_size?: number;
+} = {}): Promise<AdminPaymentOrderListResponse> {
+  const { data } = await api.get("/admin/payment-orders", { params });
+  return data;
+}
+
+export async function createAdminPaymentOrder(payload: PaymentOrderCreatePayload, idempotencyKey?: string): Promise<AdminPaymentOrder> {
+  const { data } = await api.post("/admin/payment-orders", payload, { headers: idempotencyKey ? { "Idempotency-Key": idempotencyKey } : undefined });
+  return data;
+}
+
+export async function submitAdminPaymentOrder(paymentOrderId: number): Promise<AdminPaymentOrder> {
+  const { data } = await api.post(`/admin/payment-orders/${paymentOrderId}/submit`);
+  return data;
+}
+
+export async function cancelAdminPaymentOrder(paymentOrderId: number): Promise<AdminPaymentOrder> {
+  const { data } = await api.post(`/admin/payment-orders/${paymentOrderId}/cancel`, { reason: "Cancelada desde backoffice" });
+  return data;
+}
+
+export async function fakeApprovePaymentOrder(paymentOrderId: number): Promise<AdminPaymentOrder> {
+  const { data } = await api.post(`/admin/payment-orders/${paymentOrderId}/fake/approve`);
+  return data;
+}
+
+export async function fakeRejectPaymentOrder(paymentOrderId: number): Promise<AdminPaymentOrder> {
+  const { data } = await api.post(`/admin/payment-orders/${paymentOrderId}/fake/reject`);
+  return data;
+}
+
+export async function fakeExpirePaymentOrder(paymentOrderId: number): Promise<AdminPaymentOrder> {
+  const { data } = await api.post(`/admin/payment-orders/${paymentOrderId}/fake/expire`);
+  return data;
+}
+
+export async function fakeFailPaymentOrder(paymentOrderId: number): Promise<AdminPaymentOrder> {
+  const { data } = await api.post(`/admin/payment-orders/${paymentOrderId}/fake/fail`);
+  return data;
+}
+
+export async function fetchAdminPaymentOrderHistory(paymentOrderId: number): Promise<PaymentOrderHistory[]> {
+  const { data } = await api.get(`/admin/payment-orders/${paymentOrderId}/history`);
+  return data;
+}
+
+export async function healthCheckPaymentProvider(provider: PaymentProvider): Promise<PaymentProviderHealth> {
+  const { data } = await api.post(`/admin/payment-providers/${provider}/health`);
+  return data;
+}
+
+export async function fetchProfessionalPaymentOrders(): Promise<PaymentOrder[]> {
+  const { data } = await api.get("/professionals/me/payment-orders");
+  return data;
+}
+
+export async function fetchClientPaymentOrders(): Promise<PaymentOrder[]> {
+  const { data } = await api.get("/clients/me/payment-orders");
   return data;
 }
 

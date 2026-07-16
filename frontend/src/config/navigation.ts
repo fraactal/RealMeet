@@ -36,6 +36,14 @@ export const authenticatedNavigation: NavigationItem[] = [
     description: "Reservas y atenciones",
   },
   {
+    label: "Mis pagos",
+    path: "/dashboard/payments",
+    icon: "payment",
+    roles: ["client"],
+    matchPaths: ["/dashboard/payments"],
+    description: "Ordenes de cobro",
+  },
+  {
     label: "Metricas",
     path: "/dashboard/professional",
     icon: "chart",
@@ -50,6 +58,14 @@ export const authenticatedNavigation: NavigationItem[] = [
     roles: ["professional"],
     matchPaths: ["/dashboard/professional/appointments"],
     description: "Agenda y solicitudes",
+  },
+  {
+    label: "Pagos",
+    path: "/dashboard/professional/payments",
+    icon: "payment",
+    roles: ["professional"],
+    matchPaths: ["/dashboard/professional/payments"],
+    description: "Cobros vinculados",
   },
   {
     label: "Perfil publico",
@@ -98,6 +114,14 @@ export const authenticatedNavigation: NavigationItem[] = [
     roles: ["admin"],
     matchPaths: ["/dashboard/admin/integrations"],
     description: "Proveedores externos",
+  },
+  {
+    label: "Pagos",
+    path: "/dashboard/admin/payments",
+    icon: "payment",
+    roles: ["admin"],
+    matchPaths: ["/dashboard/admin/payments"],
+    description: "Ordenes y provider fake",
   },
 ];
 

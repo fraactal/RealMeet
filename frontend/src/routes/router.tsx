@@ -11,6 +11,8 @@ import { DashboardHomePage } from "../pages/DashboardHomePage";
 import { HomePage } from "../pages/HomePage";
 import { LoginPage } from "../pages/LoginPage";
 import { MockMeetingPage } from "../pages/MockMeetingPage";
+import { AdminPaymentsPage } from "../pages/AdminPaymentsPage";
+import { PaymentsPage } from "../pages/PaymentsPage";
 import { ProfessionalAvailabilityPage } from "../pages/ProfessionalAvailabilityPage";
 import { ProfessionalAppointmentsPage } from "../pages/ProfessionalAppointmentsPage";
 import { ProfessionalCatalogPage } from "../pages/ProfessionalCatalogPage";
@@ -52,6 +54,14 @@ export const router = createBrowserRouter([
           },
           { path: "appointments", element: <AppointmentsPage /> },
           {
+            path: "payments",
+            element: (
+              <RequireAuth allowedRoles={["client"]}>
+                <PaymentsPage />
+              </RequireAuth>
+            ),
+          },
+          {
             path: "professional",
             element: (
               <RequireAuth allowedRoles={["professional"]}>
@@ -64,6 +74,14 @@ export const router = createBrowserRouter([
             element: (
               <RequireAuth allowedRoles={["professional"]}>
                 <ProfessionalAppointmentsPage />
+              </RequireAuth>
+            ),
+          },
+          {
+            path: "professional/payments",
+            element: (
+              <RequireAuth allowedRoles={["professional"]}>
+                <PaymentsPage />
               </RequireAuth>
             ),
           },
@@ -112,6 +130,14 @@ export const router = createBrowserRouter([
             element: (
               <RequireAuth allowedRoles={["admin"]}>
                 <AdminIntegrationsPage />
+              </RequireAuth>
+            ),
+          },
+          {
+            path: "admin/payments",
+            element: (
+              <RequireAuth allowedRoles={["admin"]}>
+                <AdminPaymentsPage />
               </RequireAuth>
             ),
           },

@@ -435,6 +435,75 @@ export interface AdminAppointmentListResponse {
   meta: PageMeta;
 }
 
+export type PaymentProvider = "fake" | "mercado_pago" | "stripe";
+export type PaymentCurrency = "CLP";
+export type PaymentOrderStatus = "draft" | "pending" | "requires_action" | "approved" | "rejected" | "cancelled" | "expired" | "failed" | "refunded";
+
+export interface PaymentOrder {
+  id: number;
+  appointment_id?: number | null;
+  description?: string | null;
+  amount: string;
+  currency: PaymentCurrency;
+  status: PaymentOrderStatus;
+  expires_at?: string | null;
+  paid_at?: string | null;
+  cancelled_at?: string | null;
+  created_at: string;
+}
+
+export interface AdminPaymentOrder extends PaymentOrder {
+  client_id?: number | null;
+  professional_id?: number | null;
+  specialty_id?: number | null;
+  provider: PaymentProvider;
+  external_payment_id?: string | null;
+  idempotency_key?: string | null;
+  request_fingerprint?: string | null;
+  rejected_at?: string | null;
+  failed_at?: string | null;
+  last_error_code?: string | null;
+  last_error_message?: string | null;
+  created_by_user_id?: number | null;
+  updated_at: string;
+}
+
+export interface PaymentOrderHistory {
+  id: number;
+  payment_order_id: number;
+  previous_status?: string | null;
+  new_status: string;
+  reason_code?: string | null;
+  reason_summary?: string | null;
+  changed_by_user_id?: number | null;
+  provider_reference?: Record<string, string | number | boolean | null> | null;
+  created_at: string;
+}
+
+export interface AdminPaymentOrderListResponse {
+  items: AdminPaymentOrder[];
+  meta: PageMeta;
+}
+
+export interface PaymentOrderCreatePayload {
+  appointment_id?: number | null;
+  client_id?: number | null;
+  professional_id?: number | null;
+  specialty_id?: number | null;
+  provider: PaymentProvider;
+  amount?: string | null;
+  currency: PaymentCurrency;
+  description?: string | null;
+  expires_at?: string | null;
+}
+
+export interface PaymentProviderHealth {
+  provider: PaymentProvider;
+  healthy: boolean;
+  code: string;
+  message: string;
+}
+
 export type IntegrationType = "meeting" | "calendar" | "messaging" | "email" | "automation" | "webhook";
 export type IntegrationProvider =
   | "mock"
