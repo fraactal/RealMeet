@@ -1,3 +1,3 @@
-from app.models.external_calendar import CalendarConflictPolicy, ExternalCalendarProvider, ExternalCalendarSyncStatus
+from app.models.external_calendar import CalendarConflictPolicy, ExternalCalendarProvider, ExternalCalendarSyncStatus, ExternalConflictFailurePolicy
 
-__all__ = ["CalendarConflictPolicy", "ExternalCalendarProvider", "ExternalCalendarSyncStatus"]
+__all__ = ["CalendarConflictPolicy", "ExternalCalendarProvider", "ExternalCalendarSyncStatus", "ExternalConflictFailurePolicy"]
