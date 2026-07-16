@@ -7,6 +7,7 @@ from app.models.external_calendar import CalendarSyncSettings, ExternalCalendar
 from app.models.integration import ExternalMeeting, GoogleWorkspaceSettings, Integration, IntegrationCredential, IntegrationExecution, IntegrationOAuthState
 from app.integrations.google_workspace.sheets_exports import GoogleSheetsExportConfig, GoogleSheetsExportExecution
 from app.integrations.google_workspace.docs_templates import AppointmentGeneratedDocument, GoogleDocsTemplate
+from app.integrations.google_workspace.document_automation import DocumentAutomationExecution, GoogleDocsAutomationRule
 from app.models.n8n import N8nWorkflow
 from app.models.professional_profile import ProfessionalProfile, ProfessionalSpecialty
 from app.models.specialty import Specialty
@@ -35,6 +36,8 @@ __all__ = [
     "GoogleSheetsExportExecution",
     "GoogleDocsTemplate",
     "AppointmentGeneratedDocument",
+    "GoogleDocsAutomationRule",
+    "DocumentAutomationExecution",
     "IntegrationCredential",
     "IntegrationExecution",
     "IntegrationOAuthState",

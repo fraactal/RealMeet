@@ -23,6 +23,7 @@ N8N_ALLOWED_EVENTS = {
     WebhookEventType.appointment_created,
     WebhookEventType.appointment_cancelled,
     WebhookEventType.meeting_ready,
+    WebhookEventType.document_generated,
     WebhookEventType.notification_failed,
 }
 

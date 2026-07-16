@@ -454,6 +454,7 @@ export type WebhookEventType =
   | "appointment.cancelled"
   | "appointment.confirmed"
   | "meeting.ready"
+  | "document.generated"
   | "notification.sent"
   | "notification.failed"
   | "client.created"
@@ -1005,6 +1006,64 @@ export interface GenerateAppointmentDocumentPayload {
   template_id: number;
   sharing_policy?: GoogleDocsSharingPolicy | null;
   generation_request_id: string;
+}
+
+export type DocumentAutomationEventType = "appointment.created" | "appointment.confirmed" | "appointment.cancelled" | "meeting.ready";
+export type DocumentAutomationExecutionStatus = "pending" | "running" | "succeeded" | "partially_succeeded" | "failed" | "reconcile_required";
+export type DocumentAutomationEmailStatus = "not_requested" | "sent" | "failed" | "skipped";
+export type DocumentAutomationN8nStatus = "not_requested" | "delivered" | "failed" | "skipped";
+export type DocumentAutomationEmailRecipientPolicy = "none" | "professional" | "client" | "professional_and_client";
+
+export interface GoogleDocsAutomationRule {
+  id: number;
+  integration_id: number;
+  template_id: number;
+  name: string;
+  description?: string | null;
+  event_type: DocumentAutomationEventType;
+  enabled: boolean;
+  sharing_policy: GoogleDocsSharingPolicy;
+  email_delivery_enabled: boolean;
+  email_recipient_policy: DocumentAutomationEmailRecipientPolicy;
+  n8n_event_enabled: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GoogleDocsAutomationRuleWrite {
+  template_id: number;
+  name: string;
+  description?: string | null;
+  event_type: DocumentAutomationEventType;
+  enabled: boolean;
+  sharing_policy: GoogleDocsSharingPolicy;
+  email_delivery_enabled: boolean;
+  email_recipient_policy: DocumentAutomationEmailRecipientPolicy;
+  n8n_event_enabled: boolean;
+}
+
+export interface DocumentAutomationExecution {
+  id: number;
+  rule_id: number;
+  appointment_id: number;
+  event_type: DocumentAutomationEventType;
+  event_id: string;
+  idempotency_key: string;
+  status: DocumentAutomationExecutionStatus;
+  generated_document_id?: number | null;
+  email_status: DocumentAutomationEmailStatus;
+  n8n_status: DocumentAutomationN8nStatus;
+  started_at?: string | null;
+  finished_at?: string | null;
+  error_code?: string | null;
+  error_message?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DocumentAutomationTriggerPayload {
+  appointment_id: number;
+  event_id?: string | null;
 }
 
 export interface GoogleMeetMeeting {

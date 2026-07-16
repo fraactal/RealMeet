@@ -7,6 +7,7 @@ class WebhookEventType(str, enum.Enum):
     appointment_cancelled = "appointment.cancelled"
     appointment_confirmed = "appointment.confirmed"
     meeting_ready = "meeting.ready"
+    document_generated = "document.generated"
     notification_sent = "notification.sent"
     notification_failed = "notification.failed"
     client_created = "client.created"

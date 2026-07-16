@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createGoogleOAuthAuthorizationUrl,
   createGoogleMeetMeeting,
+  createGoogleDocsAutomationRule,
   createGoogleDocsTemplate,
   createGoogleSheetsExport,
   createAdminIntegration,
@@ -18,9 +19,11 @@ import {
   disableWebhookSubscription,
   disconnectGoogleOAuth,
   disableGoogleWorkspaceService,
+  disableGoogleDocsAutomationRule,
   disableGoogleDocsTemplate,
   enableAdminIntegration,
   enableGoogleWorkspaceService,
+  enableGoogleDocsAutomationRule,
   enableGoogleDocsTemplate,
   enableN8nWorkflow,
   enableWebhookSubscription,
@@ -32,6 +35,8 @@ import {
   fetchWebhookDeliveries,
   fetchWebhookSubscriptions,
   fetchGoogleOAuthStatus,
+  fetchGoogleDocsAutomationExecutions,
+  fetchGoogleDocsAutomationRules,
   fetchGoogleDocsTemplates,
   fetchGoogleDocsVariables,
   fetchGoogleSheetsExportExecutions,
@@ -54,14 +59,18 @@ import {
   retryAppointmentNotification,
   retryWebhookDelivery,
   reconcileAppointmentNotification,
+  reconcileGoogleDocsAutomationExecution,
   retryGoogleSheetsExportExecution,
+  retryGoogleDocsAutomationExecution,
   sendWhatsAppMessage,
   startGoogleWorkspaceOAuth,
   testAdminIntegration,
+  testGoogleDocsAutomationRule,
   testN8nWorkflow,
   testWebhookSubscription,
   updateAdminIntegration,
   updateGoogleDocsTemplate,
+  updateGoogleDocsAutomationRule,
   updateGoogleSheetsExport,
   updateWebhookSubscription,
   updateWhatsAppNotificationPolicy,
@@ -102,6 +111,11 @@ import type {
   GoogleSheetsExportMode,
   GoogleSheetsExportValidation,
   GoogleDocsDocumentType,
+  DocumentAutomationEmailRecipientPolicy,
+  DocumentAutomationExecution,
+  DocumentAutomationEventType,
+  GoogleDocsAutomationRule,
+  GoogleDocsAutomationRuleWrite,
   GoogleDocsSharingPolicy,
   GoogleDocsTemplate,
   GoogleDocsTemplateVariable,
@@ -223,6 +237,8 @@ export function AdminIntegrationsPage() {
   const [googleSheetsExecution, setGoogleSheetsExecution] = useState<GoogleSheetsExportExecution | null>(null);
   const [selectedDocsTemplateId, setSelectedDocsTemplateId] = useState<number | null>(null);
   const [googleDocsValidation, setGoogleDocsValidation] = useState<GoogleDocsTemplateValidation | null>(null);
+  const [selectedAutomationRuleId, setSelectedAutomationRuleId] = useState<number | null>(null);
+  const [automationTestAppointmentId, setAutomationTestAppointmentId] = useState("");
   const [whatsappValidationResult, setWhatsappValidationResult] = useState<WhatsAppValidationResult | null>(null);
 
   const integrationsQuery = useQuery({
@@ -285,6 +301,20 @@ export function AdminIntegrationsPage() {
     () => googleDocsTemplatesQuery.data?.find((item) => item.id === selectedDocsTemplateId) ?? googleDocsTemplatesQuery.data?.[0] ?? null,
     [googleDocsTemplatesQuery.data, selectedDocsTemplateId],
   );
+  const googleDocsAutomationRulesQuery = useQuery({
+    queryKey: ["admin-google-docs-automation-rules", selectedIntegration?.id],
+    queryFn: () => fetchGoogleDocsAutomationRules(selectedIntegration?.id ?? 0),
+    enabled: selectedIntegration?.provider === "google_meet",
+  });
+  const selectedAutomationRule = useMemo(
+    () => googleDocsAutomationRulesQuery.data?.find((item) => item.id === selectedAutomationRuleId) ?? googleDocsAutomationRulesQuery.data?.[0] ?? null,
+    [googleDocsAutomationRulesQuery.data, selectedAutomationRuleId],
+  );
+  const googleDocsAutomationExecutionsQuery = useQuery({
+    queryKey: ["admin-google-docs-automation-executions", selectedIntegration?.id],
+    queryFn: () => fetchGoogleDocsAutomationExecutions(selectedIntegration?.id ?? 0),
+    enabled: selectedIntegration?.provider === "google_meet",
+  });
   const whatsappEnabled = selectedIntegration?.provider === "whatsapp_cloud";
   const whatsappStatusQuery = useQuery({
     queryKey: ["admin-whatsapp-status", selectedIntegration?.id],
@@ -355,6 +385,8 @@ export function AdminIntegrationsPage() {
       void queryClient.invalidateQueries({ queryKey: ["admin-google-sheets-export-executions", selectedIntegration.id] });
       void queryClient.invalidateQueries({ queryKey: ["admin-google-docs-templates", selectedIntegration.id] });
       void queryClient.invalidateQueries({ queryKey: ["admin-google-docs-variables", selectedIntegration.id] });
+      void queryClient.invalidateQueries({ queryKey: ["admin-google-docs-automation-rules", selectedIntegration.id] });
+      void queryClient.invalidateQueries({ queryKey: ["admin-google-docs-automation-executions", selectedIntegration.id] });
       void queryClient.invalidateQueries({ queryKey: ["admin-whatsapp-status", selectedIntegration.id] });
       void queryClient.invalidateQueries({ queryKey: ["admin-whatsapp-webhook-status", selectedIntegration.id] });
       void queryClient.invalidateQueries({ queryKey: ["admin-whatsapp-webhook-events", selectedIntegration.id] });
@@ -507,6 +539,41 @@ export function AdminIntegrationsPage() {
   });
   const disableGoogleDocsTemplateMutation = useMutation({
     mutationFn: ({ id, templateId }: { id: number; templateId: number }) => disableGoogleDocsTemplate(id, templateId),
+    onSuccess: () => refreshIntegrations(),
+  });
+  const createGoogleDocsAutomationRuleMutation = useMutation({
+    mutationFn: ({ id, payload }: { id: number; payload: GoogleDocsAutomationRuleWrite }) => createGoogleDocsAutomationRule(id, payload),
+    onSuccess: (item) => {
+      setSelectedAutomationRuleId(item.id);
+      refreshIntegrations();
+    },
+  });
+  const updateGoogleDocsAutomationRuleMutation = useMutation({
+    mutationFn: ({ id, ruleId, payload }: { id: number; ruleId: number; payload: Partial<GoogleDocsAutomationRuleWrite> }) => updateGoogleDocsAutomationRule(id, ruleId, payload),
+    onSuccess: (item) => {
+      setSelectedAutomationRuleId(item.id);
+      refreshIntegrations();
+    },
+  });
+  const enableGoogleDocsAutomationRuleMutation = useMutation({
+    mutationFn: ({ id, ruleId }: { id: number; ruleId: number }) => enableGoogleDocsAutomationRule(id, ruleId),
+    onSuccess: () => refreshIntegrations(),
+  });
+  const disableGoogleDocsAutomationRuleMutation = useMutation({
+    mutationFn: ({ id, ruleId }: { id: number; ruleId: number }) => disableGoogleDocsAutomationRule(id, ruleId),
+    onSuccess: () => refreshIntegrations(),
+  });
+  const testGoogleDocsAutomationRuleMutation = useMutation({
+    mutationFn: ({ id, ruleId, appointmentId }: { id: number; ruleId: number; appointmentId: number }) =>
+      testGoogleDocsAutomationRule(id, ruleId, { appointment_id: appointmentId, event_id: `manual:${ruleId}:${appointmentId}` }),
+    onSuccess: () => refreshIntegrations(),
+  });
+  const retryGoogleDocsAutomationExecutionMutation = useMutation({
+    mutationFn: ({ id, executionId }: { id: number; executionId: number }) => retryGoogleDocsAutomationExecution(id, executionId),
+    onSuccess: () => refreshIntegrations(),
+  });
+  const reconcileGoogleDocsAutomationExecutionMutation = useMutation({
+    mutationFn: ({ id, executionId }: { id: number; executionId: number }) => reconcileGoogleDocsAutomationExecution(id, executionId),
     onSuccess: () => refreshIntegrations(),
   });
   const createGoogleMeetingMutation = useMutation({
@@ -886,7 +953,17 @@ export function AdminIntegrationsPage() {
                     || validateGoogleDocsTemplateMutation.isPending
                     || enableGoogleDocsTemplateMutation.isPending
                     || disableGoogleDocsTemplateMutation.isPending
+                    || createGoogleDocsAutomationRuleMutation.isPending
+                    || updateGoogleDocsAutomationRuleMutation.isPending
+                    || enableGoogleDocsAutomationRuleMutation.isPending
+                    || disableGoogleDocsAutomationRuleMutation.isPending
+                    || testGoogleDocsAutomationRuleMutation.isPending
+                    || retryGoogleDocsAutomationExecutionMutation.isPending
+                    || reconcileGoogleDocsAutomationExecutionMutation.isPending
                   }
+                  automationExecutions={googleDocsAutomationExecutionsQuery.data ?? []}
+                  automationRules={googleDocsAutomationRulesQuery.data ?? []}
+                  automationTestAppointmentId={automationTestAppointmentId}
                   docsTemplates={googleDocsTemplatesQuery.data ?? []}
                   docsVariables={googleDocsVariablesQuery.data ?? []}
                   exports={googleSheetsExportsQuery.data ?? []}
@@ -894,22 +971,32 @@ export function AdminIntegrationsPage() {
                   loading={googleWorkspaceQuery.isLoading}
                   onAuthorize={(services) => googleWorkspaceOAuthMutation.mutate({ id: selectedIntegration.id, services })}
                   onCreateExport={(payload) => createGoogleSheetsExportMutation.mutate({ id: selectedIntegration.id, payload })}
+                  onCreateAutomationRule={(payload) => createGoogleDocsAutomationRuleMutation.mutate({ id: selectedIntegration.id, payload })}
                   onCreateTemplate={(payload) => createGoogleDocsTemplateMutation.mutate({ id: selectedIntegration.id, payload })}
+                  onDisableAutomationRule={(ruleId) => disableGoogleDocsAutomationRuleMutation.mutate({ id: selectedIntegration.id, ruleId })}
                   onDisableService={(service) => googleWorkspaceDisableMutation.mutate({ id: selectedIntegration.id, service })}
                   onDisableTemplate={(templateId) => disableGoogleDocsTemplateMutation.mutate({ id: selectedIntegration.id, templateId })}
                   onEnableService={(service) => googleWorkspaceEnableMutation.mutate({ id: selectedIntegration.id, service })}
+                  onEnableAutomationRule={(ruleId) => enableGoogleDocsAutomationRuleMutation.mutate({ id: selectedIntegration.id, ruleId })}
                   onEnableTemplate={(templateId) => enableGoogleDocsTemplateMutation.mutate({ id: selectedIntegration.id, templateId })}
                   onHealthAll={() => googleWorkspaceHealthMutation.mutate(selectedIntegration.id)}
                   onHealthService={(service) => googleWorkspaceServiceHealthMutation.mutate({ id: selectedIntegration.id, service })}
                   onRetryExport={(executionId) => selectedSheetsExport && retryGoogleSheetsExportMutation.mutate({ id: selectedIntegration.id, configId: selectedSheetsExport.id, executionId })}
+                  onRetryAutomationExecution={(executionId) => retryGoogleDocsAutomationExecutionMutation.mutate({ id: selectedIntegration.id, executionId })}
                   onRunExport={(configId, payload) => runGoogleSheetsExportMutation.mutate({ id: selectedIntegration.id, configId, payload })}
+                  onAutomationTestAppointmentIdChange={setAutomationTestAppointmentId}
+                  onReconcileAutomationExecution={(executionId) => reconcileGoogleDocsAutomationExecutionMutation.mutate({ id: selectedIntegration.id, executionId })}
                   onSelectExport={setSelectedSheetsExportId}
+                  onSelectAutomationRule={setSelectedAutomationRuleId}
                   onSelectTemplate={setSelectedDocsTemplateId}
+                  onTestAutomationRule={(ruleId, appointmentId) => testGoogleDocsAutomationRuleMutation.mutate({ id: selectedIntegration.id, ruleId, appointmentId })}
                   onUpdateTemplate={(templateId, payload) => updateGoogleDocsTemplateMutation.mutate({ id: selectedIntegration.id, templateId, payload })}
+                  onUpdateAutomationRule={(ruleId, payload) => updateGoogleDocsAutomationRuleMutation.mutate({ id: selectedIntegration.id, ruleId, payload })}
                   onUpdateExport={(configId, payload) => updateGoogleSheetsExportMutation.mutate({ id: selectedIntegration.id, configId, payload })}
                   onValidateTemplate={(templateId) => validateGoogleDocsTemplateMutation.mutate({ id: selectedIntegration.id, templateId })}
                   onValidateExport={(configId) => validateGoogleSheetsExportMutation.mutate({ id: selectedIntegration.id, configId })}
                   selectedExport={selectedSheetsExport}
+                  selectedAutomationRule={selectedAutomationRule}
                   selectedTemplate={selectedDocsTemplate}
                   status={googleWorkspaceQuery.data}
                   validation={googleSheetsValidation}
@@ -1333,6 +1420,10 @@ function GoogleWorkspacePanel({
   validation,
   lastExecution,
   docsTemplates,
+  automationRules,
+  selectedAutomationRule,
+  automationExecutions,
+  automationTestAppointmentId,
   selectedTemplate,
   docsVariables,
   docsValidation,
@@ -1351,6 +1442,15 @@ function GoogleWorkspacePanel({
   onEnableTemplate,
   onDisableTemplate,
   onSelectTemplate,
+  onCreateAutomationRule,
+  onUpdateAutomationRule,
+  onEnableAutomationRule,
+  onDisableAutomationRule,
+  onSelectAutomationRule,
+  onTestAutomationRule,
+  onRetryAutomationExecution,
+  onReconcileAutomationExecution,
+  onAutomationTestAppointmentIdChange,
   onEnableService,
   onDisableService,
   onHealthService,
@@ -1363,6 +1463,10 @@ function GoogleWorkspacePanel({
   validation: GoogleSheetsExportValidation | null;
   lastExecution: GoogleSheetsExportExecution | null;
   docsTemplates: GoogleDocsTemplate[];
+  automationRules: GoogleDocsAutomationRule[];
+  selectedAutomationRule: GoogleDocsAutomationRule | null;
+  automationExecutions: DocumentAutomationExecution[];
+  automationTestAppointmentId: string;
   selectedTemplate: GoogleDocsTemplate | null;
   docsVariables: GoogleDocsTemplateVariable[];
   docsValidation: GoogleDocsTemplateValidation | null;
@@ -1381,6 +1485,15 @@ function GoogleWorkspacePanel({
   onEnableTemplate: (templateId: number) => void;
   onDisableTemplate: (templateId: number) => void;
   onSelectTemplate: (templateId: number | null) => void;
+  onCreateAutomationRule: (payload: GoogleDocsAutomationRuleWrite) => void;
+  onUpdateAutomationRule: (ruleId: number, payload: Partial<GoogleDocsAutomationRuleWrite>) => void;
+  onEnableAutomationRule: (ruleId: number) => void;
+  onDisableAutomationRule: (ruleId: number) => void;
+  onSelectAutomationRule: (ruleId: number | null) => void;
+  onTestAutomationRule: (ruleId: number, appointmentId: number) => void;
+  onRetryAutomationExecution: (executionId: number) => void;
+  onReconcileAutomationExecution: (executionId: number) => void;
+  onAutomationTestAppointmentIdChange: (value: string) => void;
   onEnableService: (service: GoogleWorkspaceServiceKey) => void;
   onDisableService: (service: GoogleWorkspaceServiceKey) => void;
   onHealthService: (service: GoogleWorkspaceServiceKey) => void;
@@ -1482,6 +1595,24 @@ function GoogleWorkspacePanel({
         templates={docsTemplates}
         validation={docsValidation}
         variables={docsVariables}
+      />
+      <GoogleDocsAutomationPanel
+        busy={busy}
+        docsReady={Boolean(status.services.find((service) => service.service === "docs" && service.enabled && service.authorized)) && Boolean(status.services.find((service) => service.service === "drive" && service.enabled && service.authorized))}
+        executions={automationExecutions}
+        onAppointmentIdChange={onAutomationTestAppointmentIdChange}
+        onCreate={onCreateAutomationRule}
+        onDisable={onDisableAutomationRule}
+        onEnable={onEnableAutomationRule}
+        onReconcile={onReconcileAutomationExecution}
+        onRetry={onRetryAutomationExecution}
+        onSelect={onSelectAutomationRule}
+        onTest={onTestAutomationRule}
+        onUpdate={onUpdateAutomationRule}
+        rules={automationRules}
+        selectedRule={selectedAutomationRule}
+        templates={docsTemplates}
+        testAppointmentId={automationTestAppointmentId}
       />
     </div>
   );
@@ -1586,6 +1717,150 @@ function GoogleDocsTemplatesPanel({
       {templates.length > 0 ? <div className="mt-5 grid gap-2">{templates.map((item) => <button className={`rounded-md border p-3 text-left text-sm ${active?.id === item.id ? "border-brand-300 bg-white" : "border-slate-200 bg-white"}`} key={item.id} onClick={() => onSelect(item.id)} type="button"><span className="font-semibold text-ink-900">{item.name}</span><span className="ml-2 text-ink-500">{item.document_type} · {item.enabled ? "habilitada" : "deshabilitada"}</span></button>)}</div> : null}
       {validation ? <p className="mt-4 rounded-md border border-success-200 bg-success-50 p-3 text-sm text-success-700">Validacion correcta: {validation.document.name ?? "Documento"} · variables: {validation.placeholders.length}</p> : null}
       <p className="mt-4 text-xs text-ink-500">No se muestran ni almacenan contenidos completos, tokens, notas clinicas, diagnosticos ni historial medico.</p>
+    </div>
+  );
+}
+
+function GoogleDocsAutomationPanel({
+  templates,
+  rules,
+  selectedRule,
+  executions,
+  docsReady,
+  busy,
+  testAppointmentId,
+  onAppointmentIdChange,
+  onCreate,
+  onUpdate,
+  onEnable,
+  onDisable,
+  onSelect,
+  onTest,
+  onRetry,
+  onReconcile,
+}: {
+  templates: GoogleDocsTemplate[];
+  rules: GoogleDocsAutomationRule[];
+  selectedRule: GoogleDocsAutomationRule | null;
+  executions: DocumentAutomationExecution[];
+  docsReady: boolean;
+  busy: boolean;
+  testAppointmentId: string;
+  onAppointmentIdChange: (value: string) => void;
+  onCreate: (payload: GoogleDocsAutomationRuleWrite) => void;
+  onUpdate: (ruleId: number, payload: Partial<GoogleDocsAutomationRuleWrite>) => void;
+  onEnable: (ruleId: number) => void;
+  onDisable: (ruleId: number) => void;
+  onSelect: (ruleId: number | null) => void;
+  onTest: (ruleId: number, appointmentId: number) => void;
+  onRetry: (executionId: number) => void;
+  onReconcile: (executionId: number) => void;
+}) {
+  const enabledTemplates = templates.filter((item) => item.enabled);
+  const [name, setName] = useState("Automatizacion documental");
+  const [description, setDescription] = useState("Genera documentos operativos desde eventos de reserva.");
+  const [templateId, setTemplateId] = useState<number | "">(enabledTemplates[0]?.id ?? "");
+  const [eventType, setEventType] = useState<DocumentAutomationEventType>("appointment.created");
+  const [sharingPolicy, setSharingPolicy] = useState<GoogleDocsSharingPolicy>("private");
+  const [emailEnabled, setEmailEnabled] = useState(false);
+  const [emailPolicy, setEmailPolicy] = useState<DocumentAutomationEmailRecipientPolicy>("none");
+  const [n8nEnabled, setN8nEnabled] = useState(false);
+  const active = selectedRule;
+
+  useEffect(() => {
+    if (!active) return;
+    setName(active.name);
+    setDescription(active.description ?? "");
+    setTemplateId(active.template_id);
+    setEventType(active.event_type);
+    setSharingPolicy(active.sharing_policy);
+    setEmailEnabled(active.email_delivery_enabled);
+    setEmailPolicy(active.email_recipient_policy);
+    setN8nEnabled(active.n8n_event_enabled);
+  }, [active]);
+
+  useEffect(() => {
+    if (!templateId && enabledTemplates[0]) setTemplateId(enabledTemplates[0].id);
+  }, [enabledTemplates, templateId]);
+
+  const payload: GoogleDocsAutomationRuleWrite = {
+    template_id: Number(templateId),
+    name: name.trim(),
+    description: description.trim() || null,
+    event_type: eventType,
+    enabled: false,
+    sharing_policy: sharingPolicy,
+    email_delivery_enabled: emailEnabled,
+    email_recipient_policy: emailEnabled ? emailPolicy : "none",
+    n8n_event_enabled: n8nEnabled,
+  };
+  const appointmentId = Number(testAppointmentId);
+
+  return (
+    <div className="mt-6 rounded-lg border border-slate-200 bg-slate-50 p-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h3 className="text-base font-semibold text-ink-900">Automatizacion documental</h3>
+          <p className="mt-1 text-sm leading-6 text-ink-500">Reglas sincronas y best-effort para generar documentos no clinicos, enviar email opcional y emitir document.generated.</p>
+        </div>
+        <Badge label={docsReady ? "Disponible" : "Requiere Docs y Drive"} tone={docsReady ? "success" : "warning"} />
+      </div>
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <Field id="docs-automation-name" label="Nombre"><Input id="docs-automation-name" value={name} onChange={(event) => setName(event.target.value)} /></Field>
+        <Field id="docs-automation-template" label="Plantilla"><Select id="docs-automation-template" value={templateId} onChange={(event) => setTemplateId(Number(event.target.value))}>{enabledTemplates.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</Select></Field>
+        <Field id="docs-automation-event" label="Evento"><Select id="docs-automation-event" value={eventType} onChange={(event) => setEventType(event.target.value as DocumentAutomationEventType)}><option value="appointment.created">Reserva creada</option><option value="appointment.confirmed">Reserva confirmada</option><option value="appointment.cancelled">Reserva cancelada</option><option value="meeting.ready">Meeting listo</option></Select></Field>
+        <Field id="docs-automation-sharing" label="Comparticion"><Select id="docs-automation-sharing" value={sharingPolicy} onChange={(event) => setSharingPolicy(event.target.value as GoogleDocsSharingPolicy)}><option value="private">Privado</option><option value="professional_only">Solo profesional</option><option value="professional_and_client">Profesional y cliente</option></Select></Field>
+        <Field id="docs-automation-email-policy" label="Destinatarios email"><Select disabled={!emailEnabled} id="docs-automation-email-policy" value={emailPolicy} onChange={(event) => setEmailPolicy(event.target.value as DocumentAutomationEmailRecipientPolicy)}><option value="none">Sin email</option><option value="professional">Profesional</option><option value="client">Cliente</option><option value="professional_and_client">Profesional y cliente</option></Select></Field>
+        <Field id="docs-automation-description" label="Descripcion"><Input id="docs-automation-description" value={description} onChange={(event) => setDescription(event.target.value)} /></Field>
+        <label className="flex items-center gap-2 text-sm font-semibold text-ink-700"><input checked={emailEnabled} onChange={(event) => setEmailEnabled(event.target.checked)} type="checkbox" /> Enviar email minimo</label>
+        <label className="flex items-center gap-2 text-sm font-semibold text-ink-700"><input checked={n8nEnabled} onChange={(event) => setN8nEnabled(event.target.checked)} type="checkbox" /> Emitir document.generated</label>
+      </div>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <Button disabled={!docsReady || !payload.name || !payload.template_id || (payload.email_delivery_enabled && payload.email_recipient_policy === "none")} isLoading={busy} onClick={() => (active ? onUpdate(active.id, payload) : onCreate(payload))}>{active ? "Guardar regla" : "Crear regla"}</Button>
+        {active && active.enabled ? <Button isLoading={busy} onClick={() => onDisable(active.id)} variant="secondary">Deshabilitar regla</Button> : null}
+        {active && !active.enabled ? <Button isLoading={busy} onClick={() => onEnable(active.id)} variant="secondary">Habilitar regla</Button> : null}
+      </div>
+      {rules.length ? (
+        <div className="mt-5 grid gap-2">
+          {rules.map((item) => (
+            <button className={`rounded-md border p-3 text-left text-sm ${active?.id === item.id ? "border-brand-300 bg-white" : "border-slate-200 bg-white"}`} key={item.id} onClick={() => onSelect(item.id)} type="button">
+              <span className="font-semibold text-ink-900">{item.name}</span>
+              <span className="ml-2 text-ink-500">{getDocumentAutomationEventLabel(item.event_type)} · {item.enabled ? "habilitada" : "deshabilitada"}</span>
+            </button>
+          ))}
+        </div>
+      ) : <EmptyState title="Sin reglas documentales" description="Crea una regla para automatizar documentos operativos." />}
+      {active ? (
+        <div className="mt-5 rounded-md border border-slate-200 bg-white p-3">
+          <p className="text-sm font-semibold text-ink-900">Prueba manual controlada</p>
+          <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+            <Input aria-label="ID de reserva para prueba" inputMode="numeric" value={testAppointmentId} onChange={(event) => onAppointmentIdChange(event.target.value)} placeholder="ID reserva" />
+            <Button disabled={!appointmentId} isLoading={busy} onClick={() => onTest(active.id, appointmentId)} variant="secondary">Ejecutar prueba</Button>
+          </div>
+        </div>
+      ) : null}
+      <div className="mt-5">
+        <h4 className="text-sm font-semibold text-ink-900">Ejecuciones recientes</h4>
+        {executions.length ? (
+          <div className="mt-2 grid gap-2">
+            {executions.slice(0, 8).map((item) => (
+              <article className="rounded-md border border-slate-200 bg-white p-3 text-sm" key={item.id}>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div><span className="font-semibold text-ink-900">{getDocumentAutomationEventLabel(item.event_type)}</span><span className="ml-2 text-ink-500">Reserva #{item.appointment_id}</span></div>
+                  <div className="flex flex-wrap gap-2"><Badge label={getDocumentAutomationStatusLabel(item.status)} tone={getDocumentAutomationStatusTone(item.status)} /><Badge label={`Email: ${getDocumentAutomationEmailLabel(item.email_status)}`} tone="neutral" /><Badge label={`n8n: ${getDocumentAutomationN8nLabel(item.n8n_status)}`} tone="neutral" /></div>
+                </div>
+                <p className="mt-2 text-xs text-ink-500">{formatOptionalDate(item.finished_at ?? item.started_at ?? item.created_at)} · Documento {item.generated_document_id ? `#${item.generated_document_id}` : "pendiente"}</p>
+                {item.error_message ? <p className="mt-2 text-xs text-danger-700">{item.error_message}</p> : null}
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button disabled={!["failed", "partially_succeeded", "reconcile_required"].includes(item.status)} isLoading={busy} onClick={() => onRetry(item.id)} size="sm" variant="secondary">Retry</Button>
+                  <Button isLoading={busy} onClick={() => onReconcile(item.id)} size="sm" variant="secondary">Reconcile</Button>
+                </div>
+              </article>
+            ))}
+          </div>
+        ) : <EmptyState title="Sin ejecuciones documentales" description="Las ejecuciones apareceran cuando una regla procese un evento o una prueba manual." />}
+      </div>
+      <p className="mt-4 text-xs text-ink-500">Los emails no adjuntan documentos. n8n recibe solo payload minimo, sin contenido documental, tokens ni datos clinicos.</p>
     </div>
   );
 }
@@ -2196,6 +2471,56 @@ function getGoogleSheetsExecutionStatusLabel(status: GoogleSheetsExportExecution
     succeeded: "Exitosa",
     partially_succeeded: "Parcial",
     failed: "Fallida",
+  };
+  return labels[status];
+}
+
+function getDocumentAutomationEventLabel(eventType: DocumentAutomationEventType): string {
+  const labels: Record<DocumentAutomationEventType, string> = {
+    "appointment.created": "Reserva creada",
+    "appointment.confirmed": "Reserva confirmada",
+    "appointment.cancelled": "Reserva cancelada",
+    "meeting.ready": "Meeting listo",
+  };
+  return labels[eventType];
+}
+
+function getDocumentAutomationStatusLabel(status: DocumentAutomationExecution["status"]): string {
+  const labels: Record<DocumentAutomationExecution["status"], string> = {
+    pending: "Pendiente",
+    running: "En ejecucion",
+    succeeded: "Exitosa",
+    partially_succeeded: "Parcial",
+    failed: "Fallida",
+    reconcile_required: "Requiere reconcile",
+  };
+  return labels[status];
+}
+
+function getDocumentAutomationStatusTone(status: DocumentAutomationExecution["status"]): "success" | "danger" | "info" | "neutral" | "warning" {
+  if (status === "succeeded") return "success";
+  if (status === "failed" || status === "reconcile_required") return "danger";
+  if (status === "partially_succeeded") return "warning";
+  if (status === "running") return "info";
+  return "neutral";
+}
+
+function getDocumentAutomationEmailLabel(status: DocumentAutomationExecution["email_status"]): string {
+  const labels: Record<DocumentAutomationExecution["email_status"], string> = {
+    not_requested: "No solicitado",
+    sent: "Enviado",
+    failed: "Fallido",
+    skipped: "Omitido",
+  };
+  return labels[status];
+}
+
+function getDocumentAutomationN8nLabel(status: DocumentAutomationExecution["n8n_status"]): string {
+  const labels: Record<DocumentAutomationExecution["n8n_status"], string> = {
+    not_requested: "No solicitado",
+    delivered: "Entregado",
+    failed: "Fallido",
+    skipped: "Omitido",
   };
   return labels[status];
 }

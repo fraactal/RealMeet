@@ -51,6 +51,10 @@ import type {
   GoogleDocsTemplateValidation,
   AppointmentGeneratedDocument,
   GenerateAppointmentDocumentPayload,
+  DocumentAutomationExecution,
+  DocumentAutomationTriggerPayload,
+  GoogleDocsAutomationRule,
+  GoogleDocsAutomationRuleWrite,
   GoogleMeetMeeting,
   GoogleMeetMeetingCancelPayload,
   GoogleMeetMeetingCreatePayload,
@@ -803,6 +807,51 @@ export async function retryAppointmentDocument(appointmentId: number, documentId
 
 export async function reconcileAppointmentDocument(appointmentId: number, documentId: number): Promise<{ result: string; document: AppointmentGeneratedDocument }> {
   const { data } = await api.post(`/admin/appointments/${appointmentId}/documents/${documentId}/reconcile`);
+  return data;
+}
+
+export async function fetchGoogleDocsAutomationRules(integrationId: number): Promise<GoogleDocsAutomationRule[]> {
+  const { data } = await api.get(`/admin/integrations/${integrationId}/google/workspace/docs/automation-rules`);
+  return data;
+}
+
+export async function createGoogleDocsAutomationRule(integrationId: number, payload: GoogleDocsAutomationRuleWrite): Promise<GoogleDocsAutomationRule> {
+  const { data } = await api.post(`/admin/integrations/${integrationId}/google/workspace/docs/automation-rules`, payload);
+  return data;
+}
+
+export async function updateGoogleDocsAutomationRule(integrationId: number, ruleId: number, payload: Partial<GoogleDocsAutomationRuleWrite>): Promise<GoogleDocsAutomationRule> {
+  const { data } = await api.patch(`/admin/integrations/${integrationId}/google/workspace/docs/automation-rules/${ruleId}`, payload);
+  return data;
+}
+
+export async function enableGoogleDocsAutomationRule(integrationId: number, ruleId: number): Promise<GoogleDocsAutomationRule> {
+  const { data } = await api.post(`/admin/integrations/${integrationId}/google/workspace/docs/automation-rules/${ruleId}/enable`);
+  return data;
+}
+
+export async function disableGoogleDocsAutomationRule(integrationId: number, ruleId: number): Promise<GoogleDocsAutomationRule> {
+  const { data } = await api.post(`/admin/integrations/${integrationId}/google/workspace/docs/automation-rules/${ruleId}/disable`);
+  return data;
+}
+
+export async function testGoogleDocsAutomationRule(integrationId: number, ruleId: number, payload: DocumentAutomationTriggerPayload): Promise<DocumentAutomationExecution> {
+  const { data } = await api.post(`/admin/integrations/${integrationId}/google/workspace/docs/automation-rules/${ruleId}/test`, payload);
+  return data;
+}
+
+export async function fetchGoogleDocsAutomationExecutions(integrationId: number): Promise<DocumentAutomationExecution[]> {
+  const { data } = await api.get(`/admin/integrations/${integrationId}/google/workspace/docs/automation-executions`);
+  return data;
+}
+
+export async function retryGoogleDocsAutomationExecution(integrationId: number, executionId: number): Promise<DocumentAutomationExecution> {
+  const { data } = await api.post(`/admin/integrations/${integrationId}/google/workspace/docs/automation-executions/${executionId}/retry`);
+  return data;
+}
+
+export async function reconcileGoogleDocsAutomationExecution(integrationId: number, executionId: number): Promise<{ result: string; execution: DocumentAutomationExecution }> {
+  const { data } = await api.post(`/admin/integrations/${integrationId}/google/workspace/docs/automation-executions/${executionId}/reconcile`);
   return data;
 }
 

@@ -290,6 +290,7 @@ export function getWebhookEventTypeLabel(value: string): string {
     "appointment.cancelled": "Reserva cancelada",
     "appointment.confirmed": "Reserva confirmada",
     "meeting.ready": "Reunion lista",
+    "document.generated": "Documento generado",
     "notification.sent": "Notificacion enviada",
     "notification.failed": "Notificacion fallida",
     "client.created": "Cliente creado",

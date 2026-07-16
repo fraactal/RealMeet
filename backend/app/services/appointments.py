@@ -18,6 +18,7 @@ from app.schemas.appointments import AppointmentCreate, AppointmentPrivateNotesU
 from app.services.availability import AvailabilityService
 from app.services.appointment_calendar_sync import AppointmentCalendarSyncService
 from app.services.external_availability import ExternalAvailabilityConflict, ExternalAvailabilityService, ExternalAvailabilityUnavailable
+from app.integrations.google_workspace.document_automation import DocumentAutomationEventType, DocumentAutomationService
 
 
 ACTIVE_STATUSES = [AppointmentStatus.pending, AppointmentStatus.confirmed]
@@ -83,6 +84,7 @@ class AppointmentService:
         self.db.refresh(appointment)
         AppointmentNotificationService(self.db).notify_created(appointment)
         DomainEventPublisher(self.db).publish_appointment_created(appointment)
+        self._run_document_automation(DocumentAutomationEventType.appointment_created, appointment, user)
         return appointment
 
     def list_for_user(self, user: User) -> list[Appointment]:
@@ -176,6 +178,7 @@ class AppointmentService:
             AppointmentCalendarSyncService(self.db).sync_updated(appointment, user)
             self.db.refresh(appointment)
             AppointmentNotificationService(self.db).notify_confirmed(appointment)
+            self._run_document_automation(DocumentAutomationEventType.appointment_confirmed, appointment, user)
         if new_status == AppointmentStatus.cancelled:
             from app.services.meeting_provisioning import MeetingProvisioningService
 
@@ -185,7 +188,14 @@ class AppointmentService:
             self.db.refresh(appointment)
             AppointmentNotificationService(self.db).notify_cancelled(appointment)
             DomainEventPublisher(self.db).publish_appointment_cancelled(appointment)
+            self._run_document_automation(DocumentAutomationEventType.appointment_cancelled, appointment, user)
         return appointment
+
+    def _run_document_automation(self, event_type: DocumentAutomationEventType, appointment: Appointment, user: User) -> None:
+        try:
+            DocumentAutomationService(self.db).handle_appointment_event(event_type, appointment, actor=user)
+        except Exception:
+            self.db.rollback()
 
     def _add_history(self, appointment_id: int, changed_by_user_id: int, old_status: str | None, new_status: str, comment: str) -> None:
         self.db.add(

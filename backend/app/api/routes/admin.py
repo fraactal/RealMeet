@@ -73,6 +73,16 @@ from app.integrations.google_workspace.docs_templates import (
     read_document,
     variable_catalog,
 )
+from app.integrations.google_workspace.document_automation import (
+    DocumentAutomationExecutionRead,
+    DocumentAutomationReconcileRead,
+    DocumentAutomationService,
+    DocumentAutomationTriggerRequest,
+    GoogleDocsAutomationRuleCreate,
+    GoogleDocsAutomationRuleRead,
+    GoogleDocsAutomationRuleUpdate,
+    read_automation_execution,
+)
 from app.models.audit_log import AuditLog
 from app.models.appointment import Appointment, AppointmentStatus
 from app.models.integration import Integration
@@ -1155,6 +1165,107 @@ def validate_google_docs_template(integration_id: int, template_id: int, admin_u
         return GoogleDocsTemplateService(db).validate_template(integration_id, template_id)
     except IntegrationError as exc:
         raise _integration_http_error(exc) from exc
+
+
+@router.get("/integrations/{integration_id}/google/workspace/docs/automation-rules", response_model=list[GoogleDocsAutomationRuleRead])
+def list_google_docs_automation_rules(integration_id: int, db: Session = Depends(get_db)) -> list[GoogleDocsAutomationRuleRead]:
+    return [GoogleDocsAutomationRuleRead.model_validate(item) for item in DocumentAutomationService(db).list_rules(integration_id)]
+
+
+@router.post("/integrations/{integration_id}/google/workspace/docs/automation-rules", response_model=GoogleDocsAutomationRuleRead)
+def create_google_docs_automation_rule(
+    integration_id: int,
+    payload: GoogleDocsAutomationRuleCreate,
+    admin_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> GoogleDocsAutomationRuleRead:
+    del admin_user
+    try:
+        item = DocumentAutomationService(db).create_rule(integration_id, payload)
+    except IntegrationError as exc:
+        raise _integration_http_error(exc) from exc
+    return GoogleDocsAutomationRuleRead.model_validate(item)
+
+
+@router.get("/integrations/{integration_id}/google/workspace/docs/automation-rules/{rule_id}", response_model=GoogleDocsAutomationRuleRead)
+def get_google_docs_automation_rule(integration_id: int, rule_id: int, db: Session = Depends(get_db)) -> GoogleDocsAutomationRuleRead:
+    return GoogleDocsAutomationRuleRead.model_validate(DocumentAutomationService(db).get_rule(integration_id, rule_id))
+
+
+@router.patch("/integrations/{integration_id}/google/workspace/docs/automation-rules/{rule_id}", response_model=GoogleDocsAutomationRuleRead)
+def update_google_docs_automation_rule(
+    integration_id: int,
+    rule_id: int,
+    payload: GoogleDocsAutomationRuleUpdate,
+    admin_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> GoogleDocsAutomationRuleRead:
+    del admin_user
+    try:
+        item = DocumentAutomationService(db).update_rule(integration_id, rule_id, payload)
+    except IntegrationError as exc:
+        raise _integration_http_error(exc) from exc
+    return GoogleDocsAutomationRuleRead.model_validate(item)
+
+
+@router.post("/integrations/{integration_id}/google/workspace/docs/automation-rules/{rule_id}/enable", response_model=GoogleDocsAutomationRuleRead)
+def enable_google_docs_automation_rule(integration_id: int, rule_id: int, admin_user: User = Depends(require_admin), db: Session = Depends(get_db)) -> GoogleDocsAutomationRuleRead:
+    del admin_user
+    return GoogleDocsAutomationRuleRead.model_validate(DocumentAutomationService(db).set_enabled(integration_id, rule_id, True))
+
+
+@router.post("/integrations/{integration_id}/google/workspace/docs/automation-rules/{rule_id}/disable", response_model=GoogleDocsAutomationRuleRead)
+def disable_google_docs_automation_rule(integration_id: int, rule_id: int, admin_user: User = Depends(require_admin), db: Session = Depends(get_db)) -> GoogleDocsAutomationRuleRead:
+    del admin_user
+    return GoogleDocsAutomationRuleRead.model_validate(DocumentAutomationService(db).set_enabled(integration_id, rule_id, False))
+
+
+@router.post("/integrations/{integration_id}/google/workspace/docs/automation-rules/{rule_id}/test", response_model=DocumentAutomationExecutionRead)
+def test_google_docs_automation_rule(
+    integration_id: int,
+    rule_id: int,
+    payload: DocumentAutomationTriggerRequest,
+    admin_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> DocumentAutomationExecutionRead:
+    try:
+        return read_automation_execution(DocumentAutomationService(db).test_rule(integration_id, rule_id, payload, admin_user))
+    except IntegrationError as exc:
+        raise _integration_http_error(exc) from exc
+
+
+@router.get("/integrations/{integration_id}/google/workspace/docs/automation-executions", response_model=list[DocumentAutomationExecutionRead])
+def list_google_docs_automation_executions(integration_id: int, limit: int = Query(default=50, ge=1, le=100), db: Session = Depends(get_db)) -> list[DocumentAutomationExecutionRead]:
+    return [read_automation_execution(item) for item in DocumentAutomationService(db).list_executions(integration_id, limit=limit)]
+
+
+@router.get("/integrations/{integration_id}/google/workspace/docs/automation-executions/{execution_id}", response_model=DocumentAutomationExecutionRead)
+def get_google_docs_automation_execution(integration_id: int, execution_id: int, db: Session = Depends(get_db)) -> DocumentAutomationExecutionRead:
+    return read_automation_execution(DocumentAutomationService(db).get_execution(integration_id, execution_id))
+
+
+@router.post("/integrations/{integration_id}/google/workspace/docs/automation-executions/{execution_id}/retry", response_model=DocumentAutomationExecutionRead)
+def retry_google_docs_automation_execution(
+    integration_id: int,
+    execution_id: int,
+    admin_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> DocumentAutomationExecutionRead:
+    try:
+        return read_automation_execution(DocumentAutomationService(db).retry_execution(integration_id, execution_id, admin_user))
+    except IntegrationError as exc:
+        raise _integration_http_error(exc) from exc
+
+
+@router.post("/integrations/{integration_id}/google/workspace/docs/automation-executions/{execution_id}/reconcile", response_model=DocumentAutomationReconcileRead)
+def reconcile_google_docs_automation_execution(
+    integration_id: int,
+    execution_id: int,
+    admin_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> DocumentAutomationReconcileRead:
+    del admin_user
+    return DocumentAutomationService(db).reconcile_execution(integration_id, execution_id)
 
 
 @router.get("/appointments/{appointment_id}/documents", response_model=list[AppointmentGeneratedDocumentRead])

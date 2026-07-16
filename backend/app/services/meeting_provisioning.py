@@ -347,5 +347,12 @@ class MeetingProvisioningService:
 
             appointment = self._appointment(appointment_id)
             AppointmentNotificationService(self.db).notify_meeting_ready(appointment)
+            try:
+                from app.integrations.google_workspace.document_automation import DocumentAutomationEventType, DocumentAutomationService
+
+                DocumentAutomationService(self.db).handle_appointment_event(DocumentAutomationEventType.meeting_ready, appointment)
+            except Exception as exc:  # noqa: BLE001 - automation failures must not affect meeting provisioning.
+                self.db.rollback()
+                logger.warning("appointment_meeting_ready_document_automation_failed appointment_id=%s error=%s", appointment_id, exc.__class__.__name__)
         except Exception as exc:  # noqa: BLE001 - notification failures must not affect meeting provisioning.
             logger.warning("appointment_meeting_ready_notification_failed appointment_id=%s error=%s", appointment_id, exc.__class__.__name__)
