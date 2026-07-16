@@ -68,7 +68,7 @@ def test_availability_slots_exclude_blocked_interval() -> None:
     )
     service = AvailabilityService(FakeSession(scalars_results=[[rule], [block], []]))
 
-    slots = service.list_slots(SimpleNamespace(id=1, session_duration_minutes=60), start, end)
+    slots = service.list_slots(SimpleNamespace(id=1, session_duration_minutes=60), start, end, include_external=False)
 
     assert slots == [
         {"start_datetime": datetime.combine(target_day, time(9, 0), tzinfo=UTC), "end_datetime": datetime.combine(target_day, time(10, 0), tzinfo=UTC)},
