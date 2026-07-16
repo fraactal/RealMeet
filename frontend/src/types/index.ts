@@ -738,6 +738,24 @@ export interface CalendarConflictCheckResult {
   errors: string[];
 }
 
+export type AppointmentExternalCalendarEventStatus = "pending" | "created" | "updated" | "cancelled" | "failed" | "reconcile_required";
+export type AppointmentExternalCalendarSyncAction = "create" | "update" | "cancel" | "none";
+
+export interface AppointmentExternalCalendarEvent {
+  id: number;
+  appointment_id: number;
+  external_calendar_id: number;
+  provider: string;
+  status: AppointmentExternalCalendarEventStatus;
+  sync_action: AppointmentExternalCalendarSyncAction;
+  last_synced_at?: string | null;
+  last_error_at?: string | null;
+  last_error_code?: string | null;
+  last_error_message?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface AutomationExample {
   key: string;
   name: string;

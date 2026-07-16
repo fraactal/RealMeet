@@ -41,6 +41,14 @@ class FakeExternalCalendarProvider:
         self._raise_if_error()
         return ExternalCalendarEventResult(external_event_id, calendar_id, "deleted")
 
+    def get_event(self, calendar_id: str, external_event_id: str) -> ExternalCalendarEventResult:
+        self._raise_if_error()
+        return ExternalCalendarEventResult(external_event_id, calendar_id, "found")
+
+    def find_event_by_appointment_id(self, calendar_id: str, appointment_id: int) -> ExternalCalendarEventResult | None:
+        self._raise_if_error()
+        return ExternalCalendarEventResult(f"fake-event-appointment-{appointment_id}", calendar_id, "found")
+
     def health_check(self) -> CalendarProviderHealth:
         if self.simulate_error:
             return CalendarProviderHealth(False, "fake_calendar_error", "El proveedor fake reporto un error controlado.")

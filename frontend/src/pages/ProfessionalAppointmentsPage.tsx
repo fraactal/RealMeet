@@ -7,7 +7,10 @@ import {
   completeProfessionalAppointment,
   confirmProfessionalAppointment,
   fetchProfessionalAppointments,
+  fetchProfessionalAppointmentExternalCalendar,
   markNoShowProfessionalAppointment,
+  reconcileProfessionalAppointmentExternalCalendar,
+  retryProfessionalAppointmentExternalCalendar,
   updateAppointmentPrivateNotes,
 } from "../api/queries";
 import { ProfessionalAppointmentCard } from "../components/professional/ProfessionalAppointmentCard";
@@ -187,6 +190,7 @@ export function ProfessionalAppointmentsPage() {
                         <p>{meetingLabel(appointment)}</p>
                       </div>
                     </div>
+                    <ExternalCalendarSyncPanel appointmentId={appointment.id} />
                     <details className="rounded-lg border border-slate-200 bg-slate-50 p-4">
                       <summary className="cursor-pointer text-sm font-semibold text-ink-900">Notas privadas e historial</summary>
                       <div className="mt-4 space-y-4">
@@ -239,4 +243,50 @@ export function ProfessionalAppointmentsPage() {
       </section>
     </div>
   );
+}
+
+function ExternalCalendarSyncPanel({ appointmentId }: { appointmentId: number }) {
+  const queryClient = useQueryClient();
+  const statusQuery = useQuery({
+    queryKey: ["professional-appointment-external-calendar", appointmentId],
+    queryFn: () => fetchProfessionalAppointmentExternalCalendar(appointmentId),
+  });
+  const refresh = () => void queryClient.invalidateQueries({ queryKey: ["professional-appointment-external-calendar", appointmentId] });
+  const retryMutation = useMutation({ mutationFn: () => retryProfessionalAppointmentExternalCalendar(appointmentId), onSuccess: refresh });
+  const reconcileMutation = useMutation({ mutationFn: () => reconcileProfessionalAppointmentExternalCalendar(appointmentId), onSuccess: refresh });
+  const item = statusQuery.data;
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white p-4 text-sm">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="font-semibold text-ink-900">Calendario externo</p>
+          {statusQuery.isLoading ? <p className="text-ink-500">Cargando estado...</p> : null}
+          {!statusQuery.isLoading && !item ? <p className="text-ink-500">Sin evento externo vinculado.</p> : null}
+          {item ? (
+            <div className="mt-1 space-y-1 text-ink-600">
+              <p>{externalCalendarStatusLabel(item.status)} · {item.provider}</p>
+              {item.last_synced_at ? <p>Ultima sincronizacion: {formatDateTime(item.last_synced_at)}</p> : null}
+              {item.last_error_message ? <p className="text-danger-600">{item.last_error_message}</p> : null}
+            </div>
+          ) : null}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button isLoading={retryMutation.isPending} onClick={() => retryMutation.mutate()} size="sm" variant="secondary">Reintentar</Button>
+          <Button isLoading={reconcileMutation.isPending} onClick={() => reconcileMutation.mutate()} size="sm" variant="secondary">Reconciliar</Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function externalCalendarStatusLabel(status: string): string {
+  const labels: Record<string, string> = {
+    pending: "Pendiente",
+    created: "Sincronizado",
+    updated: "Actualizado",
+    cancelled: "Cancelado",
+    failed: "Con error",
+    reconcile_required: "Requiere revision",
+  };
+  return labels[status] ?? "Estado no disponible";
 }

@@ -60,6 +60,22 @@ class AppointmentNotificationStatus(str, enum.Enum):
     fallback_sent = "fallback_sent"
 
 
+class AppointmentExternalCalendarEventStatus(str, enum.Enum):
+    pending = "pending"
+    created = "created"
+    updated = "updated"
+    cancelled = "cancelled"
+    failed = "failed"
+    reconcile_required = "reconcile_required"
+
+
+class AppointmentExternalCalendarSyncAction(str, enum.Enum):
+    create = "create"
+    update = "update"
+    cancel = "cancel"
+    none = "none"
+
+
 class Appointment(Base, TimestampMixin):
     __tablename__ = "appointments"
 
@@ -87,6 +103,7 @@ class Appointment(Base, TimestampMixin):
     professional: Mapped["ProfessionalProfile"] = relationship("ProfessionalProfile")
     client: Mapped["ClientProfile"] = relationship("ClientProfile")
     meeting_link: Mapped["AppointmentMeeting | None"] = relationship("AppointmentMeeting", back_populates="appointment", uselist=False)
+    external_calendar_events: Mapped[list["AppointmentExternalCalendarEvent"]] = relationship("AppointmentExternalCalendarEvent", back_populates="appointment")
 
 
 class AppointmentMeeting(Base, TimestampMixin):
@@ -113,6 +130,37 @@ class AppointmentMeeting(Base, TimestampMixin):
     cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     appointment: Mapped[Appointment] = relationship("Appointment", back_populates="meeting_link")
+
+
+class AppointmentExternalCalendarEvent(Base, TimestampMixin):
+    __tablename__ = "appointment_external_calendar_events"
+    __table_args__ = (
+        UniqueConstraint("appointment_id", "external_calendar_id", name="uq_appointment_external_calendar_event"),
+        Index("ix_appointment_external_calendar_events_appointment", "appointment_id"),
+        Index("ix_appointment_external_calendar_events_status", "status"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    appointment_id: Mapped[int] = mapped_column(ForeignKey("appointments.id", ondelete="CASCADE"), nullable=False)
+    external_calendar_id: Mapped[int] = mapped_column(ForeignKey("external_calendars.id", ondelete="CASCADE"), nullable=False)
+    provider: Mapped[str] = mapped_column(String(80), nullable=False)
+    external_event_id: Mapped[str | None] = mapped_column(String(255))
+    status: Mapped[AppointmentExternalCalendarEventStatus] = mapped_column(
+        Enum(AppointmentExternalCalendarEventStatus, name="appointment_external_calendar_event_status"),
+        default=AppointmentExternalCalendarEventStatus.pending,
+        nullable=False,
+    )
+    sync_action: Mapped[AppointmentExternalCalendarSyncAction] = mapped_column(
+        Enum(AppointmentExternalCalendarSyncAction, name="appointment_external_calendar_sync_action"),
+        default=AppointmentExternalCalendarSyncAction.create,
+        nullable=False,
+    )
+    last_synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_error_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_error_code: Mapped[str | None] = mapped_column(String(120))
+    last_error_message: Mapped[str | None] = mapped_column(String(500))
+
+    appointment: Mapped[Appointment] = relationship("Appointment", back_populates="external_calendar_events")
 
 
 class AppointmentNotification(Base, TimestampMixin):

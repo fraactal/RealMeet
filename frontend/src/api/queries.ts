@@ -7,6 +7,7 @@ import type {
   AdminUserListResponse,
   AdminUserUpdate,
   Appointment,
+  AppointmentExternalCalendarEvent,
   AppointmentNotification,
   AutomationExample,
   AutomationExampleDetail,
@@ -382,6 +383,21 @@ export async function reconcileAdminAppointmentMeeting(appointmentId: number): P
   return data;
 }
 
+export async function fetchAdminAppointmentExternalCalendar(appointmentId: number): Promise<AppointmentExternalCalendarEvent | null> {
+  const { data } = await api.get(`/admin/appointments/${appointmentId}/external-calendar`);
+  return data;
+}
+
+export async function retryAdminAppointmentExternalCalendar(appointmentId: number): Promise<AppointmentExternalCalendarEvent | null> {
+  const { data } = await api.post(`/admin/appointments/${appointmentId}/external-calendar/retry`);
+  return data;
+}
+
+export async function reconcileAdminAppointmentExternalCalendar(appointmentId: number): Promise<AppointmentExternalCalendarEvent | null> {
+  const { data } = await api.post(`/admin/appointments/${appointmentId}/external-calendar/reconcile`);
+  return data;
+}
+
 export async function fetchAdminIntegrations(params: {
   integration_type?: IntegrationType;
   provider?: IntegrationProvider;
@@ -556,6 +572,21 @@ export async function fetchAvailableGoogleCalendars(): Promise<AvailableExternal
 
 export async function checkExternalCalendarConflicts(payload: CalendarConflictCheckPayload): Promise<CalendarConflictCheckResult> {
   const { data } = await api.post("/professionals/me/external-calendars/conflicts/check", payload);
+  return data;
+}
+
+export async function fetchProfessionalAppointmentExternalCalendar(appointmentId: number): Promise<AppointmentExternalCalendarEvent | null> {
+  const { data } = await api.get(`/professionals/me/appointments/${appointmentId}/external-calendar`);
+  return data;
+}
+
+export async function retryProfessionalAppointmentExternalCalendar(appointmentId: number): Promise<AppointmentExternalCalendarEvent | null> {
+  const { data } = await api.post(`/professionals/me/appointments/${appointmentId}/external-calendar/retry`);
+  return data;
+}
+
+export async function reconcileProfessionalAppointmentExternalCalendar(appointmentId: number): Promise<AppointmentExternalCalendarEvent | null> {
+  const { data } = await api.post(`/professionals/me/appointments/${appointmentId}/external-calendar/reconcile`);
   return data;
 }
 

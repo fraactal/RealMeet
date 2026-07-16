@@ -158,3 +158,20 @@ class CalendarConflictCheckRead(BaseModel):
     candidate: dict[str, datetime]
     conflicts: list[CalendarConflictItemRead] = Field(default_factory=list)
     errors: list[str] = Field(default_factory=list)
+
+
+class AppointmentExternalCalendarEventRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    appointment_id: int
+    external_calendar_id: int
+    provider: str
+    status: str
+    sync_action: str
+    last_synced_at: datetime | None
+    last_error_at: datetime | None
+    last_error_code: str | None
+    last_error_message: str | None
+    created_at: datetime
+    updated_at: datetime

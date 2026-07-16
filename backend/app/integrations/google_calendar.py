@@ -8,6 +8,7 @@ import httpx
 
 from app.integrations.exceptions import IntegrationProviderExecutionError
 from app.integrations.meeting_contracts import MeetingCreateRequest
+from app.calendars.contracts import ExternalCalendarEventInput
 
 
 @dataclass
@@ -32,7 +33,16 @@ class GoogleCalendarClient(Protocol):
     def create_event(self, *, access_token: str, calendar_id: str, request: MeetingCreateRequest, request_id: str) -> CalendarEventResult:
         ...
 
+    def create_plain_event(self, *, access_token: str, calendar_id: str, payload: ExternalCalendarEventInput, send_updates: str) -> CalendarEventResult:
+        ...
+
+    def update_plain_event(self, *, access_token: str, calendar_id: str, event_id: str, payload: ExternalCalendarEventInput, send_updates: str) -> CalendarEventResult:
+        ...
+
     def get_event(self, *, access_token: str, calendar_id: str, event_id: str) -> CalendarEventResult:
+        ...
+
+    def find_event_by_appointment_id(self, *, access_token: str, calendar_id: str, appointment_id: int) -> CalendarEventResult | None:
         ...
 
     def delete_event(self, *, access_token: str, calendar_id: str, event_id: str, send_updates: str) -> None:
@@ -78,6 +88,28 @@ class GoogleCalendarHTTPClient:
         data = _json_or_raise(response)
         return _parse_event(data, request.start_at, request.end_at)
 
+    def create_plain_event(self, *, access_token: str, calendar_id: str, payload: ExternalCalendarEventInput, send_updates: str) -> CalendarEventResult:
+        response = httpx.post(
+            f"{self.base_url}/calendars/{quote(calendar_id, safe='')}/events",
+            params={"sendUpdates": send_updates},
+            headers=_headers(access_token),
+            json=_plain_event_body(payload),
+            timeout=10,
+        )
+        data = _json_or_raise(response)
+        return _parse_event(data, payload.starts_at, payload.ends_at)
+
+    def update_plain_event(self, *, access_token: str, calendar_id: str, event_id: str, payload: ExternalCalendarEventInput, send_updates: str) -> CalendarEventResult:
+        response = httpx.patch(
+            f"{self.base_url}/calendars/{quote(calendar_id, safe='')}/events/{quote(event_id, safe='')}",
+            params={"sendUpdates": send_updates},
+            headers=_headers(access_token),
+            json=_plain_event_body(payload),
+            timeout=10,
+        )
+        data = _json_or_raise(response)
+        return _parse_event(data, payload.starts_at, payload.ends_at)
+
     def get_event(self, *, access_token: str, calendar_id: str, event_id: str) -> CalendarEventResult:
         response = httpx.get(
             f"{self.base_url}/calendars/{quote(calendar_id, safe='')}/events/{quote(event_id, safe='')}",
@@ -85,6 +117,19 @@ class GoogleCalendarHTTPClient:
             timeout=10,
         )
         data = _json_or_raise(response)
+        return _parse_event(data, _parse_datetime(data["start"]["dateTime"]), _parse_datetime(data["end"]["dateTime"]))
+
+    def find_event_by_appointment_id(self, *, access_token: str, calendar_id: str, appointment_id: int) -> CalendarEventResult | None:
+        response = httpx.get(
+            f"{self.base_url}/calendars/{quote(calendar_id, safe='')}/events",
+            params={"privateExtendedProperty": f"realmeet_appointment_id={appointment_id}", "singleEvents": "true", "maxResults": 1},
+            headers=_headers(access_token),
+            timeout=10,
+        )
+        items = _json_or_raise(response).get("items") or []
+        if not items:
+            return None
+        data = items[0]
         return _parse_event(data, _parse_datetime(data["start"]["dateTime"]), _parse_datetime(data["end"]["dateTime"]))
 
     def delete_event(self, *, access_token: str, calendar_id: str, event_id: str, send_updates: str) -> None:
@@ -136,6 +181,21 @@ def _event_body(request: MeetingCreateRequest, request_id: str) -> dict:
     }
     if request.attendees:
         body["attendees"] = [{"email": attendee.email} for attendee in request.attendees]
+    return body
+
+
+def _plain_event_body(payload: ExternalCalendarEventInput) -> dict:
+    body = {
+        "summary": payload.title,
+        "description": payload.description or "",
+        "start": {"dateTime": payload.starts_at.isoformat(), "timeZone": payload.timezone},
+        "end": {"dateTime": payload.ends_at.isoformat(), "timeZone": payload.timezone},
+        "extendedProperties": {"private": {}},
+    }
+    if payload.appointment_id is not None:
+        body["extendedProperties"]["private"]["realmeet_appointment_id"] = str(payload.appointment_id)
+    if payload.attendees:
+        body["attendees"] = [{"email": email} for email in payload.attendees]
     return body
 
 

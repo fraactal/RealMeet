@@ -16,6 +16,7 @@ from app.notifications.service import AppointmentNotificationService
 from app.automation.service import DomainEventPublisher
 from app.schemas.appointments import AppointmentCreate, AppointmentPrivateNotesUpdate, AppointmentProfessionalStatusUpdate, AppointmentStatusUpdate
 from app.services.availability import AvailabilityService
+from app.services.appointment_calendar_sync import AppointmentCalendarSyncService
 from app.services.external_availability import ExternalAvailabilityConflict, ExternalAvailabilityService, ExternalAvailabilityUnavailable
 
 
@@ -77,6 +78,8 @@ class AppointmentService:
         except IntegrityError as exc:
             self.db.rollback()
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Selected slot is already booked") from exc
+        self.db.refresh(appointment)
+        AppointmentCalendarSyncService(self.db).sync_created(appointment, user)
         self.db.refresh(appointment)
         AppointmentNotificationService(self.db).notify_created(appointment)
         DomainEventPublisher(self.db).publish_appointment_created(appointment)
@@ -170,11 +173,15 @@ class AppointmentService:
 
             MeetingProvisioningService(self.db).provision_for_appointment(appointment, user)
             self.db.refresh(appointment)
+            AppointmentCalendarSyncService(self.db).sync_updated(appointment, user)
+            self.db.refresh(appointment)
             AppointmentNotificationService(self.db).notify_confirmed(appointment)
         if new_status == AppointmentStatus.cancelled:
             from app.services.meeting_provisioning import MeetingProvisioningService
 
             MeetingProvisioningService(self.db).cancel_for_appointment(appointment, user)
+            self.db.refresh(appointment)
+            AppointmentCalendarSyncService(self.db).sync_cancelled(appointment, user)
             self.db.refresh(appointment)
             AppointmentNotificationService(self.db).notify_cancelled(appointment)
             DomainEventPublisher(self.db).publish_appointment_cancelled(appointment)

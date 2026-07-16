@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from app.core.deps import get_current_user, require_professional
 from app.db.session import get_db
 from app.calendars.schemas import (
+    AppointmentExternalCalendarEventRead,
     CalendarConflictCheckRead,
     CalendarConflictCheckRequest,
     CalendarSyncSettingsRead,
@@ -28,6 +29,8 @@ from app.schemas.professionals import (
     ProfessionalSelfProfileRead,
     ProfessionalSelfProfileUpdate,
 )
+from app.services.appointment_calendar_sync import AppointmentCalendarSyncService
+from app.services.appointments import AppointmentService
 from app.services.professionals import ProfessionalService
 
 router = APIRouter()
@@ -201,3 +204,24 @@ def update_my_calendar_sync_settings(
     service = ExternalCalendarService(db)
     profile = service.get_professional_for_user(user)
     return CalendarSyncSettingsRead.model_validate(service.update_settings(profile.id, payload))
+
+
+@router.get("/me/appointments/{appointment_id}/external-calendar", response_model=AppointmentExternalCalendarEventRead | None, dependencies=[Depends(require_professional)])
+def get_my_appointment_external_calendar(appointment_id: int, user=Depends(get_current_user), db: Session = Depends(get_db)):
+    AppointmentService(db).get_for_actor(appointment_id, user)
+    item = AppointmentCalendarSyncService(db).get_status(appointment_id)
+    return AppointmentExternalCalendarEventRead.model_validate(item) if item else None
+
+
+@router.post("/me/appointments/{appointment_id}/external-calendar/retry", response_model=AppointmentExternalCalendarEventRead | None, dependencies=[Depends(require_professional)])
+def retry_my_appointment_external_calendar(appointment_id: int, user=Depends(get_current_user), db: Session = Depends(get_db)):
+    AppointmentService(db).get_for_actor(appointment_id, user)
+    item = AppointmentCalendarSyncService(db).retry(appointment_id, user)
+    return AppointmentExternalCalendarEventRead.model_validate(item) if item else None
+
+
+@router.post("/me/appointments/{appointment_id}/external-calendar/reconcile", response_model=AppointmentExternalCalendarEventRead | None, dependencies=[Depends(require_professional)])
+def reconcile_my_appointment_external_calendar(appointment_id: int, user=Depends(get_current_user), db: Session = Depends(get_db)):
+    AppointmentService(db).get_for_actor(appointment_id, user)
+    item = AppointmentCalendarSyncService(db).reconcile(appointment_id, user)
+    return AppointmentExternalCalendarEventRead.model_validate(item) if item else None

@@ -64,13 +64,31 @@ class GoogleExternalCalendarProvider:
         ]
 
     def create_event(self, payload: ExternalCalendarEventInput) -> ExternalCalendarEventResult:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Google Calendar event writes are not supported in 15.2")
+        token = self._access_token()
+        result = self.calendar_client.create_plain_event(access_token=token, calendar_id=payload.calendar_id, payload=payload, send_updates="none")
+        return ExternalCalendarEventResult(result.event_id, payload.calendar_id, "created")
 
     def update_event(self, external_event_id: str, payload: ExternalCalendarEventInput) -> ExternalCalendarEventResult:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Google Calendar event writes are not supported in 15.2")
+        token = self._access_token()
+        result = self.calendar_client.update_plain_event(access_token=token, calendar_id=payload.calendar_id, event_id=external_event_id, payload=payload, send_updates="none")
+        return ExternalCalendarEventResult(result.event_id, payload.calendar_id, "updated")
 
     def delete_event(self, calendar_id: str, external_event_id: str) -> ExternalCalendarEventResult:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Google Calendar event writes are not supported in 15.2")
+        token = self._access_token()
+        self.calendar_client.delete_event(access_token=token, calendar_id=calendar_id, event_id=external_event_id, send_updates="none")
+        return ExternalCalendarEventResult(external_event_id, calendar_id, "cancelled")
+
+    def get_event(self, calendar_id: str, external_event_id: str) -> ExternalCalendarEventResult:
+        token = self._access_token()
+        result = self.calendar_client.get_event(access_token=token, calendar_id=calendar_id, event_id=external_event_id)
+        return ExternalCalendarEventResult(result.event_id, calendar_id, "cancelled" if result.status == "cancelled" else "found")
+
+    def find_event_by_appointment_id(self, calendar_id: str, appointment_id: int) -> ExternalCalendarEventResult | None:
+        token = self._access_token()
+        result = self.calendar_client.find_event_by_appointment_id(access_token=token, calendar_id=calendar_id, appointment_id=appointment_id)
+        if not result:
+            return None
+        return ExternalCalendarEventResult(result.event_id, calendar_id, "found")
 
     def health_check(self) -> CalendarProviderHealth:
         try:

@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.core.deps import require_admin
 from app.db.session import get_db
 from app.calendars.schemas import (
+    AppointmentExternalCalendarEventRead,
     CalendarConflictCheckRead,
     CalendarConflictCheckRequest,
     CalendarSyncSettingsRead,
@@ -84,6 +85,7 @@ from app.schemas.integrations import (
 from app.schemas.specialties import SpecialtyAdminRead, SpecialtyCreate, SpecialtyUpdate
 from app.services.catalog import CatalogService
 from app.services.appointments import AppointmentService
+from app.services.appointment_calendar_sync import AppointmentCalendarSyncService
 from app.services.integrations import IntegrationService
 from app.services.google_meet import GoogleMeetService
 from app.services.meeting_provisioning import MeetingProvisioningService
@@ -1242,6 +1244,42 @@ def reconcile_appointment_meeting(
     MeetingProvisioningService(db).reconcile(appointment_id, user)
     db.refresh(appointment)
     return _serialize_admin_appointment(appointment, AppointmentService(db))
+
+
+@router.get("/appointments/{appointment_id}/external-calendar", response_model=AppointmentExternalCalendarEventRead | None)
+def get_appointment_external_calendar(
+    appointment_id: int,
+    user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    if not db.get(Appointment, appointment_id):
+        raise HTTPException(status_code=404, detail="Appointment not found")
+    item = AppointmentCalendarSyncService(db).get_status(appointment_id)
+    return AppointmentExternalCalendarEventRead.model_validate(item) if item else None
+
+
+@router.post("/appointments/{appointment_id}/external-calendar/retry", response_model=AppointmentExternalCalendarEventRead | None)
+def retry_appointment_external_calendar(
+    appointment_id: int,
+    user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    if not db.get(Appointment, appointment_id):
+        raise HTTPException(status_code=404, detail="Appointment not found")
+    item = AppointmentCalendarSyncService(db).retry(appointment_id, user)
+    return AppointmentExternalCalendarEventRead.model_validate(item) if item else None
+
+
+@router.post("/appointments/{appointment_id}/external-calendar/reconcile", response_model=AppointmentExternalCalendarEventRead | None)
+def reconcile_appointment_external_calendar(
+    appointment_id: int,
+    user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    if not db.get(Appointment, appointment_id):
+        raise HTTPException(status_code=404, detail="Appointment not found")
+    item = AppointmentCalendarSyncService(db).reconcile(appointment_id, user)
+    return AppointmentExternalCalendarEventRead.model_validate(item) if item else None
 
 
 def _integration_page_meta(page: int, page_size: int, total: int) -> IntegrationPageMeta:

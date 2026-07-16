@@ -32,6 +32,8 @@ class ExternalCalendarEventInput:
     ends_at: datetime
     timezone: str
     description: str | None = None
+    attendees: list[str] | None = None
+    appointment_id: int | None = None
 
 
 @dataclass(frozen=True)
@@ -58,5 +60,9 @@ class ExternalCalendarProviderClient(Protocol):
     def update_event(self, external_event_id: str, payload: ExternalCalendarEventInput) -> ExternalCalendarEventResult: ...
 
     def delete_event(self, calendar_id: str, external_event_id: str) -> ExternalCalendarEventResult: ...
+
+    def get_event(self, calendar_id: str, external_event_id: str) -> ExternalCalendarEventResult: ...
+
+    def find_event_by_appointment_id(self, calendar_id: str, appointment_id: int) -> ExternalCalendarEventResult | None: ...
 
     def health_check(self) -> CalendarProviderHealth: ...

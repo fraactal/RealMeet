@@ -1,4 +1,4 @@
-from app.models.appointment import Appointment, AppointmentHistory, AppointmentMeeting, AppointmentNotification
+from app.models.appointment import Appointment, AppointmentExternalCalendarEvent, AppointmentHistory, AppointmentMeeting, AppointmentNotification
 from app.models.audit_log import AuditLog
 from app.models.availability import AvailabilityBlock, AvailabilityRule
 from app.models.category import Category
@@ -15,6 +15,7 @@ from app.models.whatsapp import WhatsAppConsent, WhatsAppMessage, WhatsAppTempla
 
 __all__ = [
     "Appointment",
+    "AppointmentExternalCalendarEvent",
     "AppointmentHistory",
     "AppointmentMeeting",
     "AppointmentNotification",
