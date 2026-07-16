@@ -6,6 +6,15 @@ from sqlalchemy.orm import Session
 
 from app.core.deps import require_admin
 from app.db.session import get_db
+from app.calendars.schemas import (
+    CalendarSyncSettingsRead,
+    CalendarSyncSettingsUpdate,
+    ExternalCalendarCreate,
+    ExternalCalendarRead,
+    ExternalCalendarTestRead,
+    ExternalCalendarUpdate,
+)
+from app.calendars.service import ExternalCalendarService
 from app.integrations.enums import IntegrationProvider, IntegrationStatus, IntegrationType
 from app.automation.schemas import (
     WebhookDeliveryRead,
@@ -974,6 +983,64 @@ def list_professionals(
         items=[_serialize_professional_item(item) for item in items],
         meta=_page_meta(page, page_size, total),
     )
+
+
+@router.get("/professionals/{professional_id}/external-calendars", response_model=list[ExternalCalendarRead])
+def list_admin_external_calendars(professional_id: int, db: Session = Depends(get_db)) -> list[ExternalCalendarRead]:
+    return [ExternalCalendarRead.model_validate(item) for item in ExternalCalendarService(db).list_calendars(professional_id)]
+
+
+@router.post("/professionals/{professional_id}/external-calendars", response_model=ExternalCalendarRead)
+def create_admin_external_calendar(
+    professional_id: int,
+    payload: ExternalCalendarCreate,
+    db: Session = Depends(get_db),
+) -> ExternalCalendarRead:
+    return ExternalCalendarRead.model_validate(ExternalCalendarService(db).create_calendar(professional_id, payload))
+
+
+@router.get("/professionals/{professional_id}/external-calendars/{calendar_id}", response_model=ExternalCalendarRead)
+def get_admin_external_calendar(professional_id: int, calendar_id: int, db: Session = Depends(get_db)) -> ExternalCalendarRead:
+    return ExternalCalendarRead.model_validate(ExternalCalendarService(db).get_calendar(professional_id, calendar_id))
+
+
+@router.patch("/professionals/{professional_id}/external-calendars/{calendar_id}", response_model=ExternalCalendarRead)
+def update_admin_external_calendar(
+    professional_id: int,
+    calendar_id: int,
+    payload: ExternalCalendarUpdate,
+    db: Session = Depends(get_db),
+) -> ExternalCalendarRead:
+    return ExternalCalendarRead.model_validate(ExternalCalendarService(db).update_calendar(professional_id, calendar_id, payload))
+
+
+@router.post("/professionals/{professional_id}/external-calendars/{calendar_id}/enable", response_model=ExternalCalendarRead)
+def enable_admin_external_calendar(professional_id: int, calendar_id: int, db: Session = Depends(get_db)) -> ExternalCalendarRead:
+    return ExternalCalendarRead.model_validate(ExternalCalendarService(db).set_enabled(professional_id, calendar_id, True))
+
+
+@router.post("/professionals/{professional_id}/external-calendars/{calendar_id}/disable", response_model=ExternalCalendarRead)
+def disable_admin_external_calendar(professional_id: int, calendar_id: int, db: Session = Depends(get_db)) -> ExternalCalendarRead:
+    return ExternalCalendarRead.model_validate(ExternalCalendarService(db).set_enabled(professional_id, calendar_id, False))
+
+
+@router.post("/professionals/{professional_id}/external-calendars/{calendar_id}/test", response_model=ExternalCalendarTestRead)
+def test_admin_external_calendar(professional_id: int, calendar_id: int, simulate_error: bool = False, db: Session = Depends(get_db)) -> ExternalCalendarTestRead:
+    return ExternalCalendarService(db).test_calendar(professional_id, calendar_id, simulate_error=simulate_error)
+
+
+@router.get("/professionals/{professional_id}/calendar-sync-settings", response_model=CalendarSyncSettingsRead)
+def get_admin_calendar_sync_settings(professional_id: int, db: Session = Depends(get_db)) -> CalendarSyncSettingsRead:
+    return CalendarSyncSettingsRead.model_validate(ExternalCalendarService(db).get_settings(professional_id))
+
+
+@router.patch("/professionals/{professional_id}/calendar-sync-settings", response_model=CalendarSyncSettingsRead)
+def update_admin_calendar_sync_settings(
+    professional_id: int,
+    payload: CalendarSyncSettingsUpdate,
+    db: Session = Depends(get_db),
+) -> CalendarSyncSettingsRead:
+    return CalendarSyncSettingsRead.model_validate(ExternalCalendarService(db).update_settings(professional_id, payload))
 
 
 @router.get("/professionals/{professional_id}", response_model=AdminProfessionalDetail)

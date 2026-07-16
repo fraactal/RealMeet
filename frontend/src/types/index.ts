@@ -637,6 +637,82 @@ export interface N8nWorkflowWrite {
   secret_reference: string;
 }
 
+export type ExternalCalendarProvider = "fake" | "google_calendar" | "microsoft_365";
+export type ExternalCalendarSyncStatus = "pending" | "active" | "disabled" | "error";
+export type CalendarConflictPolicy = "internal_only" | "external_busy_blocks" | "disabled";
+
+export interface ExternalCalendar {
+  id: number;
+  professional_id: number;
+  integration_id?: number | null;
+  provider: ExternalCalendarProvider;
+  external_calendar_id: string;
+  name: string;
+  description?: string | null;
+  timezone: string;
+  read_enabled: boolean;
+  write_enabled: boolean;
+  conflict_check_enabled: boolean;
+  is_primary: boolean;
+  enabled: boolean;
+  sync_status: ExternalCalendarSyncStatus;
+  last_synced_at?: string | null;
+  last_sync_error_at?: string | null;
+  last_sync_error_code?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ExternalCalendarWrite {
+  provider: ExternalCalendarProvider;
+  integration_id?: number | null;
+  external_calendar_id: string;
+  name: string;
+  description?: string | null;
+  timezone: string;
+  read_enabled: boolean;
+  write_enabled: boolean;
+  conflict_check_enabled: boolean;
+  is_primary: boolean;
+}
+
+export interface ExternalCalendarUpdate {
+  name?: string;
+  description?: string | null;
+  timezone?: string;
+  read_enabled?: boolean;
+  write_enabled?: boolean;
+  conflict_check_enabled?: boolean;
+  is_primary?: boolean;
+}
+
+export interface CalendarSyncSettings {
+  professional_id: number;
+  sync_enabled: boolean;
+  conflict_policy: CalendarConflictPolicy;
+  lookback_days: number;
+  lookahead_days: number;
+  default_external_calendar_id?: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CalendarSyncSettingsUpdate {
+  sync_enabled?: boolean;
+  conflict_policy?: CalendarConflictPolicy;
+  lookback_days?: number;
+  lookahead_days?: number;
+  default_external_calendar_id?: number | null;
+}
+
+export interface ExternalCalendarTestResult {
+  health: { healthy: boolean; code: string; message: string };
+  calendars: Array<{ external_calendar_id: string; name: string; description?: string | null; timezone: string; is_primary: boolean }>;
+  busy_periods: Array<{ starts_at: string; ends_at: string; source_calendar_id: string; external_event_id: string; availability: string }>;
+  created_event_id?: string | null;
+  deleted_event_id?: string | null;
+}
+
 export interface AutomationExample {
   key: string;
   name: string;

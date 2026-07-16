@@ -10,6 +10,8 @@ import type {
   AppointmentNotification,
   AutomationExample,
   AutomationExampleDetail,
+  CalendarSyncSettings,
+  CalendarSyncSettingsUpdate,
   AppointmentCreate,
   AppointmentPrivateNotesUpdate,
   AppointmentProfessionalStatusUpdate,
@@ -42,6 +44,10 @@ import type {
   IntegrationTestPayload,
   IntegrationType,
   IntegrationUpdatePayload,
+  ExternalCalendar,
+  ExternalCalendarTestResult,
+  ExternalCalendarUpdate,
+  ExternalCalendarWrite,
   WebhookDelivery,
   WebhookSubscription,
   WebhookSubscriptionUpdate,
@@ -507,6 +513,76 @@ export async function fetchAutomationExamples(): Promise<AutomationExample[]> {
 
 export async function fetchAutomationExample(exampleKey: string): Promise<AutomationExampleDetail> {
   const { data } = await api.get(`/admin/automation/examples/${encodeURIComponent(exampleKey)}`);
+  return data;
+}
+
+export async function fetchExternalCalendars(): Promise<ExternalCalendar[]> {
+  const { data } = await api.get("/professionals/me/external-calendars");
+  return data;
+}
+
+export async function createExternalCalendar(payload: ExternalCalendarWrite): Promise<ExternalCalendar> {
+  const { data } = await api.post("/professionals/me/external-calendars", payload);
+  return data;
+}
+
+export async function updateExternalCalendar(calendarId: number, payload: ExternalCalendarUpdate): Promise<ExternalCalendar> {
+  const { data } = await api.patch(`/professionals/me/external-calendars/${calendarId}`, payload);
+  return data;
+}
+
+export async function enableExternalCalendar(calendarId: number): Promise<ExternalCalendar> {
+  const { data } = await api.post(`/professionals/me/external-calendars/${calendarId}/enable`);
+  return data;
+}
+
+export async function disableExternalCalendar(calendarId: number): Promise<ExternalCalendar> {
+  const { data } = await api.post(`/professionals/me/external-calendars/${calendarId}/disable`);
+  return data;
+}
+
+export async function testExternalCalendar(calendarId: number, simulateError = false): Promise<ExternalCalendarTestResult> {
+  const { data } = await api.post(`/professionals/me/external-calendars/${calendarId}/test`, null, { params: { simulate_error: simulateError } });
+  return data;
+}
+
+export async function fetchCalendarSyncSettings(): Promise<CalendarSyncSettings> {
+  const { data } = await api.get("/professionals/me/calendar-sync-settings");
+  return data;
+}
+
+export async function updateCalendarSyncSettings(payload: CalendarSyncSettingsUpdate): Promise<CalendarSyncSettings> {
+  const { data } = await api.patch("/professionals/me/calendar-sync-settings", payload);
+  return data;
+}
+
+export async function fetchAdminExternalCalendars(professionalId: number): Promise<ExternalCalendar[]> {
+  const { data } = await api.get(`/admin/professionals/${professionalId}/external-calendars`);
+  return data;
+}
+
+export async function createAdminExternalCalendar(professionalId: number, payload: ExternalCalendarWrite): Promise<ExternalCalendar> {
+  const { data } = await api.post(`/admin/professionals/${professionalId}/external-calendars`, payload);
+  return data;
+}
+
+export async function enableAdminExternalCalendar(professionalId: number, calendarId: number): Promise<ExternalCalendar> {
+  const { data } = await api.post(`/admin/professionals/${professionalId}/external-calendars/${calendarId}/enable`);
+  return data;
+}
+
+export async function disableAdminExternalCalendar(professionalId: number, calendarId: number): Promise<ExternalCalendar> {
+  const { data } = await api.post(`/admin/professionals/${professionalId}/external-calendars/${calendarId}/disable`);
+  return data;
+}
+
+export async function testAdminExternalCalendar(professionalId: number, calendarId: number): Promise<ExternalCalendarTestResult> {
+  const { data } = await api.post(`/admin/professionals/${professionalId}/external-calendars/${calendarId}/test`);
+  return data;
+}
+
+export async function fetchAdminCalendarSyncSettings(professionalId: number): Promise<CalendarSyncSettings> {
+  const { data } = await api.get(`/admin/professionals/${professionalId}/calendar-sync-settings`);
   return data;
 }
 

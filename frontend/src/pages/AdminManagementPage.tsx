@@ -2,12 +2,18 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
+  createAdminExternalCalendar,
+  disableAdminExternalCalendar,
+  enableAdminExternalCalendar,
   fetchAdminAppointments,
+  fetchAdminCalendarSyncSettings,
+  fetchAdminExternalCalendars,
   fetchAdminProfessionals,
   fetchAdminUsers,
   reconcileAdminAppointmentMeeting,
   retryAdminAppointmentMeetingCancel,
   retryAdminAppointmentMeetingCreate,
+  testAdminExternalCalendar,
   updateAdminProfessional,
   updateAdminUser,
 } from "../api/queries";
@@ -15,7 +21,7 @@ import { AdminAppointmentCard } from "../components/admin/AdminAppointmentCard";
 import { AdminPagination } from "../components/admin/AdminPagination";
 import { AdminStatusPill } from "../components/admin/AdminStatusPill";
 import { Badge, Button, EmptyState, ErrorState, Input, Label, LoadingState, PageHeader, SectionCard, Select, StatusBadge } from "../components/ui";
-import type { Appointment, AppointmentStatus, UserRole } from "../types";
+import type { Appointment, AppointmentStatus, ExternalCalendar, UserRole } from "../types";
 import { formatDateTime } from "../utils/dates";
 import { getAppointmentStatusLabel, getConsultationModeLabel, getRoleLabel } from "../utils/labels";
 
@@ -30,6 +36,7 @@ export function AdminManagementPage() {
   const [usersPage, setUsersPage] = useState(1);
   const [professionalsPage, setProfessionalsPage] = useState(1);
   const [appointmentsPage, setAppointmentsPage] = useState(1);
+  const [selectedProfessionalId, setSelectedProfessionalId] = useState<number | null>(null);
 
   const baseParams = useMemo(() => ({ search: search.trim() || undefined, page_size: PAGE_SIZE }), [search]);
   const usersQuery = useQuery({
@@ -61,6 +68,17 @@ export function AdminManagementPage() {
         page_size: PAGE_SIZE,
       }),
   });
+  const effectiveProfessionalId = selectedProfessionalId ?? professionalsQuery.data?.items[0]?.id ?? null;
+  const externalCalendarsQuery = useQuery({
+    queryKey: ["admin-external-calendars", effectiveProfessionalId],
+    queryFn: () => fetchAdminExternalCalendars(effectiveProfessionalId ?? 0),
+    enabled: Boolean(effectiveProfessionalId),
+  });
+  const calendarSettingsQuery = useQuery({
+    queryKey: ["admin-calendar-sync-settings", effectiveProfessionalId],
+    queryFn: () => fetchAdminCalendarSyncSettings(effectiveProfessionalId ?? 0),
+    enabled: Boolean(effectiveProfessionalId),
+  });
   const userMutation = useMutation({
     mutationFn: ({ id, is_active }: { id: number; is_active: boolean }) => updateAdminUser(id, { is_active }),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["admin-users"] }),
@@ -78,6 +96,28 @@ export function AdminManagementPage() {
     },
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["admin-appointments"] }),
   });
+  const refreshAdminCalendars = () => {
+    void queryClient.invalidateQueries({ queryKey: ["admin-external-calendars"] });
+    void queryClient.invalidateQueries({ queryKey: ["admin-calendar-sync-settings"] });
+  };
+  const createAdminCalendarMutation = useMutation({
+    mutationFn: (professionalId: number) =>
+      createAdminExternalCalendar(professionalId, {
+        provider: "fake",
+        external_calendar_id: `fake-admin-${professionalId}`,
+        name: "Calendario fake admin",
+        description: "Calendario fake creado desde backoffice.",
+        timezone: "America/Santiago",
+        read_enabled: true,
+        write_enabled: false,
+        conflict_check_enabled: true,
+        is_primary: externalCalendarsQuery.data?.length === 0,
+      }),
+    onSuccess: refreshAdminCalendars,
+  });
+  const enableAdminCalendarMutation = useMutation({ mutationFn: ({ professionalId, calendarId }: { professionalId: number; calendarId: number }) => enableAdminExternalCalendar(professionalId, calendarId), onSuccess: refreshAdminCalendars });
+  const disableAdminCalendarMutation = useMutation({ mutationFn: ({ professionalId, calendarId }: { professionalId: number; calendarId: number }) => disableAdminExternalCalendar(professionalId, calendarId), onSuccess: refreshAdminCalendars });
+  const testAdminCalendarMutation = useMutation({ mutationFn: ({ professionalId, calendarId }: { professionalId: number; calendarId: number }) => testAdminExternalCalendar(professionalId, calendarId), onSuccess: refreshAdminCalendars });
 
   const resetFilters = () => {
     setSearch("");
@@ -335,6 +375,37 @@ export function AdminManagementPage() {
         <AdminPagination meta={professionalsQuery.data?.meta} onPageChange={setProfessionalsPage} />
       </SectionCard>
 
+      <SectionCard title="Calendarios externos" description="Administracion acotada de calendarios externos por profesional. Solo el provider fake esta operativo en 15.1.">
+        <div className="grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
+          <div>
+            <Label htmlFor="admin-calendar-professional">Profesional</Label>
+            <Select id="admin-calendar-professional" value={effectiveProfessionalId ?? ""} onChange={(event) => setSelectedProfessionalId(Number(event.target.value))}>
+              {professionalsQuery.data?.items.map((professional) => (
+                <option key={professional.id} value={professional.id}>{professional.full_name}</option>
+              ))}
+            </Select>
+          </div>
+          <Button disabled={!effectiveProfessionalId} isLoading={createAdminCalendarMutation.isPending} onClick={() => effectiveProfessionalId && createAdminCalendarMutation.mutate(effectiveProfessionalId)}>Registrar fake</Button>
+        </div>
+        <p className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-ink-600">Google Calendar y Microsoft 365 quedan catalogados para proximas etapas; no se conectan todavia al flujo real de disponibilidad.</p>
+        {externalCalendarsQuery.isLoading ? <LoadingState label="Cargando calendarios externos" /> : null}
+        {externalCalendarsQuery.isError ? <ErrorState title="No pudimos cargar calendarios externos" /> : null}
+        <div className="mt-4 grid gap-3 lg:grid-cols-2">
+          {externalCalendarsQuery.data?.map((calendar) => (
+            <AdminExternalCalendarCard
+              busy={enableAdminCalendarMutation.isPending || disableAdminCalendarMutation.isPending || testAdminCalendarMutation.isPending}
+              calendar={calendar}
+              key={calendar.id}
+              onDisable={() => effectiveProfessionalId && disableAdminCalendarMutation.mutate({ professionalId: effectiveProfessionalId, calendarId: calendar.id })}
+              onEnable={() => effectiveProfessionalId && enableAdminCalendarMutation.mutate({ professionalId: effectiveProfessionalId, calendarId: calendar.id })}
+              onTest={() => effectiveProfessionalId && testAdminCalendarMutation.mutate({ professionalId: effectiveProfessionalId, calendarId: calendar.id })}
+            />
+          ))}
+          {!externalCalendarsQuery.isLoading && externalCalendarsQuery.data?.length === 0 ? <EmptyState title="Sin calendarios externos" description="Registra un calendario fake para validar el flujo administrativo." /> : null}
+        </div>
+        {calendarSettingsQuery.data ? <p className="mt-4 text-sm text-ink-600">Politica actual: {calendarSettingsQuery.data.conflict_policy}. Lookahead: {calendarSettingsQuery.data.lookahead_days} dias.</p> : null}
+      </SectionCard>
+
       <SectionCard title="Reservas" description="Reservas recientes y filtros por estado real.">
         {appointmentsQuery.isLoading ? <LoadingState label="Cargando reservas" /> : null}
         {appointmentsQuery.isError ? <ErrorState title="No pudimos cargar reservas" message="Ajusta los filtros o intenta nuevamente." /> : null}
@@ -386,6 +457,26 @@ export function AdminManagementPage() {
         <AdminPagination meta={appointmentsQuery.data?.meta} onPageChange={setAppointmentsPage} />
       </SectionCard>
     </div>
+  );
+}
+
+function AdminExternalCalendarCard({ calendar, busy, onDisable, onEnable, onTest }: { calendar: ExternalCalendar; busy: boolean; onDisable: () => void; onEnable: () => void; onTest: () => void }) {
+  return (
+    <article className="rounded-lg border border-slate-200 bg-white p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="font-semibold text-ink-900">{calendar.name}</p>
+          <p className="mt-1 text-sm text-ink-500">{calendar.provider} · {calendar.external_calendar_id}</p>
+        </div>
+        <Badge label={calendar.enabled ? "Habilitado" : "Deshabilitado"} tone={calendar.enabled ? "success" : "neutral"} />
+      </div>
+      <p className="mt-3 text-sm text-ink-600">Estado: {calendar.sync_status}. Timezone: {calendar.timezone}</p>
+      {calendar.last_sync_error_code ? <p className="mt-2 text-sm text-danger-700">Error resumido: {calendar.last_sync_error_code}</p> : null}
+      <div className="mt-4 flex flex-wrap gap-2">
+        {calendar.enabled ? <Button isLoading={busy} onClick={onDisable} size="sm" variant="secondary">Deshabilitar</Button> : <Button isLoading={busy} onClick={onEnable} size="sm">Habilitar</Button>}
+        <Button isLoading={busy} onClick={onTest} size="sm" variant="secondary">Probar fake</Button>
+      </div>
+    </article>
   );
 }
 
