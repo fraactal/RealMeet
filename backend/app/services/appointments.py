@@ -10,8 +10,11 @@ from app.meetings.base import MeetingPayload
 from app.meetings.factory import get_meeting_provider
 from app.models.appointment import Appointment, AppointmentHistory, AppointmentStatus
 from app.models.client_profile import ClientProfile
+from app.models.integration import Integration
 from app.models.professional_profile import PaymentTiming, ProfessionalProfile
 from app.models.user import User
+from app.integrations.enums import IntegrationProvider, IntegrationType
+from app.payments.enums import PaymentProviderKey
 from app.notifications.service import AppointmentNotificationService
 from app.automation.service import DomainEventPublisher
 from app.schemas.appointments import AppointmentCreate, AppointmentPrivateNotesUpdate, AppointmentProfessionalStatusUpdate, AppointmentStatusUpdate
@@ -338,7 +341,7 @@ class AppointmentService:
         PaymentOrderService(self.db).create(
             PaymentOrderCreate(
                 appointment_id=appointment.id,
-                provider="fake",
+                provider=self._automatic_payment_provider(),
                 amount=amount,
                 currency=professional.payment_currency,
                 description=f"Reserva #{appointment.id}",
@@ -348,6 +351,16 @@ class AppointmentService:
             idempotency_key=f"appointment-payment:{appointment.id}",
             commit=False,
         )
+
+    def _automatic_payment_provider(self) -> PaymentProviderKey:
+        mercado_pago = self.db.scalar(
+            select(Integration.id).where(
+                Integration.integration_type == IntegrationType.payment,
+                Integration.provider == IntegrationProvider.mercado_pago,
+                Integration.enabled.is_(True),
+            )
+        )
+        return PaymentProviderKey.mercado_pago if mercado_pago else PaymentProviderKey.fake
 
     @staticmethod
     def _ensure_aware_utc(value: datetime) -> datetime:

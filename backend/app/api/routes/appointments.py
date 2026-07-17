@@ -108,7 +108,7 @@ def serialize_payment(appointment, db) -> AppointmentPaymentSummaryRead | None:
         amount=str(order.amount),
         currency=order.currency.value,
         expires_at=order.expires_at,
-        checkout_available=order.status in ACTIVE_PAYMENT_STATUSES and order.provider.value == "fake",
+        checkout_available=order.status in ACTIVE_PAYMENT_STATUSES and (order.provider.value == "fake" or bool(order.checkout_url or order.sandbox_checkout_url)),
     )
 
 

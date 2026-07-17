@@ -31,7 +31,7 @@ export function PaymentsPage() {
       <PageHeader title={isProfessional ? "Pagos de reservas" : "Mis pagos"} description="Consulta de ordenes de cobro vinculadas a reservas y checkout fake de prueba." />
       <SectionCard title="Ordenes" description={isProfessional ? "Solo lectura de pagos asociados a tus reservas." : "Estado de tus ordenes de cobro."}>
         <div className="grid gap-3">
-          {orders.map((order) => <PaymentCard key={order.id} order={order} onCheckout={!isProfessional && order.status !== "approved" ? () => setSelectedCheckoutId(order.id) : undefined} />)}
+          {orders.map((order) => <PaymentCard key={order.id} order={order} onCheckout={!isProfessional && order.status !== "approved" && ["fake", "mercado_pago"].includes(order.provider) ? () => setSelectedCheckoutId(order.id) : undefined} />)}
           {orders.length === 0 ? <EmptyState title="Sin pagos registrados" description="Cuando exista una orden de cobro asociada a una reserva, aparecera aqui." /> : null}
         </div>
       </SectionCard>
@@ -58,6 +58,7 @@ function PaymentCard({ order, onCheckout }: { order: PaymentOrder; onCheckout?: 
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="font-semibold text-ink-900">Orden #{order.id}</h3>
             <Badge label={getPaymentOrderStatusLabel(order.status)} tone={order.status === "approved" ? "success" : order.status === "failed" || order.status === "rejected" ? "danger" : "neutral"} />
+            <Badge label={order.provider === "mercado_pago" ? "Mercado Pago" : "Fake"} tone="info" />
           </div>
           <p className="mt-1 text-sm text-ink-600">{order.description ?? "Orden de pago"} - CLP {Number(order.amount).toLocaleString("es-CL")}</p>
           <p className="mt-1 text-xs text-ink-500">Reserva {order.appointment_id ?? "sin vinculo"} - Creada {formatDateTime(order.created_at)}</p>
@@ -91,8 +92,9 @@ function CheckoutPanel({ paymentOrderId, onClose, onDone }: { paymentOrderId: nu
             <p className="mt-3 text-sm text-ink-600">{checkout.message}</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button disabled={!checkout.checkout_available} isLoading={approveMutation.isPending} onClick={() => approveMutation.mutate()}>Simular pago aprobado</Button>
-            <Button disabled={!checkout.checkout_available} isLoading={rejectMutation.isPending} onClick={() => rejectMutation.mutate()} variant="secondary">Simular pago rechazado</Button>
+            {checkout.provider === "mercado_pago" ? <Button disabled={!checkout.checkout_available || !checkout.checkout_url} onClick={() => { if (checkout.checkout_url) window.location.assign(checkout.checkout_url); }}>Pagar con Mercado Pago</Button> : null}
+            {checkout.provider === "fake" ? <Button disabled={!checkout.checkout_available} isLoading={approveMutation.isPending} onClick={() => approveMutation.mutate()}>Simular pago aprobado</Button> : null}
+            {checkout.provider === "fake" ? <Button disabled={!checkout.checkout_available} isLoading={rejectMutation.isPending} onClick={() => rejectMutation.mutate()} variant="secondary">Simular pago rechazado</Button> : null}
             <Button onClick={onClose} variant="secondary">Cerrar</Button>
           </div>
         </div>

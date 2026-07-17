@@ -24,6 +24,7 @@ VALID_PAYMENT_TRANSITIONS: dict[PaymentOrderStatus, set[PaymentOrderStatus]] = {
         PaymentOrderStatus.cancelled,
         PaymentOrderStatus.expired,
         PaymentOrderStatus.failed,
+        PaymentOrderStatus.refunded,
     },
     PaymentOrderStatus.requires_action: {
         PaymentOrderStatus.approved,

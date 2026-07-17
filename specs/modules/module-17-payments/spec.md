@@ -32,3 +32,14 @@
 - Rechazo o expiracion cancelan solo reservas `pending_payment`.
 - No se reactiva una reserva cancelada por pago rechazado o expirado.
 - El checkout cliente es autenticado, solo `provider=fake` y no acepta datos de tarjeta.
+
+## Decisiones 17.3
+
+- Mercado Pago se integra como `Integration` con `integration_type=payment` y `provider=mercado_pago`.
+- Se usa Checkout Pro por redireccion; RealMeet no procesa tarjetas.
+- Las credenciales se resuelven solo desde referencias de entorno.
+- La preferencia persiste `external_preference_id`, checkout URL y estado provider resumido.
+- El retorno frontend es informativo y no aprueba pagos.
+- El Webhook valida firma y consulta `get_payment` antes de aplicar estado.
+- `sync-provider` permite consulta manual del estado real.
+- Produccion real, reembolsos y conciliacion financiera quedan fuera de 17.3.

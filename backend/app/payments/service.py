@@ -12,6 +12,8 @@ from sqlalchemy.orm import Session
 from app.models.appointment import Appointment, AppointmentStatus
 from app.models.audit_log import AuditLog
 from app.models.client_profile import ClientProfile
+from app.integrations.enums import IntegrationProvider, IntegrationType
+from app.models.integration import Integration
 from app.models.payment import PaymentOrder, PaymentOrderStatusHistory
 from app.models.professional_profile import PaymentTiming, ProfessionalProfile
 from app.models.user import User, UserRole
@@ -20,6 +22,13 @@ from app.payments.enums import PaymentCurrency, PaymentOrderStatus, PaymentProvi
 from app.payments.registry import PaymentProviderNotImplementedError, payment_provider_registry
 from app.payments.schemas import PaymentCheckoutRead, PaymentOrderCancel, PaymentOrderCreate
 from app.payments.transitions import ACTIVE_PAYMENT_STATUSES, FINAL_PAYMENT_STATUSES, can_transition
+from app.payments.providers.mercado_pago import (
+    build_preference_payload,
+    map_mercado_pago_status,
+    mercado_pago_client_factory,
+    parse_mercado_pago_config,
+    resolve_secret_reference,
+)
 
 
 class PaymentOrderService:
@@ -165,6 +174,8 @@ class PaymentOrderService:
 
     async def submit(self, payment_order_id: int, actor: User, idempotency_key: str | None = None) -> PaymentOrder:
         item = self.get(payment_order_id)
+        if item.provider == PaymentProviderKey.mercado_pago:
+            return self.submit_mercado_pago(item, actor, idempotency_key)
         if item.external_payment_id and item.status == PaymentOrderStatus.pending:
             return item
         self._ensure_transition(item.status, PaymentOrderStatus.pending)
@@ -186,6 +197,41 @@ class PaymentOrderService:
         item.external_payment_id = result.external_payment_id
         item.expires_at = result.expires_at or item.expires_at
         self._transition(item, PaymentOrderStatus.pending, "payment_submitted", "Orden enviada al provider.", actor, result.provider_reference)
+        self.db.commit()
+        self.db.refresh(item)
+        return item
+
+    def submit_mercado_pago(self, item: PaymentOrder, actor: User, idempotency_key: str | None = None) -> PaymentOrder:
+        if item.external_preference_id and item.checkout_url and item.status in {PaymentOrderStatus.pending, PaymentOrderStatus.requires_action}:
+            return item
+        if item.status == PaymentOrderStatus.draft:
+            self._transition(item, PaymentOrderStatus.pending, "mercado_pago_payment_submitted", "Orden preparada para Checkout Pro.", actor, {"provider": "mercado_pago"})
+        elif item.status not in {PaymentOrderStatus.pending, PaymentOrderStatus.requires_action}:
+            self._ensure_transition(item.status, PaymentOrderStatus.pending)
+        integration = self._mercado_pago_integration()
+        config = parse_mercado_pago_config(integration)
+        token = resolve_secret_reference(config["access_token_reference"])
+        payer_email = item.client.user.email if item.client and item.client.user else None
+        payload = build_preference_payload(
+            order_id=item.id,
+            appointment_id=item.appointment_id,
+            amount=item.amount,
+            currency=item.currency,
+            description=item.description or "Reserva RealMeet",
+            config=config,
+            payer_email=payer_email,
+        )
+        key = idempotency_key or f"{item.idempotency_key or f'payment-order:{item.id}'}:mercado-pago:create-preference"
+        try:
+            result = mercado_pago_client_factory(token).create_preference(payload, idempotency_key=key)
+        except Exception as exc:
+            self._fail_provider_error(item, actor, "mercado_pago_preference_failed", self._sanitize(str(exc)) or "No se pudo crear preferencia Mercado Pago.")
+            return item
+        item.external_preference_id = result.preference_id
+        item.checkout_url = result.init_point
+        item.sandbox_checkout_url = result.sandbox_init_point
+        item.provider_status = result.status or "pending"
+        item.last_provider_sync_at = datetime.now(UTC)
         self.db.commit()
         self.db.refresh(item)
         return item
@@ -262,6 +308,25 @@ class PaymentOrderService:
 
     def checkout_for_client(self, payment_order_id: int, user: User) -> PaymentCheckoutRead:
         item = self.get_for_client(payment_order_id, user)
+        if item.provider == PaymentProviderKey.mercado_pago:
+            if item.status == PaymentOrderStatus.draft or not item.checkout_url:
+                self.submit_mercado_pago(item, user)
+                item = self.get_for_client(payment_order_id, user)
+            checkout_available = item.status in {PaymentOrderStatus.pending, PaymentOrderStatus.requires_action} and bool(item.checkout_url or item.sandbox_checkout_url)
+            return PaymentCheckoutRead(
+                id=item.id,
+                appointment_id=item.appointment_id,
+                provider=item.provider,
+                description=item.description,
+                amount=item.amount,
+                currency=item.currency,
+                status=item.status,
+                expires_at=item.expires_at,
+                checkout_available=checkout_available,
+                test_environment=False,
+                checkout_url=item.checkout_url or item.sandbox_checkout_url,
+                message="Seras redirigido a Mercado Pago. RealMeet no procesa tarjetas.",
+            )
         if item.provider != PaymentProviderKey.fake:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail={"code": "payment_checkout_provider_not_available"})
         if self._is_expired(item):
@@ -271,6 +336,7 @@ class PaymentOrderService:
         return PaymentCheckoutRead(
             id=item.id,
             appointment_id=item.appointment_id,
+            provider=item.provider,
             description=item.description,
             amount=item.amount,
             currency=item.currency,
@@ -294,6 +360,10 @@ class PaymentOrderService:
 
     def reconcile(self, payment_order_id: int, actor: User) -> tuple[str, PaymentOrder]:
         item = self.get(payment_order_id)
+        if item.provider == PaymentProviderKey.mercado_pago and item.status in ACTIVE_PAYMENT_STATUSES and item.external_payment_id:
+            self.sync_provider(payment_order_id, actor)
+            self.db.refresh(item)
+            return "provider_sync_required", item
         appointment = item.appointment if item.appointment_id else None
         if not appointment:
             return "manual_review_required", item
@@ -316,7 +386,83 @@ class PaymentOrderService:
         return "manual_review_required", item
 
     async def health(self, provider: PaymentProviderKey) -> PaymentProviderHealth:
+        if provider == PaymentProviderKey.mercado_pago:
+            integration = self._mercado_pago_integration()
+            config = parse_mercado_pago_config(integration)
+            token = resolve_secret_reference(config["access_token_reference"])
+            result = mercado_pago_client_factory(token).health_check()
+            return PaymentProviderHealth(healthy=result.healthy, code=result.code, message=result.message)
         return await self._provider(provider).health_check()
+
+    def sync_provider(self, payment_order_id: int, actor: User) -> PaymentOrder:
+        item = self.get(payment_order_id)
+        if item.provider != PaymentProviderKey.mercado_pago:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail={"code": "payment_provider_not_mercado_pago"})
+        if not item.external_payment_id:
+            item.last_error_code = "provider_payment_not_found"
+            item.last_error_message = "Mercado Pago payment id no disponible."
+            self.db.commit()
+            self.db.refresh(item)
+            return item
+        integration = self._mercado_pago_integration(require_enabled=False)
+        config = parse_mercado_pago_config(integration)
+        token = resolve_secret_reference(config["access_token_reference"])
+        try:
+            result = mercado_pago_client_factory(token).get_payment(item.external_payment_id)
+        except Exception as exc:
+            item.last_error_code = "mercado_pago_sync_failed"
+            item.last_error_message = self._sanitize(str(exc)) or "No se pudo sincronizar Mercado Pago."
+            self.db.commit()
+            self.db.refresh(item)
+            return item
+        self.apply_mercado_pago_payment(result, actor)
+        return self.get(payment_order_id)
+
+    def apply_mercado_pago_payment(self, result, actor: User | None = None) -> PaymentOrder | None:
+        item = self._find_mercado_pago_order(result)
+        if not item:
+            return None
+        item.external_payment_id = result.payment_id
+        item.external_preference_id = item.external_preference_id or result.preference_id
+        item.provider_status = result.status
+        item.provider_status_detail = result.status_detail
+        item.last_provider_sync_at = datetime.now(UTC)
+        target = map_mercado_pago_status(result.status)
+        if target is None:
+            item.last_error_code = "payment_provider_status_unknown"
+            item.last_error_message = f"Estado Mercado Pago no mapeado: {self._sanitize(result.status)}"
+            self.db.commit()
+            self.db.refresh(item)
+            return item
+        if item.status == target:
+            self.db.commit()
+            self.db.refresh(item)
+            return item
+        if item.status == PaymentOrderStatus.draft and target != PaymentOrderStatus.pending:
+            self._transition(item, PaymentOrderStatus.pending, "mercado_pago_payment_submitted", "Orden sincronizada desde Mercado Pago.", actor, result.provider_reference)
+        if item.status not in FINAL_PAYMENT_STATUSES:
+            self._transition(item, target, f"mercado_pago_payment_{target.value}", "Estado confirmado via API Mercado Pago.", actor, result.provider_reference)
+            now = datetime.now(UTC)
+            if target == PaymentOrderStatus.approved:
+                item.paid_at = item.paid_at or now
+            if target == PaymentOrderStatus.rejected:
+                item.rejected_at = item.rejected_at or now
+            if target == PaymentOrderStatus.cancelled:
+                item.cancelled_at = item.cancelled_at or now
+            if target == PaymentOrderStatus.failed:
+                item.failed_at = item.failed_at or now
+        self.db.commit()
+        self.db.refresh(item)
+        if target == PaymentOrderStatus.approved:
+            self._apply_approved_policy(item, actor)
+            self._publish_payment_event("payment.approved", item)
+        elif target == PaymentOrderStatus.rejected:
+            self._apply_rejected_policy(item, actor)
+            self._publish_payment_event("payment.rejected", item)
+        elif target in {PaymentOrderStatus.cancelled, PaymentOrderStatus.expired}:
+            self._apply_expired_policy(item, actor)
+            self._publish_payment_event("payment.expired", item)
+        return item
 
     def _resolve_payload(self, payload: PaymentOrderCreate) -> dict:
         currency = PaymentCurrency(payload.currency)
@@ -388,13 +534,40 @@ class PaymentOrderService:
         except PaymentProviderNotImplementedError as exc:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail={"code": exc.code}) from exc
 
+    def _mercado_pago_integration(self, *, require_enabled: bool = True) -> Integration:
+        query = select(Integration).where(
+            Integration.integration_type == IntegrationType.payment,
+            Integration.provider == IntegrationProvider.mercado_pago,
+        )
+        if require_enabled:
+            query = query.where(Integration.enabled.is_(True))
+        integration = self.db.scalar(query.order_by(Integration.id.desc()).limit(1))
+        if not integration:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail={"code": "mercado_pago_integration_not_configured"})
+        return integration
+
+    def _find_mercado_pago_order(self, result) -> PaymentOrder | None:
+        if result.metadata_payment_order_id:
+            item = self.db.get(PaymentOrder, result.metadata_payment_order_id)
+            if item and item.provider == PaymentProviderKey.mercado_pago:
+                return item
+        if result.external_reference and result.external_reference.startswith("payment-order-"):
+            raw_id = result.external_reference.removeprefix("payment-order-")
+            if raw_id.isdigit():
+                item = self.db.get(PaymentOrder, int(raw_id))
+                if item and item.provider == PaymentProviderKey.mercado_pago:
+                    return item
+        if result.payment_id:
+            return self.db.scalar(select(PaymentOrder).where(PaymentOrder.external_payment_id == result.payment_id, PaymentOrder.provider == PaymentProviderKey.mercado_pago))
+        return None
+
     def _transition(
         self,
         item: PaymentOrder,
         new_status: PaymentOrderStatus,
         reason_code: str,
         reason_summary: str,
-        actor: User,
+        actor: User | None,
         provider_reference: dict | None,
     ) -> None:
         self._ensure_transition(item.status, new_status)
@@ -420,15 +593,21 @@ class PaymentOrderService:
         if appointment and appointment.status == AppointmentStatus.pending_payment:
             self._cancel_appointment_for_payment(appointment, actor, "Payment expired")
 
-    def _confirm_appointment_for_payment(self, appointment: Appointment, actor: User, reason: str) -> None:
+    def _confirm_appointment_for_payment(self, appointment: Appointment, actor: User | None, reason: str) -> None:
         from app.services.appointments import AppointmentService
 
-        AppointmentService(self.db).confirm_after_payment(appointment, actor, reason)
+        AppointmentService(self.db).confirm_after_payment(appointment, actor or self._system_actor(appointment), reason)
 
-    def _cancel_appointment_for_payment(self, appointment: Appointment, actor: User, reason: str) -> None:
+    def _cancel_appointment_for_payment(self, appointment: Appointment, actor: User | None, reason: str) -> None:
         from app.services.appointments import AppointmentService
 
-        AppointmentService(self.db).cancel_after_payment_failure(appointment, actor, reason)
+        AppointmentService(self.db).cancel_after_payment_failure(appointment, actor or self._system_actor(appointment), reason)
+
+    def _system_actor(self, appointment: Appointment) -> User:
+        user = self.db.get(User, appointment.client.user_id)
+        if not user:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail={"code": "payment_actor_not_found"})
+        return user
 
     @staticmethod
     def _appointment_policy(appointment: Appointment) -> PaymentTiming:
@@ -436,6 +615,15 @@ class PaymentOrderService:
         return getattr(professional, "payment_timing", PaymentTiming.no_payment) or PaymentTiming.no_payment
 
     def _publish_payment_event(self, event_type: str, item: PaymentOrder) -> None:
+        existing = self.db.scalar(
+            select(AuditLog).where(
+                AuditLog.entity_name == "PaymentOrder",
+                AuditLog.entity_id == str(item.id),
+                AuditLog.action == event_type.replace(".", "_"),
+            )
+        )
+        if existing:
+            return
         self.db.add(
             AuditLog(
                 user_id=None,
@@ -460,7 +648,7 @@ class PaymentOrderService:
         if previous in FINAL_PAYMENT_STATUSES or not can_transition(previous, new):
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail={"code": "payment_invalid_status_transition"})
 
-    def _fail_provider_error(self, item: PaymentOrder, actor: User, code: str, message: str) -> None:
+    def _fail_provider_error(self, item: PaymentOrder, actor: User | None, code: str, message: str) -> None:
         item.last_error_code = self._sanitize(code)[:120]
         item.last_error_message = self._sanitize(message)
         item.failed_at = datetime.now(UTC)
@@ -475,7 +663,7 @@ class PaymentOrderService:
         new: PaymentOrderStatus,
         reason_code: str,
         reason_summary: str,
-        actor: User,
+        actor: User | None,
         provider_reference: dict | None,
     ) -> None:
         self.db.add(
@@ -485,16 +673,16 @@ class PaymentOrderService:
                 new_status=new.value,
                 reason_code=self._sanitize(reason_code)[:120],
                 reason_summary=self._sanitize(reason_summary),
-                changed_by_user_id=actor.id,
+                changed_by_user_id=actor.id if actor else None,
                 provider_reference=self._safe_reference(provider_reference),
                 created_at=datetime.now(UTC),
             )
         )
 
-    def _audit(self, actor: User, action: str, item: PaymentOrder, metadata: dict) -> None:
+    def _audit(self, actor: User | None, action: str, item: PaymentOrder, metadata: dict) -> None:
         self.db.add(
             AuditLog(
-                user_id=actor.id,
+                user_id=actor.id if actor else None,
                 action=action,
                 entity_name="PaymentOrder",
                 entity_id=str(item.id),

@@ -647,6 +647,18 @@ Campos administrativos de politica:
 
 La reserva `pending_payment` bloquea el slot mientras espera pago. Si el pago se rechaza o expira, la reserva pasa a `cancelled` y deja de bloquear disponibilidad. Una reserva cancelada por rechazo o expiracion no se reactiva automaticamente, porque el horario pudo haber sido tomado por otra persona; el cliente debe consultar disponibilidad y crear una nueva reserva.
 
+Modulo 17.3 agrega Mercado Pago Checkout Pro como primer provider real:
+
+- Configuracion via `Integration` con `integration_type=payment` y `provider=mercado_pago`.
+- Credenciales solo por referencias de entorno: `access_token_reference` y `webhook_secret_reference`.
+- Creacion de preferencia Checkout Pro con `X-Idempotency-Key` estable.
+- Persistencia minima: preference ID, checkout URL, estado provider y ultimo sync.
+- Webhook publico firmado en `/api/v1/webhooks/mercado-pago`, deduplicado y verificado consultando la API del provider.
+- `sync-provider` administrativo para consulta manual.
+- Retornos frontend informativos en `/payments/success`, `/payments/pending` y `/payments/failure`.
+
+RealMeet no procesa tarjetas, no guarda access tokens y no aprueba pagos solo por retorno del navegador.
+
 APIs principales:
 
 - `GET/POST /api/v1/admin/payment-orders`
@@ -659,6 +671,7 @@ APIs principales:
 - `POST /api/v1/admin/payment-orders/{payment_order_id}/fake/expire`
 - `POST /api/v1/admin/payment-orders/{payment_order_id}/fake/fail`
 - `POST /api/v1/admin/payment-orders/{payment_order_id}/reconcile`
+- `POST /api/v1/admin/payment-orders/{payment_order_id}/sync-provider`
 - `POST /api/v1/admin/payment-providers/{provider}/health`
 - `GET /api/v1/professionals/me/payment-orders`
 - `GET /api/v1/professionals/me/payment-orders/{payment_order_id}`
@@ -667,8 +680,9 @@ APIs principales:
 - `GET /api/v1/clients/me/payment-orders/{payment_order_id}/checkout`
 - `POST /api/v1/clients/me/payment-orders/{payment_order_id}/checkout/approve`
 - `POST /api/v1/clients/me/payment-orders/{payment_order_id}/checkout/reject`
+- `POST /api/v1/webhooks/mercado-pago`
 
-17.2 no implementa checkout publico anonimo, tarjetas, providers reales, webhooks reales de pago, scheduler de expiracion, reembolsos, impuestos, descuentos, facturacion, suscripciones ni conciliacion bancaria.
+17.3 no implementa checkout publico anonimo, tarjetas dentro de RealMeet, produccion real automatica, reembolsos, impuestos, descuentos, facturacion, suscripciones, scheduler de expiracion, retries automaticos ni conciliacion bancaria.
 
 ## Plan sugerido de commits
 
@@ -677,7 +691,7 @@ El repositorio tiene commits incrementales por modulo. El Modulo 8 debe cerrarse
 ## Limitaciones actuales del MVP
 
 - Integracion automatica de reservas con Google Meet y Zoom no implementada.
-- WhatsApp permite envio manual administrativo y notificaciones transaccionales de reservas con consentimiento; mensajes libres, respuestas y campanas quedan diferidos. Pagos tiene fundacion interna con provider fake; cobro real, checkout, suscripciones y facturacion quedan diferidos.
+- WhatsApp permite envio manual administrativo y notificaciones transaccionales de reservas con consentimiento; mensajes libres, respuestas y campanas quedan diferidos. Pagos tiene fundacion interna, checkout fake y Mercado Pago Checkout Pro preparado para sandbox; produccion real, suscripciones y facturacion quedan diferidos.
 - Recuperacion de contrasena, MFA y roles configurables quedan diferidos.
 - Pruebas frontend automaticas y E2E completas quedan diferidas.
 - El backoffice es minimo y prioriza operacion inicial sobre cobertura total de UX.

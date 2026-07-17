@@ -1,7 +1,9 @@
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Index, Numeric, String, Text
+import enum
+
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Index, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -31,6 +33,12 @@ class PaymentOrder(Base, TimestampMixin):
     specialty_id: Mapped[int | None] = mapped_column(ForeignKey("specialties.id", ondelete="SET NULL"))
     provider: Mapped[PaymentProviderKey] = mapped_column(Enum(PaymentProviderKey, name="payment_provider"), nullable=False)
     external_payment_id: Mapped[str | None] = mapped_column(String(180))
+    external_preference_id: Mapped[str | None] = mapped_column(String(180))
+    checkout_url: Mapped[str | None] = mapped_column(String(700))
+    sandbox_checkout_url: Mapped[str | None] = mapped_column(String(700))
+    provider_status: Mapped[str | None] = mapped_column(String(80))
+    provider_status_detail: Mapped[str | None] = mapped_column(String(160))
+    last_provider_sync_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     idempotency_key: Mapped[str | None] = mapped_column(String(220))
     request_fingerprint: Mapped[str | None] = mapped_column(String(128))
     status: Mapped[PaymentOrderStatus] = mapped_column(
@@ -62,6 +70,41 @@ class PaymentOrder(Base, TimestampMixin):
         back_populates="payment_order",
         cascade="all, delete-orphan",
     )
+
+
+class MercadoPagoWebhookProcessingStatus(str, enum.Enum):
+    received = "received"
+    processed = "processed"
+    ignored = "ignored"
+    failed = "failed"
+    invalid_signature = "invalid_signature"
+
+
+class MercadoPagoWebhookEvent(Base):
+    __tablename__ = "mercado_pago_webhook_events"
+    __table_args__ = (
+        UniqueConstraint("event_id", name="uq_mercado_pago_webhook_event_id"),
+        Index("ix_mercado_pago_webhook_resource", "resource_id"),
+        Index("ix_mercado_pago_webhook_payment_order", "payment_order_id"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    event_id: Mapped[str] = mapped_column(String(180), nullable=False)
+    topic: Mapped[str | None] = mapped_column(String(80))
+    resource_id: Mapped[str | None] = mapped_column(String(180))
+    signature_valid: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    processing_status: Mapped[MercadoPagoWebhookProcessingStatus] = mapped_column(
+        Enum(MercadoPagoWebhookProcessingStatus, name="mercado_pago_webhook_processing_status"),
+        default=MercadoPagoWebhookProcessingStatus.received,
+        nullable=False,
+    )
+    payment_order_id: Mapped[int | None] = mapped_column(ForeignKey("payment_orders.id", ondelete="SET NULL"))
+    received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    error_code: Mapped[str | None] = mapped_column(String(120))
+    error_message: Mapped[str | None] = mapped_column(String(300))
+
+    payment_order = relationship("PaymentOrder")
 
 
 class PaymentOrderStatusHistory(Base):

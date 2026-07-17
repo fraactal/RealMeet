@@ -122,6 +122,11 @@ def reconcile_admin_payment_order(payment_order_id: int, admin_user: User = Depe
     return PaymentReconcileRead(result=result, payment_order=PaymentOrderAdminRead.model_validate(item))
 
 
+@router.post("/admin/payment-orders/{payment_order_id}/sync-provider", response_model=PaymentOrderAdminRead)
+def sync_admin_payment_order_provider(payment_order_id: int, admin_user: User = Depends(require_admin), db: Session = Depends(get_db)) -> PaymentOrderAdminRead:
+    return PaymentOrderAdminRead.model_validate(PaymentOrderService(db).sync_provider(payment_order_id, admin_user))
+
+
 @router.post("/admin/payment-providers/{provider}/health", response_model=PaymentProviderHealthRead)
 async def health_payment_provider(
     provider: PaymentProviderKey,

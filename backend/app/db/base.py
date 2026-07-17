@@ -9,7 +9,7 @@ from app.integrations.google_workspace.sheets_exports import GoogleSheetsExportC
 from app.integrations.google_workspace.docs_templates import AppointmentGeneratedDocument, GoogleDocsTemplate
 from app.integrations.google_workspace.document_automation import DocumentAutomationExecution, GoogleDocsAutomationRule
 from app.models.n8n import N8nWorkflow
-from app.models.payment import PaymentOrder, PaymentOrderStatusHistory
+from app.models.payment import MercadoPagoWebhookEvent, PaymentOrder, PaymentOrderStatusHistory
 from app.models.professional_profile import ProfessionalProfile, ProfessionalSpecialty
 from app.models.specialty import Specialty
 from app.models.system_setting import SystemSetting
@@ -45,6 +45,7 @@ __all__ = [
     "N8nWorkflow",
     "PaymentOrder",
     "PaymentOrderStatusHistory",
+    "MercadoPagoWebhookEvent",
     "ProfessionalProfile",
     "ProfessionalSpecialty",
     "Specialty",

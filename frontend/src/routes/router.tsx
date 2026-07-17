@@ -13,6 +13,7 @@ import { LoginPage } from "../pages/LoginPage";
 import { MockMeetingPage } from "../pages/MockMeetingPage";
 import { AdminPaymentsPage } from "../pages/AdminPaymentsPage";
 import { PaymentsPage } from "../pages/PaymentsPage";
+import { PaymentReturnPage } from "../pages/PaymentReturnPage";
 import { ProfessionalAvailabilityPage } from "../pages/ProfessionalAvailabilityPage";
 import { ProfessionalAppointmentsPage } from "../pages/ProfessionalAppointmentsPage";
 import { ProfessionalCatalogPage } from "../pages/ProfessionalCatalogPage";
@@ -32,6 +33,9 @@ export const router = createBrowserRouter([
       { path: "/", element: <HomePage /> },
       { path: "/professionals", element: <ProfessionalsPage /> },
       { path: "/mock-meeting/:meetingId", element: <MockMeetingPage /> },
+      { path: "/payments/success", element: <PaymentReturnPage result="success" /> },
+      { path: "/payments/pending", element: <PaymentReturnPage result="pending" /> },
+      { path: "/payments/failure", element: <PaymentReturnPage result="failure" /> },
       { path: "/login", element: <LoginPage /> },
       { path: "/register", element: <RegisterPage /> },
     ],

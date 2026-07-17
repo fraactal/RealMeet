@@ -91,6 +91,7 @@ export const integrationTypeLabels: Record<IntegrationType, string> = {
   email: "Correo",
   automation: "Automatizacion",
   webhook: "Webhook",
+  payment: "Pagos",
 };
 
 export const integrationProviderLabels: Record<IntegrationProvider, string> = {
@@ -103,6 +104,7 @@ export const integrationProviderLabels: Record<IntegrationProvider, string> = {
   smtp: "SMTP",
   n8n: "n8n",
   generic_webhook: "Webhook generico",
+  mercado_pago: "Mercado Pago",
 };
 
 export const integrationStatusLabels: Record<IntegrationStatus, string> = {

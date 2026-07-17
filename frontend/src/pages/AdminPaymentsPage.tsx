@@ -12,6 +12,7 @@ import {
   fetchAdminPaymentOrders,
   healthCheckPaymentProvider,
   reconcileAdminPaymentOrder,
+  syncAdminPaymentOrderProvider,
   submitAdminPaymentOrder,
 } from "../api/queries";
 import { AdminPagination } from "../components/admin/AdminPagination";
@@ -65,13 +66,14 @@ export function AdminPaymentsPage() {
     },
   });
   const operationMutation = useMutation({
-    mutationFn: ({ id, action }: { id: number; action: "submit" | "approve" | "reject" | "cancel" | "expire" | "fail" | "reconcile" }) => {
+    mutationFn: ({ id, action }: { id: number; action: "submit" | "approve" | "reject" | "cancel" | "expire" | "fail" | "reconcile" | "sync" }) => {
       if (action === "submit") return submitAdminPaymentOrder(id);
       if (action === "approve") return fakeApprovePaymentOrder(id);
       if (action === "reject") return fakeRejectPaymentOrder(id);
       if (action === "cancel") return cancelAdminPaymentOrder(id);
       if (action === "expire") return fakeExpirePaymentOrder(id);
       if (action === "reconcile") return reconcileAdminPaymentOrder(id).then((result) => result.payment_order);
+      if (action === "sync") return syncAdminPaymentOrderProvider(id);
       return fakeFailPaymentOrder(id);
     },
     onSuccess: refresh,
@@ -80,7 +82,7 @@ export function AdminPaymentsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Pagos" description="Ordenes de cobro internas con provider fake para validacion operativa." />
+      <PageHeader title="Pagos" description="Ordenes de cobro internas, checkout fake y Mercado Pago Checkout Pro." />
 
       <SectionCard title="Crear orden fake" description="Puedes asociar una reserva y derivar el precio del profesional, o indicar un monto manual para pruebas administrativas.">
         <div className="grid gap-3 md:grid-cols-5">
@@ -129,7 +131,7 @@ export function AdminPaymentsPage() {
         </div>
       </SectionCard>
 
-      <SectionCard title="Ordenes" description="Las simulaciones fake no modifican reservas en 17.1.">
+      <SectionCard title="Ordenes" description="Mercado Pago se sincroniza consultando el provider; los controles fake solo aplican al proveedor fake.">
         {ordersQuery.isLoading ? <LoadingState label="Cargando pagos" /> : null}
         {ordersQuery.isError ? <ErrorState title="No pudimos cargar pagos" /> : null}
         {!ordersQuery.isLoading && ordersQuery.data?.items.length === 0 ? <EmptyState title="Sin ordenes de pago" /> : null}
@@ -165,7 +167,7 @@ export function AdminPaymentsPage() {
   );
 }
 
-function PaymentAdminCard({ order, busy, onRun, onHistory }: { order: AdminPaymentOrder; busy: boolean; onRun: (action: "submit" | "approve" | "reject" | "cancel" | "expire" | "fail" | "reconcile") => void; onHistory: () => void }) {
+function PaymentAdminCard({ order, busy, onRun, onHistory }: { order: AdminPaymentOrder; busy: boolean; onRun: (action: "submit" | "approve" | "reject" | "cancel" | "expire" | "fail" | "reconcile" | "sync") => void; onHistory: () => void }) {
   return (
     <article className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -175,8 +177,9 @@ function PaymentAdminCard({ order, busy, onRun, onHistory }: { order: AdminPayme
             <Badge label={getPaymentOrderStatusLabel(order.status)} tone={order.status === "approved" ? "success" : order.status === "failed" || order.status === "rejected" ? "danger" : "neutral"} />
             <Badge label={order.provider} tone="info" />
           </div>
-          <p className="mt-1 text-sm text-ink-600">{order.description ?? "Sin descripcion"} · CLP {Number(order.amount).toLocaleString("es-CL")}</p>
-          <p className="mt-1 text-xs text-ink-500">Reserva {order.appointment_id ?? "sin vinculo"} · Cliente {order.client_id ?? "-"} · Profesional {order.professional_id ?? "-"}</p>
+          <p className="mt-1 text-sm text-ink-600">{order.description ?? "Sin descripcion"} - CLP {Number(order.amount).toLocaleString("es-CL")}</p>
+          <p className="mt-1 text-xs text-ink-500">Reserva {order.appointment_id ?? "sin vinculo"} - Cliente {order.client_id ?? "-"} - Profesional {order.professional_id ?? "-"}</p>
+          {order.external_preference_id ? <p className="mt-1 text-xs text-ink-500">Preference {order.external_preference_id} - Provider {order.provider_status ?? "sin estado"} {order.last_provider_sync_at ? `- Sync ${formatDateTime(order.last_provider_sync_at)}` : ""}</p> : null}
           {order.last_error_message ? <p className="mt-2 text-sm text-danger-700">{order.last_error_code}: {order.last_error_message}</p> : null}
         </div>
         <div className="flex flex-wrap gap-2 lg:justify-end">
@@ -186,6 +189,7 @@ function PaymentAdminCard({ order, busy, onRun, onHistory }: { order: AdminPayme
           <Button isLoading={busy} onClick={() => onRun("cancel")} size="sm" variant="secondary">Cancelar</Button>
           <Button isLoading={busy} onClick={() => onRun("expire")} size="sm" variant="secondary">Expirar</Button>
           <Button isLoading={busy} onClick={() => onRun("fail")} size="sm" variant="secondary">Fallar</Button>
+          {order.provider === "mercado_pago" ? <Button isLoading={busy} onClick={() => onRun("sync")} size="sm" variant="secondary">Sync provider</Button> : null}
           <Button isLoading={busy} onClick={() => onRun("reconcile")} size="sm" variant="secondary">Reconciliar</Button>
           <Button onClick={onHistory} size="sm">Historial</Button>
         </div>

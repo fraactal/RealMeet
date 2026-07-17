@@ -45,6 +45,7 @@ class PaymentOrderPublicRead(ORMModel):
     description: str | None
     amount: Decimal
     currency: PaymentCurrency
+    provider: PaymentProviderKey
     status: PaymentOrderStatus
     expires_at: datetime | None
     paid_at: datetime | None
@@ -55,6 +56,7 @@ class PaymentOrderPublicRead(ORMModel):
 class PaymentCheckoutRead(BaseModel):
     id: int
     appointment_id: int | None
+    provider: PaymentProviderKey
     description: str | None
     amount: Decimal
     currency: PaymentCurrency
@@ -62,6 +64,7 @@ class PaymentCheckoutRead(BaseModel):
     expires_at: datetime | None
     checkout_available: bool
     test_environment: bool = True
+    checkout_url: str | None = None
     message: str
 
 
@@ -75,6 +78,12 @@ class PaymentOrderAdminRead(PaymentOrderPublicRead):
     specialty_id: int | None
     provider: PaymentProviderKey
     external_payment_id: str | None
+    external_preference_id: str | None
+    checkout_url: str | None
+    sandbox_checkout_url: str | None
+    provider_status: str | None
+    provider_status_detail: str | None
+    last_provider_sync_at: datetime | None
     idempotency_key: str | None
     request_fingerprint: str | None
     rejected_at: datetime | None

@@ -62,6 +62,8 @@ def _validate_safe_value(value: Any, *, field_name: str, path: str, depth: int, 
         return
 
     if isinstance(value, str):
+        if SECRET_REFERENCE_PATTERN.fullmatch(value):
+            return
         normalized_value = normalize_key(value)
         if any(secret_part in normalized_value for secret_part in NORMALIZED_SENSITIVE_KEYS):
             raise IntegrationValidationError(f"{field_name} contains a sensitive-looking value at {path}")

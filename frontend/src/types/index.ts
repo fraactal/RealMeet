@@ -474,6 +474,7 @@ export interface PaymentOrder {
   description?: string | null;
   amount: string;
   currency: PaymentCurrency;
+  provider: PaymentProvider;
   status: PaymentOrderStatus;
   expires_at?: string | null;
   paid_at?: string | null;
@@ -487,6 +488,12 @@ export interface AdminPaymentOrder extends PaymentOrder {
   specialty_id?: number | null;
   provider: PaymentProvider;
   external_payment_id?: string | null;
+  external_preference_id?: string | null;
+  checkout_url?: string | null;
+  sandbox_checkout_url?: string | null;
+  provider_status?: string | null;
+  provider_status_detail?: string | null;
+  last_provider_sync_at?: string | null;
   idempotency_key?: string | null;
   request_fingerprint?: string | null;
   rejected_at?: string | null;
@@ -536,6 +543,7 @@ export interface PaymentProviderHealth {
 export interface PaymentCheckout {
   id: number;
   appointment_id?: number | null;
+  provider: PaymentProvider;
   description?: string | null;
   amount: string;
   currency: PaymentCurrency;
@@ -543,10 +551,11 @@ export interface PaymentCheckout {
   expires_at?: string | null;
   checkout_available: boolean;
   test_environment: boolean;
+  checkout_url?: string | null;
   message: string;
 }
 
-export type IntegrationType = "meeting" | "calendar" | "messaging" | "email" | "automation" | "webhook";
+export type IntegrationType = "meeting" | "calendar" | "messaging" | "email" | "automation" | "webhook" | "payment";
 export type IntegrationProvider =
   | "mock"
   | "google_meet"
@@ -556,7 +565,8 @@ export type IntegrationProvider =
   | "twilio"
   | "smtp"
   | "n8n"
-  | "generic_webhook";
+  | "generic_webhook"
+  | "mercado_pago";
 export type IntegrationStatus = "not_configured" | "configured" | "healthy" | "error" | "unsupported";
 export type IntegrationExecutionStatus = "pending" | "running" | "succeeded" | "failed" | "skipped";
 export type WebhookEventType =
@@ -602,6 +612,15 @@ export interface IntegrationConfig {
   template_mapping?: Partial<Record<WhatsAppTemplatePurpose, number>>;
   base_url?: string;
   environment?: string;
+  country?: "CL";
+  currency?: "CLP";
+  notification_url?: string;
+  success_url?: string;
+  pending_url?: string;
+  failure_url?: string;
+  auto_return?: "approved";
+  access_token_reference?: string;
+  webhook_secret_reference?: string;
 }
 
 export interface WhatsAppSecretReferences {

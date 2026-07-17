@@ -451,6 +451,11 @@ export async function reconcileAdminPaymentOrder(paymentOrderId: number): Promis
   return data;
 }
 
+export async function syncAdminPaymentOrderProvider(paymentOrderId: number): Promise<AdminPaymentOrder> {
+  const { data } = await api.post(`/admin/payment-orders/${paymentOrderId}/sync-provider`);
+  return data;
+}
+
 export async function fetchAdminPaymentOrderHistory(paymentOrderId: number): Promise<PaymentOrderHistory[]> {
   const { data } = await api.get(`/admin/payment-orders/${paymentOrderId}/history`);
   return data;
