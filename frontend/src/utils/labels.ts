@@ -6,6 +6,7 @@ import type {
   IntegrationStatus,
   IntegrationType,
   PaymentOrderStatus,
+  PaymentTiming,
   UserRole,
   WhatsAppConsentPurpose,
   WhatsAppConsentSource,
@@ -22,6 +23,7 @@ export type MeetingStatus = "active" | "inactive" | "pending" | "provisioning" |
 
 export const appointmentStatusLabels: Record<AppointmentStatus, string> = {
   pending: "Pendiente",
+  pending_payment: "Pendiente de pago",
   confirmed: "Confirmada",
   cancelled: "Cancelada",
   completed: "Completada",
@@ -291,6 +293,10 @@ export function getWebhookEventTypeLabel(value: string): string {
     "appointment.cancelled": "Reserva cancelada",
     "appointment.confirmed": "Reserva confirmada",
     "meeting.ready": "Reunion lista",
+    "payment.order.created": "Orden de pago creada",
+    "payment.approved": "Pago aprobado",
+    "payment.rejected": "Pago rechazado",
+    "payment.expired": "Pago expirado",
     "document.generated": "Documento generado",
     "notification.sent": "Notificacion enviada",
     "notification.failed": "Notificacion fallida",
@@ -327,4 +333,14 @@ export const paymentOrderStatusLabels: Record<PaymentOrderStatus, string> = {
 
 export function getPaymentOrderStatusLabel(value: PaymentOrderStatus | string): string {
   return paymentOrderStatusLabels[value as PaymentOrderStatus] ?? value;
+}
+
+export const paymentTimingLabels: Record<PaymentTiming, string> = {
+  no_payment: "No requiere pago",
+  pay_before_confirmation: "Pago antes de confirmar",
+  pay_after_confirmation: "Pago despues de confirmar",
+};
+
+export function getPaymentTimingLabel(value: PaymentTiming | string): string {
+  return paymentTimingLabels[value as PaymentTiming] ?? value;
 }

@@ -12,7 +12,10 @@ from app.payments.schemas import (
     PaymentOrderListResponse,
     PaymentOrderPublicRead,
     PaymentOrderStatusHistoryRead,
+    PaymentCheckoutAction,
+    PaymentCheckoutRead,
     PaymentProviderHealthRead,
+    PaymentReconcileRead,
 )
 from app.payments.service import PaymentOrderService
 from app.schemas.admin import PageMeta
@@ -113,6 +116,12 @@ def fail_fake_payment_order(payment_order_id: int, admin_user: User = Depends(re
     return PaymentOrderAdminRead.model_validate(PaymentOrderService(db).fake_fail(payment_order_id, admin_user))
 
 
+@router.post("/admin/payment-orders/{payment_order_id}/reconcile", response_model=PaymentReconcileRead)
+def reconcile_admin_payment_order(payment_order_id: int, admin_user: User = Depends(require_admin), db: Session = Depends(get_db)) -> PaymentReconcileRead:
+    result, item = PaymentOrderService(db).reconcile(payment_order_id, admin_user)
+    return PaymentReconcileRead(result=result, payment_order=PaymentOrderAdminRead.model_validate(item))
+
+
 @router.post("/admin/payment-providers/{provider}/health", response_model=PaymentProviderHealthRead)
 async def health_payment_provider(
     provider: PaymentProviderKey,
@@ -142,3 +151,20 @@ def list_client_payment_orders(user: User = Depends(get_current_user), db: Sessi
 @router.get("/clients/me/payment-orders/{payment_order_id}", response_model=PaymentOrderPublicRead, dependencies=[Depends(require_client)])
 def get_client_payment_order(payment_order_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> PaymentOrderPublicRead:
     return PaymentOrderPublicRead.model_validate(PaymentOrderService(db).get_for_client(payment_order_id, user))
+
+
+@router.get("/clients/me/payment-orders/{payment_order_id}/checkout", response_model=PaymentCheckoutRead, dependencies=[Depends(require_client)])
+def get_client_payment_checkout(payment_order_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> PaymentCheckoutRead:
+    return PaymentOrderService(db).checkout_for_client(payment_order_id, user)
+
+
+@router.post("/clients/me/payment-orders/{payment_order_id}/checkout/approve", response_model=PaymentOrderPublicRead, dependencies=[Depends(require_client)])
+def approve_client_payment_checkout(payment_order_id: int, payload: PaymentCheckoutAction | None = None, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> PaymentOrderPublicRead:
+    del payload
+    return PaymentOrderPublicRead.model_validate(PaymentOrderService(db).approve_checkout_for_client(payment_order_id, user))
+
+
+@router.post("/clients/me/payment-orders/{payment_order_id}/checkout/reject", response_model=PaymentOrderPublicRead, dependencies=[Depends(require_client)])
+def reject_client_payment_checkout(payment_order_id: int, payload: PaymentCheckoutAction | None = None, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> PaymentOrderPublicRead:
+    del payload
+    return PaymentOrderPublicRead.model_validate(PaymentOrderService(db).reject_checkout_for_client(payment_order_id, user))

@@ -74,6 +74,11 @@ export interface ProfessionalPublic {
   years_experience?: number | null;
   consultation_mode: ConsultationMode;
   session_duration_minutes: number;
+  price?: string | null;
+  payment_timing: PaymentTiming;
+  payment_amount?: string | null;
+  payment_currency: PaymentCurrency;
+  payment_expiration_minutes: number;
   city?: string | null;
   country?: string | null;
   category: ProfessionalPublicCategory;
@@ -112,6 +117,11 @@ export interface ProfessionalPublicProfile {
   years_experience?: number | null;
   consultation_mode: ConsultationMode;
   session_duration_minutes: number;
+  price?: string | null;
+  payment_timing: PaymentTiming;
+  payment_amount?: string | null;
+  payment_currency: PaymentCurrency;
+  payment_expiration_minutes: number;
   city?: string | null;
   country?: string | null;
   category_id?: number | null;
@@ -229,7 +239,8 @@ export interface AvailabilityResponse {
   slots: AvailableSlot[];
 }
 
-export type AppointmentStatus = "pending" | "confirmed" | "cancelled" | "completed" | "no_show";
+export type AppointmentStatus = "pending" | "pending_payment" | "confirmed" | "cancelled" | "completed" | "no_show";
+export type PaymentTiming = "no_payment" | "pay_before_confirmation" | "pay_after_confirmation";
 
 export interface AppointmentHistory {
   id: number;
@@ -271,6 +282,14 @@ export interface Appointment {
   meeting_provider?: string | null;
   meeting_url?: string | null;
   meeting?: AppointmentMeeting | null;
+  payment?: {
+    order_id: number;
+    status: PaymentOrderStatus;
+    amount: string;
+    currency: PaymentCurrency;
+    expires_at?: string | null;
+    checkout_available: boolean;
+  } | null;
   cancellation_reason?: string | null;
   client_notes?: string | null;
   history?: AppointmentHistory[];
@@ -405,6 +424,11 @@ export interface AdminProfessionalDetail extends AdminProfessionalListItem {
   years_experience?: number | null;
   session_duration_minutes: number;
   price?: string | null;
+  payment_timing: PaymentTiming;
+  payment_amount?: string | null;
+  payment_currency: PaymentCurrency;
+  payment_expiration_minutes: number;
+  allow_manual_confirmation: boolean;
   city?: string | null;
   country?: string | null;
   specialties: string[];
@@ -418,6 +442,11 @@ export interface AdminProfessionalUpdate {
   consultation_mode?: ConsultationMode | null;
   session_duration_minutes?: number | null;
   price?: string | null;
+  payment_timing?: PaymentTiming | null;
+  payment_amount?: string | null;
+  payment_currency?: PaymentCurrency | null;
+  payment_expiration_minutes?: number | null;
+  allow_manual_confirmation?: boolean | null;
   city?: string | null;
   country?: string | null;
   is_verified?: boolean | null;
@@ -504,6 +533,19 @@ export interface PaymentProviderHealth {
   message: string;
 }
 
+export interface PaymentCheckout {
+  id: number;
+  appointment_id?: number | null;
+  description?: string | null;
+  amount: string;
+  currency: PaymentCurrency;
+  status: PaymentOrderStatus;
+  expires_at?: string | null;
+  checkout_available: boolean;
+  test_environment: boolean;
+  message: string;
+}
+
 export type IntegrationType = "meeting" | "calendar" | "messaging" | "email" | "automation" | "webhook";
 export type IntegrationProvider =
   | "mock"
@@ -523,6 +565,10 @@ export type WebhookEventType =
   | "appointment.cancelled"
   | "appointment.confirmed"
   | "meeting.ready"
+  | "payment.order.created"
+  | "payment.approved"
+  | "payment.rejected"
+  | "payment.expired"
   | "document.generated"
   | "notification.sent"
   | "notification.failed"

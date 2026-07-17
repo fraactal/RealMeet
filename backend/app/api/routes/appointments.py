@@ -12,11 +12,14 @@ from app.schemas.appointments import (
     AppointmentCreate,
     AppointmentHistoryRead,
     AppointmentMeetingRead,
+    AppointmentPaymentSummaryRead,
     AppointmentPrivateNotesUpdate,
     AppointmentProfessionalStatusUpdate,
     AppointmentStatusUpdate,
 )
 from app.services.appointments import AppointmentService
+from app.payments.service import PaymentOrderService
+from app.payments.transitions import ACTIVE_PAYMENT_STATUSES
 
 router = APIRouter()
 
@@ -27,6 +30,7 @@ AppointmentActorRead = AppointmentClientRead | AppointmentProfessionalRead | App
 def serialize_appointment_for_user(appointment, user, service: AppointmentService) -> AppointmentActorRead:
     history = [AppointmentHistoryRead.model_validate(item) for item in service.list_history(appointment.id)]
     meeting = serialize_meeting(appointment, is_admin=user.role == UserRole.admin)
+    payment = serialize_payment(appointment, service.db)
     data = {
         "id": appointment.id,
         "professional_id": appointment.professional_id,
@@ -40,6 +44,7 @@ def serialize_appointment_for_user(appointment, user, service: AppointmentServic
         "meeting_provider": appointment.meeting_provider.value if appointment.meeting_provider else None,
         "meeting_url": meeting.join_url if meeting else None,
         "meeting": meeting,
+        "payment": payment,
         "cancellation_reason": appointment.cancellation_reason,
         "client_notes": appointment.client_notes,
         "history": history,
@@ -91,6 +96,20 @@ def _meeting_message(status_value: str, fallback_used: bool) -> str:
     if status_value == "not_required":
         return "No se requiere reunion automatica."
     return "Estado de reunion no disponible."
+
+
+def serialize_payment(appointment, db) -> AppointmentPaymentSummaryRead | None:
+    order = PaymentOrderService(db).latest_for_appointment(appointment.id)
+    if not order:
+        return None
+    return AppointmentPaymentSummaryRead(
+        order_id=order.id,
+        status=order.status.value,
+        amount=str(order.amount),
+        currency=order.currency.value,
+        expires_at=order.expires_at,
+        checkout_available=order.status in ACTIVE_PAYMENT_STATUSES and order.provider.value == "fake",
+    )
 
 
 @router.post("", response_model=AppointmentClientRead, dependencies=[Depends(require_client)])

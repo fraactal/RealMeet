@@ -11,6 +11,7 @@ import {
   fetchAdminPaymentOrderHistory,
   fetchAdminPaymentOrders,
   healthCheckPaymentProvider,
+  reconcileAdminPaymentOrder,
   submitAdminPaymentOrder,
 } from "../api/queries";
 import { AdminPagination } from "../components/admin/AdminPagination";
@@ -64,12 +65,13 @@ export function AdminPaymentsPage() {
     },
   });
   const operationMutation = useMutation({
-    mutationFn: ({ id, action }: { id: number; action: "submit" | "approve" | "reject" | "cancel" | "expire" | "fail" }) => {
+    mutationFn: ({ id, action }: { id: number; action: "submit" | "approve" | "reject" | "cancel" | "expire" | "fail" | "reconcile" }) => {
       if (action === "submit") return submitAdminPaymentOrder(id);
       if (action === "approve") return fakeApprovePaymentOrder(id);
       if (action === "reject") return fakeRejectPaymentOrder(id);
       if (action === "cancel") return cancelAdminPaymentOrder(id);
       if (action === "expire") return fakeExpirePaymentOrder(id);
+      if (action === "reconcile") return reconcileAdminPaymentOrder(id).then((result) => result.payment_order);
       return fakeFailPaymentOrder(id);
     },
     onSuccess: refresh,
@@ -163,7 +165,7 @@ export function AdminPaymentsPage() {
   );
 }
 
-function PaymentAdminCard({ order, busy, onRun, onHistory }: { order: AdminPaymentOrder; busy: boolean; onRun: (action: "submit" | "approve" | "reject" | "cancel" | "expire" | "fail") => void; onHistory: () => void }) {
+function PaymentAdminCard({ order, busy, onRun, onHistory }: { order: AdminPaymentOrder; busy: boolean; onRun: (action: "submit" | "approve" | "reject" | "cancel" | "expire" | "fail" | "reconcile") => void; onHistory: () => void }) {
   return (
     <article className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -184,6 +186,7 @@ function PaymentAdminCard({ order, busy, onRun, onHistory }: { order: AdminPayme
           <Button isLoading={busy} onClick={() => onRun("cancel")} size="sm" variant="secondary">Cancelar</Button>
           <Button isLoading={busy} onClick={() => onRun("expire")} size="sm" variant="secondary">Expirar</Button>
           <Button isLoading={busy} onClick={() => onRun("fail")} size="sm" variant="secondary">Fallar</Button>
+          <Button isLoading={busy} onClick={() => onRun("reconcile")} size="sm" variant="secondary">Reconciliar</Button>
           <Button onClick={onHistory} size="sm">Historial</Button>
         </div>
       </div>

@@ -4,6 +4,7 @@ import { Badge } from "./Badge";
 
 const statusTone: Record<AppointmentStatus, "success" | "warning" | "danger" | "info" | "neutral"> = {
   pending: "warning",
+  pending_payment: "warning",
   confirmed: "info",
   cancelled: "danger",
   completed: "success",

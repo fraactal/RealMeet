@@ -46,6 +46,15 @@ class AppointmentMeetingRead(BaseModel):
     error_message: str | None = None
 
 
+class AppointmentPaymentSummaryRead(BaseModel):
+    order_id: int
+    status: str
+    amount: str
+    currency: str
+    expires_at: datetime | None = None
+    checkout_available: bool = False
+
+
 class AppointmentBaseRead(ORMModel):
     id: int
     professional_id: int
@@ -59,6 +68,7 @@ class AppointmentBaseRead(ORMModel):
     meeting_provider: str | None
     meeting_url: str | None
     meeting: AppointmentMeetingRead | None = None
+    payment: AppointmentPaymentSummaryRead | None = None
     cancellation_reason: str | None
     client_notes: str | None
     history: list[AppointmentHistoryRead] = Field(default_factory=list)

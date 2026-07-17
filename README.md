@@ -629,6 +629,24 @@ Modulo 17.1 agrega una fundacion provider-agnostic de pagos:
 
 No existe una tabla de servicios independiente en el catalogo actual. Cuando una orden se asocia a una reserva, RealMeet toma snapshot del precio del perfil profesional. Si no hay reserva o precio disponible, el backoffice puede indicar un monto manual en 17.1.
 
+Modulo 17.2 agrega checkout fake autenticado y politicas de reserva basadas en pago. La politica se almacena en `ProfessionalProfile` como servicio actual del catalogo para no crear una entidad nueva antes de que exista un CRUD de servicios dedicado.
+
+Politicas disponibles:
+
+- `no_payment`: comportamiento anterior; no crea orden automatica ni checkout.
+- `pay_before_confirmation`: crea reserva `pending_payment`, genera una orden fake y confirma solo cuando el pago queda `approved`.
+- `pay_after_confirmation`: confirma inmediatamente, crea una orden pendiente y no cancela automaticamente si el pago se rechaza.
+
+Campos administrativos de politica:
+
+- `payment_timing`
+- `payment_amount`
+- `payment_currency`, limitado a `CLP`
+- `payment_expiration_minutes`, rango `5` a `1440`, default `30`
+- `allow_manual_confirmation`
+
+La reserva `pending_payment` bloquea el slot mientras espera pago. Si el pago se rechaza o expira, la reserva pasa a `cancelled` y deja de bloquear disponibilidad. Una reserva cancelada por rechazo o expiracion no se reactiva automaticamente, porque el horario pudo haber sido tomado por otra persona; el cliente debe consultar disponibilidad y crear una nueva reserva.
+
 APIs principales:
 
 - `GET/POST /api/v1/admin/payment-orders`
@@ -640,13 +658,17 @@ APIs principales:
 - `POST /api/v1/admin/payment-orders/{payment_order_id}/fake/reject`
 - `POST /api/v1/admin/payment-orders/{payment_order_id}/fake/expire`
 - `POST /api/v1/admin/payment-orders/{payment_order_id}/fake/fail`
+- `POST /api/v1/admin/payment-orders/{payment_order_id}/reconcile`
 - `POST /api/v1/admin/payment-providers/{provider}/health`
 - `GET /api/v1/professionals/me/payment-orders`
 - `GET /api/v1/professionals/me/payment-orders/{payment_order_id}`
 - `GET /api/v1/clients/me/payment-orders`
 - `GET /api/v1/clients/me/payment-orders/{payment_order_id}`
+- `GET /api/v1/clients/me/payment-orders/{payment_order_id}/checkout`
+- `POST /api/v1/clients/me/payment-orders/{payment_order_id}/checkout/approve`
+- `POST /api/v1/clients/me/payment-orders/{payment_order_id}/checkout/reject`
 
-17.1 no implementa checkout publico, tarjetas, webhooks de pago, confirmacion automatica de reservas, expiracion automatica, reembolsos, impuestos, descuentos, facturacion ni conciliacion.
+17.2 no implementa checkout publico anonimo, tarjetas, providers reales, webhooks reales de pago, scheduler de expiracion, reembolsos, impuestos, descuentos, facturacion, suscripciones ni conciliacion bancaria.
 
 ## Plan sugerido de commits
 

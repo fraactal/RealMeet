@@ -9,16 +9,16 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.models.appointment import Appointment
+from app.models.appointment import Appointment, AppointmentStatus
 from app.models.audit_log import AuditLog
 from app.models.client_profile import ClientProfile
 from app.models.payment import PaymentOrder, PaymentOrderStatusHistory
-from app.models.professional_profile import ProfessionalProfile
+from app.models.professional_profile import PaymentTiming, ProfessionalProfile
 from app.models.user import User, UserRole
 from app.payments.contracts import PaymentCreateInput, PaymentProviderError, PaymentProviderHealth
 from app.payments.enums import PaymentCurrency, PaymentOrderStatus, PaymentProviderKey
 from app.payments.registry import PaymentProviderNotImplementedError, payment_provider_registry
-from app.payments.schemas import PaymentOrderCancel, PaymentOrderCreate
+from app.payments.schemas import PaymentCheckoutRead, PaymentOrderCancel, PaymentOrderCreate
 from app.payments.transitions import ACTIVE_PAYMENT_STATUSES, FINAL_PAYMENT_STATUSES, can_transition
 
 
@@ -110,7 +110,15 @@ class PaymentOrderService:
             )
         )
 
-    def create(self, payload: PaymentOrderCreate, actor: User, idempotency_key: str | None = None) -> PaymentOrder:
+    def latest_for_appointment(self, appointment_id: int) -> PaymentOrder | None:
+        return self.db.scalar(
+            select(PaymentOrder)
+            .where(PaymentOrder.appointment_id == appointment_id)
+            .order_by(PaymentOrder.created_at.desc(), PaymentOrder.id.desc())
+            .limit(1)
+        )
+
+    def create(self, payload: PaymentOrderCreate, actor: User, idempotency_key: str | None = None, *, commit: bool = True) -> PaymentOrder:
         resolved = self._resolve_payload(payload)
         fingerprint = self._fingerprint(resolved)
         generated_key = idempotency_key is None
@@ -145,11 +153,14 @@ class PaymentOrderService:
             self.db.flush()
             self._add_history(item, None, item.status, "payment_order_created", "Orden de pago creada.", actor, None)
             self._audit(actor, "payment_order_created", item, {"status": item.status.value, "provider": item.provider.value})
-            self.db.commit()
+            self._audit(actor, "payment_order_event", item, {"event_type": "payment.order.created", "payment_order_id": item.id, "appointment_id": item.appointment_id, "status": item.status.value})
+            if commit:
+                self.db.commit()
         except IntegrityError as exc:
             self.db.rollback()
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail={"code": "payment_idempotency_conflict"}) from exc
-        self.db.refresh(item)
+        if commit:
+            self.db.refresh(item)
         return item
 
     async def submit(self, payment_order_id: int, actor: User, idempotency_key: str | None = None) -> PaymentOrder:
@@ -199,25 +210,44 @@ class PaymentOrderService:
 
     def fake_approve(self, payment_order_id: int, actor: User) -> PaymentOrder:
         item = self._fake_item(payment_order_id)
+        if item.status == PaymentOrderStatus.approved:
+            return item
+        self._ensure_not_expired(item, actor)
+        if item.status == PaymentOrderStatus.draft:
+            self._transition(item, PaymentOrderStatus.pending, "fake_payment_submitted", "Orden fake preparada para checkout.", actor, {"provider": "fake", "operation": "submit"})
         self._transition(item, PaymentOrderStatus.approved, "fake_payment_approved", "Pago fake aprobado.", actor, {"provider": "fake", "operation": "approve"})
         item.paid_at = datetime.now(UTC)
         self.db.commit()
         self.db.refresh(item)
+        self._apply_approved_policy(item, actor)
+        self._publish_payment_event("payment.approved", item)
         return item
 
     def fake_reject(self, payment_order_id: int, actor: User) -> PaymentOrder:
         item = self._fake_item(payment_order_id)
+        if item.status == PaymentOrderStatus.rejected:
+            return item
+        if item.status == PaymentOrderStatus.draft:
+            self._transition(item, PaymentOrderStatus.pending, "fake_payment_submitted", "Orden fake preparada para checkout.", actor, {"provider": "fake", "operation": "submit"})
         self._transition(item, PaymentOrderStatus.rejected, "fake_payment_rejected", "Pago fake rechazado.", actor, {"provider": "fake", "operation": "reject"})
         item.rejected_at = datetime.now(UTC)
         self.db.commit()
         self.db.refresh(item)
+        self._apply_rejected_policy(item, actor)
+        self._publish_payment_event("payment.rejected", item)
         return item
 
     def fake_expire(self, payment_order_id: int, actor: User) -> PaymentOrder:
         item = self._fake_item(payment_order_id)
+        if item.status == PaymentOrderStatus.expired:
+            return item
+        if item.status == PaymentOrderStatus.draft:
+            self._transition(item, PaymentOrderStatus.pending, "fake_payment_submitted", "Orden fake preparada para expiracion.", actor, {"provider": "fake", "operation": "submit"})
         self._transition(item, PaymentOrderStatus.expired, "fake_payment_expired", "Pago fake expirado.", actor, {"provider": "fake", "operation": "expire"})
         self.db.commit()
         self.db.refresh(item)
+        self._apply_expired_policy(item, actor)
+        self._publish_payment_event("payment.expired", item)
         return item
 
     def fake_fail(self, payment_order_id: int, actor: User) -> PaymentOrder:
@@ -230,11 +260,67 @@ class PaymentOrderService:
         self.db.refresh(item)
         return item
 
+    def checkout_for_client(self, payment_order_id: int, user: User) -> PaymentCheckoutRead:
+        item = self.get_for_client(payment_order_id, user)
+        if item.provider != PaymentProviderKey.fake:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail={"code": "payment_checkout_provider_not_available"})
+        if self._is_expired(item):
+            self.fake_expire(item.id, user)
+            item = self.get_for_client(payment_order_id, user)
+        checkout_available = item.status in ACTIVE_PAYMENT_STATUSES
+        return PaymentCheckoutRead(
+            id=item.id,
+            appointment_id=item.appointment_id,
+            description=item.description,
+            amount=item.amount,
+            currency=item.currency,
+            status=item.status,
+            expires_at=item.expires_at,
+            checkout_available=checkout_available,
+            message="Entorno de prueba: no se realizara un cobro real." if checkout_available else "Checkout no disponible para esta orden.",
+        )
+
+    def approve_checkout_for_client(self, payment_order_id: int, user: User) -> PaymentOrder:
+        item = self.get_for_client(payment_order_id, user)
+        if item.provider != PaymentProviderKey.fake:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail={"code": "payment_checkout_provider_not_available"})
+        return self.fake_approve(item.id, user)
+
+    def reject_checkout_for_client(self, payment_order_id: int, user: User) -> PaymentOrder:
+        item = self.get_for_client(payment_order_id, user)
+        if item.provider != PaymentProviderKey.fake:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail={"code": "payment_checkout_provider_not_available"})
+        return self.fake_reject(item.id, user)
+
+    def reconcile(self, payment_order_id: int, actor: User) -> tuple[str, PaymentOrder]:
+        item = self.get(payment_order_id)
+        appointment = item.appointment if item.appointment_id else None
+        if not appointment:
+            return "manual_review_required", item
+        policy = self._appointment_policy(appointment)
+        if item.status in ACTIVE_PAYMENT_STATUSES:
+            return "payment_not_final", item
+        if item.status == PaymentOrderStatus.approved and policy == PaymentTiming.pay_before_confirmation:
+            if appointment.status == AppointmentStatus.pending_payment:
+                self._confirm_appointment_for_payment(appointment, actor, "Payment reconcile confirmed appointment")
+                self.db.refresh(item)
+                return "appointment_confirmation_required", item
+            if appointment.status == AppointmentStatus.confirmed:
+                return "in_sync", item
+        if item.status in {PaymentOrderStatus.rejected, PaymentOrderStatus.expired} and appointment.status == AppointmentStatus.pending_payment:
+            self._cancel_appointment_for_payment(appointment, actor, "Payment reconcile cancelled pending payment appointment")
+            self.db.refresh(item)
+            return "appointment_cancellation_required", item
+        if item.status == PaymentOrderStatus.approved and appointment.status == AppointmentStatus.confirmed:
+            return "in_sync", item
+        return "manual_review_required", item
+
     async def health(self, provider: PaymentProviderKey) -> PaymentProviderHealth:
         return await self._provider(provider).health_check()
 
     def _resolve_payload(self, payload: PaymentOrderCreate) -> dict:
-        if payload.currency != PaymentCurrency.CLP:
+        currency = PaymentCurrency(payload.currency)
+        if currency != PaymentCurrency.CLP:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail={"code": "payment_currency_not_supported"})
         appointment = self.db.get(Appointment, payload.appointment_id) if payload.appointment_id else None
         amount = payload.amount
@@ -258,7 +344,7 @@ class PaymentOrderService:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Appointment not found")
         if amount is None:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail={"code": "payment_amount_required"})
-        self._validate_amount(amount, payload.currency)
+        self._validate_amount(amount, currency)
         return {
             "appointment_id": payload.appointment_id,
             "client_id": client_id,
@@ -266,7 +352,7 @@ class PaymentOrderService:
             "specialty_id": specialty_id,
             "provider": payload.provider,
             "amount": amount,
-            "currency": payload.currency,
+            "currency": currency,
             "description": description,
             "expires_at": payload.expires_at,
         }
@@ -286,6 +372,15 @@ class PaymentOrderService:
         if item.provider != PaymentProviderKey.fake:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail={"code": "payment_provider_not_fake"})
         return item
+
+    def _ensure_not_expired(self, item: PaymentOrder, actor: User) -> None:
+        if self._is_expired(item):
+            self.fake_expire(item.id, actor)
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail={"code": "payment_order_expired"})
+
+    @staticmethod
+    def _is_expired(item: PaymentOrder) -> bool:
+        return bool(item.expires_at and item.expires_at <= datetime.now(UTC) and item.status in ACTIVE_PAYMENT_STATUSES)
 
     def _provider(self, provider: PaymentProviderKey):
         try:
@@ -307,6 +402,58 @@ class PaymentOrderService:
         item.status = new_status
         self._add_history(item, previous, new_status, reason_code, reason_summary, actor, provider_reference)
         self._audit(actor, "payment_order_status_changed", item, {"from": previous.value, "to": new_status.value, "reason": reason_code})
+
+    def _apply_approved_policy(self, item: PaymentOrder, actor: User) -> None:
+        appointment = item.appointment if item.appointment_id else None
+        if not appointment:
+            return
+        if self._appointment_policy(appointment) == PaymentTiming.pay_before_confirmation and appointment.status == AppointmentStatus.pending_payment:
+            self._confirm_appointment_for_payment(appointment, actor, "Payment approved")
+
+    def _apply_rejected_policy(self, item: PaymentOrder, actor: User) -> None:
+        appointment = item.appointment if item.appointment_id else None
+        if appointment and appointment.status == AppointmentStatus.pending_payment:
+            self._cancel_appointment_for_payment(appointment, actor, "Payment rejected")
+
+    def _apply_expired_policy(self, item: PaymentOrder, actor: User) -> None:
+        appointment = item.appointment if item.appointment_id else None
+        if appointment and appointment.status == AppointmentStatus.pending_payment:
+            self._cancel_appointment_for_payment(appointment, actor, "Payment expired")
+
+    def _confirm_appointment_for_payment(self, appointment: Appointment, actor: User, reason: str) -> None:
+        from app.services.appointments import AppointmentService
+
+        AppointmentService(self.db).confirm_after_payment(appointment, actor, reason)
+
+    def _cancel_appointment_for_payment(self, appointment: Appointment, actor: User, reason: str) -> None:
+        from app.services.appointments import AppointmentService
+
+        AppointmentService(self.db).cancel_after_payment_failure(appointment, actor, reason)
+
+    @staticmethod
+    def _appointment_policy(appointment: Appointment) -> PaymentTiming:
+        professional = getattr(appointment, "professional", None)
+        return getattr(professional, "payment_timing", PaymentTiming.no_payment) or PaymentTiming.no_payment
+
+    def _publish_payment_event(self, event_type: str, item: PaymentOrder) -> None:
+        self.db.add(
+            AuditLog(
+                user_id=None,
+                action=event_type.replace(".", "_"),
+                entity_name="PaymentOrder",
+                entity_id=str(item.id),
+                metadata_json={
+                    "event_type": event_type,
+                    "payment_order_id": item.id,
+                    "appointment_id": item.appointment_id,
+                    "status": item.status.value,
+                    "amount": str(item.amount),
+                    "currency": item.currency.value,
+                },
+                created_at=datetime.now(UTC),
+            )
+        )
+        self.db.commit()
 
     @staticmethod
     def _ensure_transition(previous: PaymentOrderStatus, new: PaymentOrderStatus) -> None:

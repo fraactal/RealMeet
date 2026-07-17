@@ -11,6 +11,7 @@ from app.models.professional_profile import ConsultationMode
 
 class AppointmentStatus(str, enum.Enum):
     pending = "pending"
+    pending_payment = "pending_payment"
     confirmed = "confirmed"
     cancelled = "cancelled"
     completed = "completed"

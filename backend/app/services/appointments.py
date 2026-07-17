@@ -10,7 +10,7 @@ from app.meetings.base import MeetingPayload
 from app.meetings.factory import get_meeting_provider
 from app.models.appointment import Appointment, AppointmentHistory, AppointmentStatus
 from app.models.client_profile import ClientProfile
-from app.models.professional_profile import ProfessionalProfile
+from app.models.professional_profile import PaymentTiming, ProfessionalProfile
 from app.models.user import User
 from app.notifications.service import AppointmentNotificationService
 from app.automation.service import DomainEventPublisher
@@ -21,11 +21,11 @@ from app.services.external_availability import ExternalAvailabilityConflict, Ext
 from app.integrations.google_workspace.document_automation import DocumentAutomationEventType, DocumentAutomationService
 
 
-ACTIVE_STATUSES = [AppointmentStatus.pending, AppointmentStatus.confirmed]
-CLIENT_CANCELABLE_STATUSES = [AppointmentStatus.pending, AppointmentStatus.confirmed]
+ACTIVE_STATUSES = [AppointmentStatus.pending, AppointmentStatus.pending_payment, AppointmentStatus.confirmed]
+CLIENT_CANCELABLE_STATUSES = [AppointmentStatus.pending, AppointmentStatus.pending_payment, AppointmentStatus.confirmed]
 PROFESSIONAL_TRANSITIONS = {
-    AppointmentStatus.confirmed: [AppointmentStatus.pending],
-    AppointmentStatus.cancelled: [AppointmentStatus.pending, AppointmentStatus.confirmed],
+    AppointmentStatus.confirmed: [AppointmentStatus.pending, AppointmentStatus.pending_payment],
+    AppointmentStatus.cancelled: [AppointmentStatus.pending, AppointmentStatus.pending_payment, AppointmentStatus.confirmed],
     AppointmentStatus.completed: [AppointmentStatus.confirmed],
     AppointmentStatus.no_show: [AppointmentStatus.confirmed],
 }
@@ -61,6 +61,7 @@ class AppointmentService:
         self._ensure_available_slot(professional, start_datetime, end_datetime)
         self._ensure_external_available(professional.id, start_datetime, end_datetime)
 
+        initial_status = self._initial_status_for_payment_policy(professional)
         appointment = Appointment(
             professional_id=professional.id,
             client_id=client_profile.id,
@@ -68,23 +69,31 @@ class AppointmentService:
             specialty_id=payload.specialty_id,
             start_datetime=start_datetime,
             end_datetime=end_datetime,
+            status=initial_status,
             consultation_mode=professional.consultation_mode,
             client_notes=payload.client_notes,
         )
         self.db.add(appointment)
         try:
             self.db.flush()
-            self._add_history(appointment.id, user.id, None, AppointmentStatus.pending.value, "Appointment created")
+            self._add_history(appointment.id, user.id, None, initial_status.value, "Appointment created")
+            if professional.payment_timing != PaymentTiming.no_payment:
+                self._create_payment_order_for_appointment(appointment, professional, user)
             self.db.commit()
         except IntegrityError as exc:
             self.db.rollback()
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Selected slot is already booked") from exc
+        except HTTPException:
+            self.db.rollback()
+            raise
         self.db.refresh(appointment)
         AppointmentCalendarSyncService(self.db).sync_created(appointment, user)
         self.db.refresh(appointment)
         AppointmentNotificationService(self.db).notify_created(appointment)
         DomainEventPublisher(self.db).publish_appointment_created(appointment)
         self._run_document_automation(DocumentAutomationEventType.appointment_created, appointment, user)
+        if initial_status == AppointmentStatus.confirmed:
+            self._run_confirmation_effects(appointment, user)
         return appointment
 
     def list_for_user(self, user: User) -> list[Appointment]:
@@ -163,6 +172,8 @@ class AppointmentService:
         return appointment
 
     def _set_status(self, appointment: Appointment, user: User, new_status: AppointmentStatus, reason: str | None) -> Appointment:
+        if appointment.status == new_status:
+            return appointment
         old_status = appointment.status.value
         appointment.status = new_status
         if new_status == AppointmentStatus.cancelled and reason:
@@ -171,14 +182,7 @@ class AppointmentService:
         self.db.commit()
         self.db.refresh(appointment)
         if new_status == AppointmentStatus.confirmed:
-            from app.services.meeting_provisioning import MeetingProvisioningService
-
-            MeetingProvisioningService(self.db).provision_for_appointment(appointment, user)
-            self.db.refresh(appointment)
-            AppointmentCalendarSyncService(self.db).sync_updated(appointment, user)
-            self.db.refresh(appointment)
-            AppointmentNotificationService(self.db).notify_confirmed(appointment)
-            self._run_document_automation(DocumentAutomationEventType.appointment_confirmed, appointment, user)
+            self._run_confirmation_effects(appointment, user)
         if new_status == AppointmentStatus.cancelled:
             from app.services.meeting_provisioning import MeetingProvisioningService
 
@@ -190,6 +194,30 @@ class AppointmentService:
             DomainEventPublisher(self.db).publish_appointment_cancelled(appointment)
             self._run_document_automation(DocumentAutomationEventType.appointment_cancelled, appointment, user)
         return appointment
+
+    def confirm_after_payment(self, appointment: Appointment, user: User, reason: str = "Payment approved") -> Appointment:
+        if appointment.status == AppointmentStatus.confirmed:
+            return appointment
+        if appointment.status != AppointmentStatus.pending_payment:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail={"code": "appointment_payment_confirmation_invalid_state"})
+        return self._set_status(appointment, user, AppointmentStatus.confirmed, reason)
+
+    def cancel_after_payment_failure(self, appointment: Appointment, user: User, reason: str) -> Appointment:
+        if appointment.status == AppointmentStatus.cancelled:
+            return appointment
+        if appointment.status != AppointmentStatus.pending_payment:
+            return appointment
+        return self._set_status(appointment, user, AppointmentStatus.cancelled, reason)
+
+    def _run_confirmation_effects(self, appointment: Appointment, user: User) -> None:
+        from app.services.meeting_provisioning import MeetingProvisioningService
+
+        MeetingProvisioningService(self.db).provision_for_appointment(appointment, user)
+        self.db.refresh(appointment)
+        AppointmentCalendarSyncService(self.db).sync_updated(appointment, user)
+        self.db.refresh(appointment)
+        AppointmentNotificationService(self.db).notify_confirmed(appointment)
+        self._run_document_automation(DocumentAutomationEventType.appointment_confirmed, appointment, user)
 
     def _run_document_automation(self, event_type: DocumentAutomationEventType, appointment: Appointment, user: User) -> None:
         try:
@@ -290,6 +318,36 @@ class AppointmentService:
         if professional.session_duration_minutes and professional.session_duration_minutes > 0:
             return professional.session_duration_minutes
         return 60
+
+    @staticmethod
+    def _initial_status_for_payment_policy(professional: ProfessionalProfile) -> AppointmentStatus:
+        if professional.payment_timing == PaymentTiming.pay_before_confirmation:
+            return AppointmentStatus.pending_payment
+        if professional.payment_timing == PaymentTiming.pay_after_confirmation:
+            return AppointmentStatus.confirmed
+        return AppointmentStatus.pending
+
+    def _create_payment_order_for_appointment(self, appointment: Appointment, professional: ProfessionalProfile, user: User) -> None:
+        from app.payments.service import PaymentOrderService
+        from app.payments.schemas import PaymentOrderCreate
+
+        amount = professional.payment_amount or professional.price
+        if amount is None:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail={"code": "payment_amount_required"})
+        expires_at = datetime.now(UTC) + timedelta(minutes=professional.payment_expiration_minutes or 30)
+        PaymentOrderService(self.db).create(
+            PaymentOrderCreate(
+                appointment_id=appointment.id,
+                provider="fake",
+                amount=amount,
+                currency=professional.payment_currency,
+                description=f"Reserva #{appointment.id}",
+                expires_at=expires_at,
+            ),
+            user,
+            idempotency_key=f"appointment-payment:{appointment.id}",
+            commit=False,
+        )
 
     @staticmethod
     def _ensure_aware_utc(value: datetime) -> datetime:

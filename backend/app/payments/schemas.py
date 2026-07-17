@@ -1,7 +1,7 @@
 from datetime import datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.payments.enums import PaymentCurrency, PaymentOrderStatus, PaymentProviderKey
 from app.schemas.admin import PageMeta
@@ -52,6 +52,23 @@ class PaymentOrderPublicRead(ORMModel):
     created_at: datetime
 
 
+class PaymentCheckoutRead(BaseModel):
+    id: int
+    appointment_id: int | None
+    description: str | None
+    amount: Decimal
+    currency: PaymentCurrency
+    status: PaymentOrderStatus
+    expires_at: datetime | None
+    checkout_available: bool
+    test_environment: bool = True
+    message: str
+
+
+class PaymentCheckoutAction(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
 class PaymentOrderAdminRead(PaymentOrderPublicRead):
     client_id: int | None
     professional_id: int | None
@@ -90,3 +107,8 @@ class PaymentProviderHealthRead(BaseModel):
     healthy: bool
     code: str
     message: str
+
+
+class PaymentReconcileRead(BaseModel):
+    result: str
+    payment_order: PaymentOrderAdminRead

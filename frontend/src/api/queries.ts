@@ -87,6 +87,7 @@ import type {
   PaymentOrderStatus,
   PaymentProvider,
   PaymentProviderHealth,
+  PaymentCheckout,
   WhatsAppConsentCorrectionPayload,
   WhatsAppConsentPurpose,
   WhatsAppConsentSummary,
@@ -445,6 +446,11 @@ export async function fakeFailPaymentOrder(paymentOrderId: number): Promise<Admi
   return data;
 }
 
+export async function reconcileAdminPaymentOrder(paymentOrderId: number): Promise<{ result: string; payment_order: AdminPaymentOrder }> {
+  const { data } = await api.post(`/admin/payment-orders/${paymentOrderId}/reconcile`);
+  return data;
+}
+
 export async function fetchAdminPaymentOrderHistory(paymentOrderId: number): Promise<PaymentOrderHistory[]> {
   const { data } = await api.get(`/admin/payment-orders/${paymentOrderId}/history`);
   return data;
@@ -462,6 +468,21 @@ export async function fetchProfessionalPaymentOrders(): Promise<PaymentOrder[]> 
 
 export async function fetchClientPaymentOrders(): Promise<PaymentOrder[]> {
   const { data } = await api.get("/clients/me/payment-orders");
+  return data;
+}
+
+export async function fetchClientPaymentCheckout(paymentOrderId: number): Promise<PaymentCheckout> {
+  const { data } = await api.get(`/clients/me/payment-orders/${paymentOrderId}/checkout`);
+  return data;
+}
+
+export async function approveClientPaymentCheckout(paymentOrderId: number): Promise<PaymentOrder> {
+  const { data } = await api.post(`/clients/me/payment-orders/${paymentOrderId}/checkout/approve`);
+  return data;
+}
+
+export async function rejectClientPaymentCheckout(paymentOrderId: number): Promise<PaymentOrder> {
+  const { data } = await api.post(`/clients/me/payment-orders/${paymentOrderId}/checkout/reject`);
   return data;
 }
 
