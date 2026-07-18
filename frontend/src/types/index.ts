@@ -467,6 +467,8 @@ export interface AdminAppointmentListResponse {
 export type PaymentProvider = "fake" | "mercado_pago" | "stripe";
 export type PaymentCurrency = "CLP";
 export type PaymentOrderStatus = "draft" | "pending" | "requires_action" | "approved" | "rejected" | "cancelled" | "expired" | "failed" | "refunded";
+export type PaymentRefundStatus = "requested" | "processing" | "approved" | "rejected" | "cancelled" | "failed" | "reconcile_required";
+export type PaymentRefundReasonCode = "appointment_cancelled" | "duplicate_payment" | "service_not_delivered" | "client_request" | "professional_request" | "administrative_adjustment" | "other";
 
 export interface PaymentOrder {
   id: number;
@@ -479,6 +481,10 @@ export interface PaymentOrder {
   expires_at?: string | null;
   paid_at?: string | null;
   cancelled_at?: string | null;
+  refunded_amount: string;
+  refundable_amount?: string | null;
+  refund_status: string;
+  last_refunded_at?: string | null;
   created_at: string;
 }
 
@@ -533,6 +539,52 @@ export interface PaymentOrderCreatePayload {
   expires_at?: string | null;
 }
 
+
+export interface PaymentRefundCreatePayload {
+  amount: string;
+  currency: PaymentCurrency;
+  reason_code: PaymentRefundReasonCode;
+  reason_summary?: string | null;
+}
+
+export interface PaymentRefund {
+  id: number;
+  payment_order_id: number;
+  amount: string;
+  currency: PaymentCurrency;
+  status: PaymentRefundStatus;
+  reason_code: PaymentRefundReasonCode;
+  reason_summary?: string | null;
+  requested_at: string;
+  processed_at?: string | null;
+}
+
+export interface AdminPaymentRefund extends PaymentRefund {
+  provider: PaymentProvider;
+  external_refund_id?: string | null;
+  idempotency_key?: string | null;
+  request_fingerprint?: string | null;
+  requested_by_user_id?: number | null;
+  failed_at?: string | null;
+  last_error_code?: string | null;
+  last_error_message?: string | null;
+  provider_status?: string | null;
+  last_provider_sync_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PaymentRefundHistory {
+  id: number;
+  refund_id: number;
+  previous_status?: string | null;
+  new_status: string;
+  reason_code?: string | null;
+  reason_summary?: string | null;
+  changed_by_user_id?: number | null;
+  provider_reference?: Record<string, string | number | boolean | null> | null;
+  created_at: string;
+}
 export interface PaymentProviderHealth {
   provider: PaymentProvider;
   healthy: boolean;
@@ -579,6 +631,10 @@ export type WebhookEventType =
   | "payment.approved"
   | "payment.rejected"
   | "payment.expired"
+  | "payment.refund.requested"
+  | "payment.refund.approved"
+  | "payment.refund.rejected"
+  | "payment.refund.failed"
   | "document.generated"
   | "notification.sent"
   | "notification.failed"

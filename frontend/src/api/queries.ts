@@ -81,6 +81,10 @@ import type {
   N8nWorkflowWrite,
   AdminPaymentOrder,
   AdminPaymentOrderListResponse,
+  AdminPaymentRefund,
+  PaymentRefund,
+  PaymentRefundCreatePayload,
+  PaymentRefundHistory,
   PaymentOrder,
   PaymentOrderCreatePayload,
   PaymentOrderHistory,
@@ -461,6 +465,66 @@ export async function fetchAdminPaymentOrderHistory(paymentOrderId: number): Pro
   return data;
 }
 
+
+export async function fetchAdminPaymentOrderRefunds(paymentOrderId: number): Promise<AdminPaymentRefund[]> {
+  const { data } = await api.get(`/admin/payment-orders/${paymentOrderId}/refunds`);
+  return data;
+}
+
+export async function createAdminPaymentRefund(paymentOrderId: number, payload: PaymentRefundCreatePayload, idempotencyKey?: string): Promise<AdminPaymentRefund> {
+  const { data } = await api.post(`/admin/payment-orders/${paymentOrderId}/refunds`, payload, { headers: idempotencyKey ? { "Idempotency-Key": idempotencyKey } : undefined });
+  return data;
+}
+
+export async function fetchAdminPaymentRefundHistory(refundId: number): Promise<PaymentRefundHistory[]> {
+  const { data } = await api.get(`/admin/payment-refunds/${refundId}/history`);
+  return data;
+}
+
+export async function submitAdminPaymentRefund(refundId: number): Promise<AdminPaymentRefund> {
+  const { data } = await api.post(`/admin/payment-refunds/${refundId}/submit`);
+  return data;
+}
+
+export async function syncAdminPaymentRefundProvider(refundId: number): Promise<AdminPaymentRefund> {
+  const { data } = await api.post(`/admin/payment-refunds/${refundId}/sync-provider`);
+  return data;
+}
+
+export async function retryAdminPaymentRefund(refundId: number): Promise<AdminPaymentRefund> {
+  const { data } = await api.post(`/admin/payment-refunds/${refundId}/retry`);
+  return data;
+}
+
+export async function reconcileAdminPaymentRefund(refundId: number): Promise<{ result: string; refund: AdminPaymentRefund }> {
+  const { data } = await api.post(`/admin/payment-refunds/${refundId}/reconcile`);
+  return data;
+}
+
+export async function fakeApprovePaymentRefund(refundId: number): Promise<AdminPaymentRefund> {
+  const { data } = await api.post(`/admin/payment-refunds/${refundId}/fake/approve`);
+  return data;
+}
+
+export async function fakeRejectPaymentRefund(refundId: number): Promise<AdminPaymentRefund> {
+  const { data } = await api.post(`/admin/payment-refunds/${refundId}/fake/reject`);
+  return data;
+}
+
+export async function fakeFailPaymentRefund(refundId: number): Promise<AdminPaymentRefund> {
+  const { data } = await api.post(`/admin/payment-refunds/${refundId}/fake/fail`);
+  return data;
+}
+
+export async function fetchProfessionalPaymentOrderRefunds(paymentOrderId: number): Promise<PaymentRefund[]> {
+  const { data } = await api.get(`/professionals/me/payment-orders/${paymentOrderId}/refunds`);
+  return data;
+}
+
+export async function fetchClientPaymentOrderRefunds(paymentOrderId: number): Promise<PaymentRefund[]> {
+  const { data } = await api.get(`/clients/me/payment-orders/${paymentOrderId}/refunds`);
+  return data;
+}
 export async function healthCheckPaymentProvider(provider: PaymentProvider): Promise<PaymentProviderHealth> {
   const { data } = await api.post(`/admin/payment-providers/${provider}/health`);
   return data;

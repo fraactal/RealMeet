@@ -39,6 +39,9 @@ class PaymentOrder(Base, TimestampMixin):
     provider_status: Mapped[str | None] = mapped_column(String(80))
     provider_status_detail: Mapped[str | None] = mapped_column(String(160))
     last_provider_sync_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    refunded_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0"), nullable=False)
+    refund_status: Mapped[str] = mapped_column(String(40), default="not_refunded", nullable=False)
+    last_refunded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     idempotency_key: Mapped[str | None] = mapped_column(String(220))
     request_fingerprint: Mapped[str | None] = mapped_column(String(128))
     status: Mapped[PaymentOrderStatus] = mapped_column(
@@ -70,6 +73,87 @@ class PaymentOrder(Base, TimestampMixin):
         back_populates="payment_order",
         cascade="all, delete-orphan",
     )
+    refunds: Mapped[list["PaymentRefund"]] = relationship("PaymentRefund", back_populates="payment_order")
+
+    @property
+    def refundable_amount(self) -> Decimal:
+        return max(self.amount - self.refunded_amount, Decimal("0"))
+
+
+class PaymentRefundStatus(str, enum.Enum):
+    requested = "requested"
+    processing = "processing"
+    approved = "approved"
+    rejected = "rejected"
+    cancelled = "cancelled"
+    failed = "failed"
+    reconcile_required = "reconcile_required"
+
+
+class PaymentRefundReasonCode(str, enum.Enum):
+    appointment_cancelled = "appointment_cancelled"
+    duplicate_payment = "duplicate_payment"
+    service_not_delivered = "service_not_delivered"
+    client_request = "client_request"
+    professional_request = "professional_request"
+    administrative_adjustment = "administrative_adjustment"
+    other = "other"
+
+
+class PaymentRefund(Base, TimestampMixin):
+    __tablename__ = "payment_refunds"
+    __table_args__ = (
+        Index("ix_payment_refunds_order", "payment_order_id"),
+        Index("ix_payment_refunds_status", "status"),
+        Index("ix_payment_refunds_idempotency", "idempotency_key", unique=True),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    payment_order_id: Mapped[int] = mapped_column(ForeignKey("payment_orders.id", ondelete="CASCADE"), nullable=False)
+    provider: Mapped[PaymentProviderKey] = mapped_column(Enum(PaymentProviderKey, name="payment_provider"), nullable=False)
+    external_refund_id: Mapped[str | None] = mapped_column(String(180))
+    idempotency_key: Mapped[str | None] = mapped_column(String(220))
+    request_fingerprint: Mapped[str | None] = mapped_column(String(128))
+    status: Mapped[PaymentRefundStatus] = mapped_column(
+        Enum(PaymentRefundStatus, name="payment_refund_status"),
+        default=PaymentRefundStatus.requested,
+        nullable=False,
+    )
+    amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    currency: Mapped[PaymentCurrency] = mapped_column(Enum(PaymentCurrency, name="payment_currency"), nullable=False)
+    reason_code: Mapped[PaymentRefundReasonCode] = mapped_column(Enum(PaymentRefundReasonCode, name="payment_refund_reason_code"), nullable=False)
+    reason_summary: Mapped[str | None] = mapped_column(String(255))
+    requested_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    requested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    failed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_error_code: Mapped[str | None] = mapped_column(String(120))
+    last_error_message: Mapped[str | None] = mapped_column(String(300))
+    provider_status: Mapped[str | None] = mapped_column(String(80))
+    last_provider_sync_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    payment_order: Mapped[PaymentOrder] = relationship("PaymentOrder", back_populates="refunds")
+    history: Mapped[list["PaymentRefundStatusHistory"]] = relationship("PaymentRefundStatusHistory", back_populates="refund", cascade="all, delete-orphan")
+
+
+class PaymentRefundStatusHistory(Base):
+    __tablename__ = "payment_refund_status_history"
+    __table_args__ = (
+        Index("ix_payment_refund_status_history_refund", "refund_id"),
+        Index("ix_payment_refund_status_history_created", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    refund_id: Mapped[int] = mapped_column(ForeignKey("payment_refunds.id", ondelete="CASCADE"), nullable=False)
+    previous_status: Mapped[str | None] = mapped_column(String(50))
+    new_status: Mapped[str] = mapped_column(String(50), nullable=False)
+    reason_code: Mapped[str | None] = mapped_column(String(120))
+    reason_summary: Mapped[str | None] = mapped_column(Text)
+    changed_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    provider_reference: Mapped[dict | None] = mapped_column(JSONB)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    refund: Mapped[PaymentRefund] = relationship("PaymentRefund", back_populates="history")
 
 
 class MercadoPagoWebhookProcessingStatus(str, enum.Enum):

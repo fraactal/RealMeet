@@ -49,6 +49,13 @@ async def mercado_pago_webhook(
             db.commit()
             return {"status": "ok", "result": "invalid_signature"}
         event.signature_valid = True
+        if topic and "refund" in topic:
+            event.processing_status = MercadoPagoWebhookProcessingStatus.ignored
+            event.error_code = "mercado_pago_refund_sync_required"
+            event.error_message = "Refund recibido; sincronizar desde administracion."
+            event.processed_at = datetime.now(UTC)
+            db.commit()
+            return {"status": "ok", "result": "refund_sync_required"}
         if topic not in {"payment", "payment.created", "payment.updated"} or not data_id:
             event.processing_status = MercadoPagoWebhookProcessingStatus.ignored
             event.processed_at = datetime.now(UTC)

@@ -31,6 +31,25 @@ class PaymentProviderHealth:
     message: str
 
 
+
+@dataclass(frozen=True)
+class PaymentRefundInput:
+    external_payment_id: str
+    amount: Decimal
+    currency: PaymentCurrency
+    idempotency_key: str
+    reason: str | None = None
+
+
+@dataclass(frozen=True)
+class PaymentRefundProviderResult:
+    external_refund_id: str
+    status: str
+    amount: Decimal
+    currency: PaymentCurrency
+    provider_reference: dict[str, str | int | bool | None] = field(default_factory=dict)
+    processed_at: datetime | None = None
+
 class PaymentProviderError(Exception):
     def __init__(self, message: str, *, code: str = "payment_provider_error") -> None:
         super().__init__(message)
@@ -46,5 +65,9 @@ class PaymentProvider(Protocol):
     async def cancel_payment(self, external_payment_id: str) -> PaymentProviderResult: ...
 
     async def refund_payment(self, external_payment_id: str) -> PaymentProviderResult: ...
+
+    async def create_refund(self, payload: PaymentRefundInput) -> PaymentRefundProviderResult: ...
+
+    async def get_refund(self, external_payment_id: str, external_refund_id: str) -> PaymentRefundProviderResult: ...
 
     async def health_check(self) -> PaymentProviderHealth: ...

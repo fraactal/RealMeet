@@ -62,6 +62,7 @@ function PaymentCard({ order, onCheckout }: { order: PaymentOrder; onCheckout?: 
           </div>
           <p className="mt-1 text-sm text-ink-600">{order.description ?? "Orden de pago"} - CLP {Number(order.amount).toLocaleString("es-CL")}</p>
           <p className="mt-1 text-xs text-ink-500">Reserva {order.appointment_id ?? "sin vinculo"} - Creada {formatDateTime(order.created_at)}</p>
+          <p className="mt-1 text-xs text-ink-500">Reembolso {order.refund_status} - CLP {Number(order.refunded_amount ?? 0).toLocaleString("es-CL")}</p>
         </div>
         <div className="text-sm text-ink-600">
           {order.expires_at ? <p>Vence {formatDateTime(order.expires_at)}</p> : null}

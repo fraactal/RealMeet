@@ -4,6 +4,15 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   cancelAdminPaymentOrder,
   createAdminPaymentOrder,
+  syncAdminPaymentRefundProvider,
+  submitAdminPaymentRefund,
+  retryAdminPaymentRefund,
+  reconcileAdminPaymentRefund,
+  fetchAdminPaymentOrderRefunds,
+  fakeRejectPaymentRefund,
+  fakeFailPaymentRefund,
+  fakeApprovePaymentRefund,
+  createAdminPaymentRefund,
   fakeApprovePaymentOrder,
   fakeExpirePaymentOrder,
   fakeFailPaymentOrder,
@@ -17,12 +26,13 @@ import {
 } from "../api/queries";
 import { AdminPagination } from "../components/admin/AdminPagination";
 import { Badge, Button, EmptyState, ErrorState, Input, Label, LoadingState, PageHeader, SectionCard, Select } from "../components/ui";
-import type { AdminPaymentOrder, PaymentOrderCreatePayload, PaymentOrderStatus, PaymentProvider } from "../types";
+import type { AdminPaymentOrder, PaymentOrderCreatePayload, PaymentOrderStatus, PaymentProvider, PaymentRefundReasonCode } from "../types";
 import { formatDateTime } from "../utils/dates";
-import { getPaymentOrderStatusLabel } from "../utils/labels";
+import { getPaymentOrderStatusLabel, getPaymentRefundReasonLabel, getPaymentRefundStatusLabel } from "../utils/labels";
 
 const PAGE_SIZE = 10;
 const paymentStatuses: PaymentOrderStatus[] = ["draft", "pending", "requires_action", "approved", "rejected", "cancelled", "expired", "failed", "refunded"];
+const refundReasons: PaymentRefundReasonCode[] = ["appointment_cancelled", "duplicate_payment", "service_not_delivered", "client_request", "professional_request", "administrative_adjustment", "other"];
 
 export function AdminPaymentsPage() {
   const queryClient = useQueryClient();
@@ -32,12 +42,18 @@ export function AdminPaymentsPage() {
   const [search, setSearch] = useState("");
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
   const [form, setForm] = useState({ appointment_id: "", client_id: "", professional_id: "", amount: "", description: "" });
+  const [refundForm, setRefundForm] = useState({ amount: "", reason_code: "appointment_cancelled" as PaymentRefundReasonCode, reason_summary: "" });
 
   const params = useMemo(
     () => ({ page, page_size: PAGE_SIZE, status: status || undefined, provider: provider || undefined, search: search.trim() || undefined }),
     [page, provider, search, status],
   );
   const ordersQuery = useQuery({ queryKey: ["admin-payment-orders", params], queryFn: () => fetchAdminPaymentOrders(params) });
+  const refundsQuery = useQuery({
+    queryKey: ["admin-payment-order-refunds", selectedOrderId],
+    queryFn: () => fetchAdminPaymentOrderRefunds(selectedOrderId ?? 0),
+    enabled: Boolean(selectedOrderId),
+  });
   const historyQuery = useQuery({
     queryKey: ["admin-payment-order-history", selectedOrderId],
     queryFn: () => fetchAdminPaymentOrderHistory(selectedOrderId ?? 0),
@@ -46,6 +62,7 @@ export function AdminPaymentsPage() {
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: ["admin-payment-orders"] });
     void queryClient.invalidateQueries({ queryKey: ["admin-payment-order-history"] });
+    void queryClient.invalidateQueries({ queryKey: ["admin-payment-order-refunds"] });
   };
   const createMutation = useMutation({
     mutationFn: () => {
@@ -64,6 +81,33 @@ export function AdminPaymentsPage() {
       setSelectedOrderId(order.id);
       refresh();
     },
+  });
+  const createRefundMutation = useMutation({
+    mutationFn: () => {
+      if (!selectedOrderId) throw new Error("payment_order_required");
+      return createAdminPaymentRefund(selectedOrderId, {
+        amount: refundForm.amount,
+        currency: "CLP",
+        reason_code: refundForm.reason_code,
+        reason_summary: refundForm.reason_summary || null,
+      });
+    },
+    onSuccess: () => {
+      setRefundForm({ amount: "", reason_code: "appointment_cancelled", reason_summary: "" });
+      refresh();
+    },
+  });
+  const refundOperationMutation = useMutation({
+    mutationFn: ({ id, action }: { id: number; action: "submit" | "sync" | "retry" | "reconcile" | "approve" | "reject" | "fail" }) => {
+      if (action === "submit") return submitAdminPaymentRefund(id);
+      if (action === "sync") return syncAdminPaymentRefundProvider(id);
+      if (action === "retry") return retryAdminPaymentRefund(id);
+      if (action === "reconcile") return reconcileAdminPaymentRefund(id).then((result) => result.refund);
+      if (action === "approve") return fakeApprovePaymentRefund(id);
+      if (action === "reject") return fakeRejectPaymentRefund(id);
+      return fakeFailPaymentRefund(id);
+    },
+    onSuccess: refresh,
   });
   const operationMutation = useMutation({
     mutationFn: ({ id, action }: { id: number; action: "submit" | "approve" | "reject" | "cancel" | "expire" | "fail" | "reconcile" | "sync" }) => {
@@ -149,6 +193,56 @@ export function AdminPaymentsPage() {
         <AdminPagination meta={ordersQuery.data?.meta} onPageChange={setPage} />
       </SectionCard>
 
+
+      {selectedOrderId ? (
+        <SectionCard title={`Reembolsos orden #${selectedOrderId}`} description="Solicitud, procesamiento y conciliacion manual de reembolsos.">
+          <div className="grid gap-3 md:grid-cols-3">
+            <div>
+              <Label htmlFor="refund-amount">Monto CLP</Label>
+              <Input id="refund-amount" inputMode="numeric" value={refundForm.amount} onChange={(event) => setRefundForm((current) => ({ ...current, amount: event.target.value }))} />
+            </div>
+            <div>
+              <Label htmlFor="refund-reason">Motivo</Label>
+              <Select id="refund-reason" value={refundForm.reason_code} onChange={(event) => setRefundForm((current) => ({ ...current, reason_code: event.target.value as PaymentRefundReasonCode }))}>
+                {refundReasons.map((item) => <option key={item} value={item}>{getPaymentRefundReasonLabel(item)}</option>)}
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="refund-summary">Resumen</Label>
+              <Input id="refund-summary" value={refundForm.reason_summary} onChange={(event) => setRefundForm((current) => ({ ...current, reason_summary: event.target.value }))} />
+            </div>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button isLoading={createRefundMutation.isPending} onClick={() => createRefundMutation.mutate()} size="sm">Solicitar reembolso</Button>
+          </div>
+          {createRefundMutation.isError ? <ErrorState title="No se pudo solicitar el reembolso" /> : null}
+          <div className="mt-4 grid gap-3">
+            {refundsQuery.isLoading ? <LoadingState label="Cargando reembolsos" /> : null}
+            {refundsQuery.data?.length === 0 ? <EmptyState title="Sin reembolsos" /> : null}
+            {refundsQuery.data?.map((refund) => (
+              <article className="rounded-md border border-slate-200 bg-white p-3 text-sm" key={refund.id}>
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                  <div>
+                    <p className="font-semibold text-ink-900">Reembolso #{refund.id} - CLP {Number(refund.amount).toLocaleString("es-CL")}</p>
+                    <p className="text-ink-600">{getPaymentRefundStatusLabel(refund.status)} - {getPaymentRefundReasonLabel(refund.reason_code)}</p>
+                    {refund.reason_summary ? <p className="text-ink-500">{refund.reason_summary}</p> : null}
+                    {refund.last_error_message ? <p className="text-danger-700">{refund.last_error_code}: {refund.last_error_message}</p> : null}
+                  </div>
+                  <div className="flex flex-wrap gap-2 lg:justify-end">
+                    <Button isLoading={refundOperationMutation.isPending && refundOperationMutation.variables?.id === refund.id} onClick={() => refundOperationMutation.mutate({ id: refund.id, action: "submit" })} size="sm" variant="secondary">Submit</Button>
+                    <Button isLoading={refundOperationMutation.isPending && refundOperationMutation.variables?.id === refund.id} onClick={() => refundOperationMutation.mutate({ id: refund.id, action: "sync" })} size="sm" variant="secondary">Sync</Button>
+                    <Button isLoading={refundOperationMutation.isPending && refundOperationMutation.variables?.id === refund.id} onClick={() => refundOperationMutation.mutate({ id: refund.id, action: "retry" })} size="sm" variant="secondary">Retry</Button>
+                    <Button isLoading={refundOperationMutation.isPending && refundOperationMutation.variables?.id === refund.id} onClick={() => refundOperationMutation.mutate({ id: refund.id, action: "reconcile" })} size="sm" variant="secondary">Reconciliar</Button>
+                    {refund.provider === "fake" ? <Button isLoading={refundOperationMutation.isPending && refundOperationMutation.variables?.id === refund.id} onClick={() => refundOperationMutation.mutate({ id: refund.id, action: "approve" })} size="sm" variant="secondary">Aprobar fake</Button> : null}
+                    {refund.provider === "fake" ? <Button isLoading={refundOperationMutation.isPending && refundOperationMutation.variables?.id === refund.id} onClick={() => refundOperationMutation.mutate({ id: refund.id, action: "reject" })} size="sm" variant="secondary">Rechazar fake</Button> : null}
+                    {refund.provider === "fake" ? <Button isLoading={refundOperationMutation.isPending && refundOperationMutation.variables?.id === refund.id} onClick={() => refundOperationMutation.mutate({ id: refund.id, action: "fail" })} size="sm" variant="secondary">Fallar fake</Button> : null}
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        </SectionCard>
+      ) : null}
       {selectedOrderId ? (
         <SectionCard title={`Historial orden #${selectedOrderId}`}>
           {historyQuery.isLoading ? <LoadingState label="Cargando historial" /> : null}
@@ -181,6 +275,7 @@ function PaymentAdminCard({ order, busy, onRun, onHistory }: { order: AdminPayme
           <p className="mt-1 text-xs text-ink-500">Reserva {order.appointment_id ?? "sin vinculo"} - Cliente {order.client_id ?? "-"} - Profesional {order.professional_id ?? "-"}</p>
           {order.external_preference_id ? <p className="mt-1 text-xs text-ink-500">Preference {order.external_preference_id} - Provider {order.provider_status ?? "sin estado"} {order.last_provider_sync_at ? `- Sync ${formatDateTime(order.last_provider_sync_at)}` : ""}</p> : null}
           {order.last_error_message ? <p className="mt-2 text-sm text-danger-700">{order.last_error_code}: {order.last_error_message}</p> : null}
+          <p className="mt-2 text-xs text-ink-500">Refund {order.refund_status} - reembolsado CLP {Number(order.refunded_amount ?? 0).toLocaleString("es-CL")} - disponible CLP {Number(order.refundable_amount ?? 0).toLocaleString("es-CL")}</p>
         </div>
         <div className="flex flex-wrap gap-2 lg:justify-end">
           <Button isLoading={busy} onClick={() => onRun("submit")} size="sm" variant="secondary">Submit</Button>

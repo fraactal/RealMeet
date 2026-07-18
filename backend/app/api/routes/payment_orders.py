@@ -17,6 +17,8 @@ from app.payments.schemas import (
     PaymentProviderHealthRead,
     PaymentReconcileRead,
 )
+from app.payments.schemas import PaymentRefundAdminRead, PaymentRefundCreate, PaymentRefundPublicRead, PaymentRefundReconcileRead, PaymentRefundStatusHistoryRead
+from app.payments.refunds import PaymentRefundService
 from app.payments.service import PaymentOrderService
 from app.schemas.admin import PageMeta
 
@@ -127,6 +129,68 @@ def sync_admin_payment_order_provider(payment_order_id: int, admin_user: User = 
     return PaymentOrderAdminRead.model_validate(PaymentOrderService(db).sync_provider(payment_order_id, admin_user))
 
 
+
+@router.get("/admin/payment-orders/{payment_order_id}/refunds", response_model=list[PaymentRefundAdminRead], dependencies=[Depends(require_admin)])
+def list_admin_payment_order_refunds(payment_order_id: int, db: Session = Depends(get_db)) -> list[PaymentRefundAdminRead]:
+    return [PaymentRefundAdminRead.model_validate(item) for item in PaymentRefundService(db).list_admin(payment_order_id)]
+
+
+@router.post("/admin/payment-orders/{payment_order_id}/refunds", response_model=PaymentRefundAdminRead)
+def create_admin_payment_refund(
+    payment_order_id: int,
+    payload: PaymentRefundCreate,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+    admin_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> PaymentRefundAdminRead:
+    return PaymentRefundAdminRead.model_validate(PaymentRefundService(db).create(payment_order_id, payload, admin_user, idempotency_key))
+
+
+@router.get("/admin/payment-refunds/{refund_id}", response_model=PaymentRefundAdminRead, dependencies=[Depends(require_admin)])
+def get_admin_payment_refund(refund_id: int, db: Session = Depends(get_db)) -> PaymentRefundAdminRead:
+    return PaymentRefundAdminRead.model_validate(PaymentRefundService(db).get(refund_id))
+
+
+@router.get("/admin/payment-refunds/{refund_id}/history", response_model=list[PaymentRefundStatusHistoryRead], dependencies=[Depends(require_admin)])
+def list_admin_payment_refund_history(refund_id: int, db: Session = Depends(get_db)) -> list[PaymentRefundStatusHistoryRead]:
+    return [PaymentRefundStatusHistoryRead.model_validate(item) for item in PaymentRefundService(db).list_history(refund_id)]
+
+
+@router.post("/admin/payment-refunds/{refund_id}/submit", response_model=PaymentRefundAdminRead)
+async def submit_admin_payment_refund(refund_id: int, admin_user: User = Depends(require_admin), db: Session = Depends(get_db)) -> PaymentRefundAdminRead:
+    return PaymentRefundAdminRead.model_validate(await PaymentRefundService(db).submit(refund_id, admin_user))
+
+
+@router.post("/admin/payment-refunds/{refund_id}/sync-provider", response_model=PaymentRefundAdminRead)
+def sync_admin_payment_refund_provider(refund_id: int, admin_user: User = Depends(require_admin), db: Session = Depends(get_db)) -> PaymentRefundAdminRead:
+    return PaymentRefundAdminRead.model_validate(PaymentRefundService(db).sync_provider(refund_id, admin_user))
+
+
+@router.post("/admin/payment-refunds/{refund_id}/retry", response_model=PaymentRefundAdminRead)
+def retry_admin_payment_refund(refund_id: int, admin_user: User = Depends(require_admin), db: Session = Depends(get_db)) -> PaymentRefundAdminRead:
+    return PaymentRefundAdminRead.model_validate(PaymentRefundService(db).retry(refund_id, admin_user))
+
+
+@router.post("/admin/payment-refunds/{refund_id}/reconcile", response_model=PaymentRefundReconcileRead)
+def reconcile_admin_payment_refund(refund_id: int, admin_user: User = Depends(require_admin), db: Session = Depends(get_db)) -> PaymentRefundReconcileRead:
+    result, refund = PaymentRefundService(db).reconcile(refund_id, admin_user)
+    return PaymentRefundReconcileRead(result=result, refund=PaymentRefundAdminRead.model_validate(refund))
+
+
+@router.post("/admin/payment-refunds/{refund_id}/fake/approve", response_model=PaymentRefundAdminRead)
+def approve_fake_payment_refund(refund_id: int, admin_user: User = Depends(require_admin), db: Session = Depends(get_db)) -> PaymentRefundAdminRead:
+    return PaymentRefundAdminRead.model_validate(PaymentRefundService(db).fake_approve(refund_id, admin_user))
+
+
+@router.post("/admin/payment-refunds/{refund_id}/fake/reject", response_model=PaymentRefundAdminRead)
+def reject_fake_payment_refund(refund_id: int, admin_user: User = Depends(require_admin), db: Session = Depends(get_db)) -> PaymentRefundAdminRead:
+    return PaymentRefundAdminRead.model_validate(PaymentRefundService(db).fake_reject(refund_id, admin_user))
+
+
+@router.post("/admin/payment-refunds/{refund_id}/fake/fail", response_model=PaymentRefundAdminRead)
+def fail_fake_payment_refund(refund_id: int, admin_user: User = Depends(require_admin), db: Session = Depends(get_db)) -> PaymentRefundAdminRead:
+    return PaymentRefundAdminRead.model_validate(PaymentRefundService(db).fake_fail(refund_id, admin_user))
+
 @router.post("/admin/payment-providers/{provider}/health", response_model=PaymentProviderHealthRead)
 async def health_payment_provider(
     provider: PaymentProviderKey,
@@ -148,6 +212,11 @@ def get_professional_payment_order(payment_order_id: int, user: User = Depends(g
     return PaymentOrderPublicRead.model_validate(PaymentOrderService(db).get_for_professional(payment_order_id, user))
 
 
+
+@router.get("/professionals/me/payment-orders/{payment_order_id}/refunds", response_model=list[PaymentRefundPublicRead], dependencies=[Depends(require_professional)])
+def list_professional_payment_order_refunds(payment_order_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> list[PaymentRefundPublicRead]:
+    return [PaymentRefundPublicRead.model_validate(item) for item in PaymentRefundService(db).list_for_professional(payment_order_id, user)]
+
 @router.get("/clients/me/payment-orders", response_model=list[PaymentOrderPublicRead], dependencies=[Depends(require_client)])
 def list_client_payment_orders(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> list[PaymentOrderPublicRead]:
     return [PaymentOrderPublicRead.model_validate(item) for item in PaymentOrderService(db).list_for_client(user)]
@@ -157,6 +226,11 @@ def list_client_payment_orders(user: User = Depends(get_current_user), db: Sessi
 def get_client_payment_order(payment_order_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> PaymentOrderPublicRead:
     return PaymentOrderPublicRead.model_validate(PaymentOrderService(db).get_for_client(payment_order_id, user))
 
+
+
+@router.get("/clients/me/payment-orders/{payment_order_id}/refunds", response_model=list[PaymentRefundPublicRead], dependencies=[Depends(require_client)])
+def list_client_payment_order_refunds(payment_order_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> list[PaymentRefundPublicRead]:
+    return [PaymentRefundPublicRead.model_validate(item) for item in PaymentRefundService(db).list_for_client(payment_order_id, user)]
 
 @router.get("/clients/me/payment-orders/{payment_order_id}/checkout", response_model=PaymentCheckoutRead, dependencies=[Depends(require_client)])
 def get_client_payment_checkout(payment_order_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> PaymentCheckoutRead:

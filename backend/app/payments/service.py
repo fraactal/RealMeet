@@ -360,6 +360,9 @@ class PaymentOrderService:
 
     def reconcile(self, payment_order_id: int, actor: User) -> tuple[str, PaymentOrder]:
         item = self.get(payment_order_id)
+        refund_result = self._reconcile_refunds(item)
+        if refund_result is not None:
+            return refund_result, item
         if item.provider == PaymentProviderKey.mercado_pago and item.status in ACTIVE_PAYMENT_STATUSES and item.external_payment_id:
             self.sync_provider(payment_order_id, actor)
             self.db.refresh(item)
@@ -384,6 +387,35 @@ class PaymentOrderService:
         if item.status == PaymentOrderStatus.approved and appointment.status == AppointmentStatus.confirmed:
             return "in_sync", item
         return "manual_review_required", item
+
+    def _reconcile_refunds(self, item: PaymentOrder) -> str | None:
+        from app.models.payment import PaymentRefund, PaymentRefundStatus
+
+        refunds_count = self.db.scalar(select(func.count(PaymentRefund.id)).where(PaymentRefund.payment_order_id == item.id)) or 0
+        if not refunds_count:
+            return None
+        approved = self.db.scalar(select(func.coalesce(func.sum(PaymentRefund.amount), 0)).where(PaymentRefund.payment_order_id == item.id, PaymentRefund.status == PaymentRefundStatus.approved)) or Decimal("0")
+        if approved > item.amount:
+            return "refund_amount_inconsistent"
+        pending = self.db.scalar(select(func.count(PaymentRefund.id)).where(PaymentRefund.payment_order_id == item.id, PaymentRefund.status.in_([PaymentRefundStatus.requested, PaymentRefundStatus.processing, PaymentRefundStatus.reconcile_required]))) or 0
+        failed = self.db.scalar(select(func.count(PaymentRefund.id)).where(PaymentRefund.payment_order_id == item.id, PaymentRefund.status.in_([PaymentRefundStatus.failed, PaymentRefundStatus.rejected]))) or 0
+        expected = "refunded" if approved >= item.amount else "partially_refunded" if approved > 0 else "refund_pending" if pending else "refund_failed" if failed else "not_refunded"
+        expected_order_status = PaymentOrderStatus.refunded if approved >= item.amount else item.status
+        if item.refunded_amount != approved or item.refund_status != expected or item.status != expected_order_status:
+            item.refunded_amount = approved
+            item.refund_status = expected
+            if approved > 0:
+                item.last_refunded_at = datetime.now(UTC)
+            if approved >= item.amount:
+                item.status = PaymentOrderStatus.refunded
+            self.db.commit()
+            self.db.refresh(item)
+            return "refund_sync_required"
+        if approved >= item.amount:
+            return "full_refund_in_sync"
+        if approved > 0:
+            return "partial_refund_in_sync"
+        return None
 
     async def health(self, provider: PaymentProviderKey) -> PaymentProviderHealth:
         if provider == PaymentProviderKey.mercado_pago:

@@ -46,6 +46,15 @@ class MercadoPagoPaymentResult:
 
 
 @dataclass(frozen=True)
+class MercadoPagoRefundResult:
+    external_refund_id: str
+    status: str
+    amount: Decimal
+    currency: PaymentCurrency
+    provider_reference: dict[str, str | int | bool | None]
+    processed_at: datetime | None = None
+
+@dataclass(frozen=True)
 class MercadoPagoHealthResult:
     healthy: bool
     code: str
@@ -117,6 +126,19 @@ class MercadoPagoClient:
             metadata={"account_id": str(data.get("id") or ""), "site_id": data.get("site_id")},
             duration_ms=int((monotonic() - started) * 1000),
         )
+
+    def create_refund(self, payment_id: str, *, amount: Decimal, currency: PaymentCurrency, idempotency_key: str) -> MercadoPagoRefundResult:
+        payload: dict[str, Any] = {}
+        if amount > 0:
+            payload["amount"] = int(amount) if currency == PaymentCurrency.CLP else float(amount)
+        response = httpx.post(f"{self.base_url}/v1/payments/{payment_id}/refunds", headers=self._headers(idempotency_key), json=payload, timeout=self.timeout)
+        data = self._json_or_error(response)
+        return _refund_from_payload(data, currency=currency)
+
+    def get_refund(self, payment_id: str, refund_id: str, *, currency: PaymentCurrency = PaymentCurrency.CLP) -> MercadoPagoRefundResult:
+        response = httpx.get(f"{self.base_url}/v1/payments/{payment_id}/refunds/{refund_id}", headers=self._headers(), timeout=self.timeout)
+        data = self._json_or_error(response)
+        return _refund_from_payload(data, currency=currency)
 
     def cancel_payment(self, _: str) -> None:
         raise IntegrationProviderExecutionError("Cancelacion Mercado Pago no soportada en 17.3", code="mercado_pago_cancel_not_supported")
@@ -302,6 +324,26 @@ def _validate_url(value: str, *, key: str) -> None:
         if parsed.netloc not in allowed and parsed.hostname not in local_hosts:
             raise IntegrationConfigurationError(f"{key} no pertenece a origen permitido.", code=f"mercado_pago_{key}_origin_not_allowed")
 
+
+
+def _refund_from_payload(data: dict[str, Any], *, currency: PaymentCurrency) -> MercadoPagoRefundResult:
+    status = str(data.get("status") or "unknown")
+    amount = Decimal(str(data.get("amount") or data.get("transaction_amount") or 0))
+    processed_at = None
+    raw_date = data.get("date_created") or data.get("date_approved")
+    if isinstance(raw_date, str):
+        try:
+            processed_at = datetime.fromisoformat(raw_date.replace("Z", "+00:00"))
+        except ValueError:
+            processed_at = None
+    return MercadoPagoRefundResult(
+        external_refund_id=str(data.get("id") or ""),
+        status=status,
+        amount=amount,
+        currency=currency,
+        processed_at=processed_at,
+        provider_reference={"provider": "mercado_pago", "operation": "refund", "refund_id": str(data.get("id") or ""), "status": status},
+    )
 
 def _safe_int(value: Any) -> int | None:
     try:

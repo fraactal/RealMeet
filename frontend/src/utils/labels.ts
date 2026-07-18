@@ -6,6 +6,8 @@ import type {
   IntegrationStatus,
   IntegrationType,
   PaymentOrderStatus,
+  PaymentRefundReasonCode,
+  PaymentRefundStatus,
   PaymentTiming,
   UserRole,
   WhatsAppConsentPurpose,
@@ -337,6 +339,34 @@ export function getPaymentOrderStatusLabel(value: PaymentOrderStatus | string): 
   return paymentOrderStatusLabels[value as PaymentOrderStatus] ?? value;
 }
 
+
+export const paymentRefundStatusLabels: Record<PaymentRefundStatus, string> = {
+  requested: "Solicitado",
+  processing: "Procesando",
+  approved: "Aprobado",
+  rejected: "Rechazado",
+  cancelled: "Cancelado",
+  failed: "Fallido",
+  reconcile_required: "Requiere conciliacion",
+};
+
+export const paymentRefundReasonLabels: Record<PaymentRefundReasonCode, string> = {
+  appointment_cancelled: "Reserva cancelada",
+  duplicate_payment: "Pago duplicado",
+  service_not_delivered: "Servicio no entregado",
+  client_request: "Solicitud del cliente",
+  professional_request: "Solicitud del profesional",
+  administrative_adjustment: "Ajuste administrativo",
+  other: "Otro",
+};
+
+export function getPaymentRefundStatusLabel(value: PaymentRefundStatus | string): string {
+  return paymentRefundStatusLabels[value as PaymentRefundStatus] ?? value;
+}
+
+export function getPaymentRefundReasonLabel(value: PaymentRefundReasonCode | string): string {
+  return paymentRefundReasonLabels[value as PaymentRefundReasonCode] ?? value;
+}
 export const paymentTimingLabels: Record<PaymentTiming, string> = {
   no_payment: "No requiere pago",
   pay_before_confirmation: "Pago antes de confirmar",
