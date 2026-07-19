@@ -100,16 +100,20 @@ class ProfessionalPublicRead(BaseModel):
     years_experience: int | None
     consultation_mode: ConsultationMode
     session_duration_minutes: int
-    price: Decimal | None
-    payment_timing: PaymentTiming
-    payment_amount: Decimal | None
-    payment_currency: str
-    payment_expiration_minutes: int
+    price: Decimal | None = None
+    payment_timing: PaymentTiming = PaymentTiming.no_payment
+    payment_amount: Decimal | None = None
+    payment_currency: str = "CLP"
+    payment_expiration_minutes: int = 30
     city: str | None
     country: str | None
     user: ProfessionalPublicUserRead
     category: ProfessionalPublicCategoryRead
     specialties: list[ProfessionalSpecialtyRead] = []
+
+    def model_dump(self, *args, **kwargs):
+        kwargs.setdefault("exclude_none", True)
+        return super().model_dump(*args, **kwargs)
 
 
 class ProfessionalPublicSearchResponse(BaseModel):
@@ -127,11 +131,11 @@ class ProfessionalPublicProfileRead(BaseModel):
     years_experience: int | None
     consultation_mode: ConsultationMode
     session_duration_minutes: int
-    price: Decimal | None
-    payment_timing: PaymentTiming
-    payment_amount: Decimal | None
-    payment_currency: str
-    payment_expiration_minutes: int
+    price: Decimal | None = None
+    payment_timing: PaymentTiming = PaymentTiming.no_payment
+    payment_amount: Decimal | None = None
+    payment_currency: str = "CLP"
+    payment_expiration_minutes: int = 30
     city: str | None
     country: str | None
     category_id: int | None
