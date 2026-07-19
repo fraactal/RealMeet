@@ -500,8 +500,6 @@ export interface AdminPaymentOrder extends PaymentOrder {
   provider_status?: string | null;
   provider_status_detail?: string | null;
   last_provider_sync_at?: string | null;
-  idempotency_key?: string | null;
-  request_fingerprint?: string | null;
   rejected_at?: string | null;
   failed_at?: string | null;
   last_error_code?: string | null;
@@ -562,8 +560,6 @@ export interface PaymentRefund {
 export interface AdminPaymentRefund extends PaymentRefund {
   provider: PaymentProvider;
   external_refund_id?: string | null;
-  idempotency_key?: string | null;
-  request_fingerprint?: string | null;
   requested_by_user_id?: number | null;
   failed_at?: string | null;
   last_error_code?: string | null;

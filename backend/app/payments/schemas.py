@@ -89,8 +89,6 @@ class PaymentOrderAdminRead(PaymentOrderPublicRead):
     provider_status: str | None
     provider_status_detail: str | None
     last_provider_sync_at: datetime | None
-    idempotency_key: str | None
-    request_fingerprint: str | None
     rejected_at: datetime | None
     failed_at: datetime | None
     last_error_code: str | None
@@ -169,8 +167,6 @@ class PaymentRefundPublicRead(ORMModel):
 class PaymentRefundAdminRead(PaymentRefundPublicRead):
     provider: PaymentProviderKey
     external_refund_id: str | None
-    idempotency_key: str | None
-    request_fingerprint: str | None
     requested_by_user_id: int | None
     failed_at: datetime | None
     last_error_code: str | None

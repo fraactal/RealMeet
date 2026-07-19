@@ -342,3 +342,15 @@ def test_refund_webhook_is_recorded_for_manual_sync(api_client: TestClient, db_s
     assert response.status_code == 200
     assert response.json()["result"] in {"refund_sync_required", "invalid_signature"}
     assert duplicate.json()["result"] == "duplicate"
+
+def test_admin_payment_responses_do_not_expose_idempotency_or_fingerprints(api_client: TestClient, db_session) -> None:
+    admin, _, _, _, order = _fixture(db_session, suffix="no-sensitive-response")
+    refund = _create_refund(api_client, admin, order.id, "10000", key="hidden-refund-key")
+    order_response = api_client.get(f"/api/v1/admin/payment-orders/{order.id}", headers=_headers(admin))
+    refund_response = api_client.get(f"/api/v1/admin/payment-refunds/{refund['id']}", headers=_headers(admin))
+
+    assert order_response.status_code == 200
+    assert refund_response.status_code == 200
+    for forbidden in ("idempotency_key", "request_fingerprint", "hidden-refund-key", f"fp-{RUN_ID}"):
+        assert forbidden not in order_response.text
+        assert forbidden not in refund_response.text
