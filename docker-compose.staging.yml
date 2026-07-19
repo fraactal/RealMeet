@@ -1,0 +1,38 @@
+services:
+  backend:
+    environment:
+      APP_ENV: ${APP_ENV:-staging}
+      DEBUG: ${DEBUG:-false}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      SECRET_KEY: ${SECRET_KEY:-change-me-in-production}
+      CORS_ORIGINS: ${CORS_ORIGINS:-["https://staging.realmeet.example"]}
+      STAGING_ALLOW_LOCALHOST: ${STAGING_ALLOW_LOCALHOST:-false}
+      ENABLE_DOCS: ${ENABLE_DOCS:-false}
+      ENABLE_DEMO_SEED: ${ENABLE_DEMO_SEED:-false}
+      EMAIL_MODE: ${EMAIL_MODE:-log}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-noreply@staging.realmeet.example}
+      SMTP_FROM_NAME: ${SMTP_FROM_NAME:-RealMeet Staging}
+      DEFAULT_MEETING_PROVIDER: ${DEFAULT_MEETING_PROVIDER:-mock}
+      MOCK_MEETING_BASE_URL: ${MOCK_MEETING_BASE_URL:-https://staging.realmeet.example/mock-meeting}
+      GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:-}
+      GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET:-}
+      GOOGLE_OAUTH_REDIRECT_URI: ${GOOGLE_OAUTH_REDIRECT_URI:-https://api.staging.realmeet.example/api/v1/admin/integrations/oauth/google/callback}
+      GOOGLE_OAUTH_SCOPES: ${GOOGLE_OAUTH_SCOPES:-https://www.googleapis.com/auth/calendar.events}
+      GOOGLE_OAUTH_STATE_TTL_SECONDS: ${GOOGLE_OAUTH_STATE_TTL_SECONDS:-600}
+      GOOGLE_TOKEN_ENCRYPTION_KEY: ${GOOGLE_TOKEN_ENCRYPTION_KEY:-}
+      WHATSAPP_CLOUD_ENABLED: ${WHATSAPP_CLOUD_ENABLED:-false}
+      WHATSAPP_GRAPH_API_VERSION: ${WHATSAPP_GRAPH_API_VERSION:-}
+      WHATSAPP_ACCESS_TOKEN: ${WHATSAPP_ACCESS_TOKEN:-}
+      WHATSAPP_APP_SECRET: ${WHATSAPP_APP_SECRET:-}
+      WHATSAPP_WEBHOOK_VERIFY_TOKEN: ${WHATSAPP_WEBHOOK_VERIFY_TOKEN:-}
+      WHATSAPP_PHONE_HMAC_KEY: ${WHATSAPP_PHONE_HMAC_KEY:-}
+      WHATSAPP_WEBHOOK_PUBLIC_URL: ${WHATSAPP_WEBHOOK_PUBLIC_URL:-https://api.staging.realmeet.example/api/v1/integrations/whatsapp/webhook}
+
+  frontend:
+    environment:
+      VITE_API_URL: ${VITE_API_URL:-https://api.staging.realmeet.example}
+    command: sh -c "npm ci && npm run build && npm run preview -- --host 0.0.0.0"

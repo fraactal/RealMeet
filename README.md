@@ -131,6 +131,7 @@ Base API: `http://localhost:18000/api/v1`
 El flujo recomendado con Docker Compose usa el archivo de la raiz:
 
 - `.env.example`
+- `.env.staging.example`
 
 Para ejecucion local fuera de Docker existen ejemplos por subproyecto:
 
@@ -145,6 +146,7 @@ Variables backend relevantes:
 - `API_V1_PREFIX`
 - `DATABASE_URL`
 - `SECRET_KEY`
+- `LOG_LEVEL`
 - `ACCESS_TOKEN_EXPIRE_MINUTES`
 - `CORS_ORIGINS`
 - `SMTP_HOST`
@@ -163,6 +165,7 @@ Variables backend relevantes:
 - `RATE_LIMIT_WINDOW_SECONDS`
 - `RATE_LIMIT_MAX_REQUESTS`
 - `ENABLE_DEMO_SEED`
+- `STAGING_ALLOW_LOCALHOST`
 - `BACKEND_HOST`
 - `BACKEND_PORT`
 
@@ -336,6 +339,7 @@ El seed es idempotente: reutiliza usuarios, categorias, especialidades, perfil p
 - Variables faltantes: backend falla temprano si faltan `SECRET_KEY`, `DATABASE_URL` o CORS queda vacio.
 - Compose v1 vs v2: `docker compose` es recomendado; `docker-compose` funciona como alternativa cuando v2 no esta disponible.
 - Staging: usa `APP_ENV=staging`, `DEBUG=false`, `ENABLE_DEMO_SEED=false`, `ENABLE_DOCS=false` si la instancia es publica, `CORS_ORIGINS` explicito y `SECRET_KEY` fuerte de 32+ caracteres.
+- H0 staging baseline: revisa `docs/hardening/h0-staging-baseline.md` y `docs/deployment/staging-configuration.md` para render de compose, smoke minimo y comandos prohibidos.
 
 ## Seguridad implementada hasta Modulo 2
 

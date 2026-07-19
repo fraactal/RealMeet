@@ -9,6 +9,7 @@ from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 PLACEHOLDER_SECRETS = {"change-me-in-production", "secret", "changeme", "test"}
 STRICT_ENVS = {"staging", "production", "prod"}
+LOCAL_HOSTS = {"localhost", "127.0.0.1", "0.0.0.0", "::1"}
 
 
 class Settings(BaseSettings):
@@ -16,6 +17,7 @@ class Settings(BaseSettings):
     app_env: str = Field(default="development", alias="APP_ENV")
     debug: bool = Field(default=False, alias="DEBUG")
     api_v1_prefix: str = Field(default="/api/v1", alias="API_V1_PREFIX")
+    log_level: str = Field(default="INFO", alias="LOG_LEVEL")
     secret_key: str = Field(..., alias="SECRET_KEY")
     access_token_expire_minutes: int = Field(default=120, alias="ACCESS_TOKEN_EXPIRE_MINUTES")
     database_url: str = Field(..., alias="DATABASE_URL")
@@ -39,6 +41,7 @@ class Settings(BaseSettings):
     rate_limit_window_seconds: int = Field(default=60, alias="RATE_LIMIT_WINDOW_SECONDS")
     rate_limit_max_requests: int = Field(default=10, alias="RATE_LIMIT_MAX_REQUESTS")
     enable_demo_seed: bool | None = Field(default=None, alias="ENABLE_DEMO_SEED")
+    staging_allow_localhost: bool = Field(default=False, alias="STAGING_ALLOW_LOCALHOST")
     backend_host: str = Field(default="0.0.0.0", alias="BACKEND_HOST")
     backend_port: int = Field(default=8000, alias="BACKEND_PORT")
     google_oauth_client_id: str | None = Field(default=None, alias="GOOGLE_OAUTH_CLIENT_ID")
@@ -126,6 +129,15 @@ class Settings(BaseSettings):
         normalized = value.lower().strip()
         if normalized not in allowed:
             raise ValueError(f"EMAIL_MODE must be one of: {', '.join(sorted(allowed))}")
+        return normalized
+
+    @field_validator("log_level")
+    @classmethod
+    def validate_log_level(cls, value: str) -> str:
+        normalized = value.upper().strip()
+        allowed = {"CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"}
+        if normalized not in allowed:
+            raise ValueError(f"LOG_LEVEL must be one of: {', '.join(sorted(allowed))}")
         return normalized
 
     @field_validator("rate_limit_window_seconds", "rate_limit_max_requests")
@@ -222,12 +234,41 @@ class Settings(BaseSettings):
         if self.app_env in STRICT_ENVS:
             if self.secret_key.strip().lower() in PLACEHOLDER_SECRETS or len(self.secret_key.strip()) < 32:
                 raise ValueError("SECRET_KEY must be non-placeholder and at least 32 characters in staging/production")
-            if self.enable_demo_seed is True and self.app_env in {"production", "prod"}:
-                raise ValueError("ENABLE_DEMO_SEED cannot be true in production")
+            if self.docs_enabled:
+                raise ValueError("ENABLE_DOCS must be false in staging/production")
+            if self.demo_seed_enabled:
+                raise ValueError("ENABLE_DEMO_SEED must be false in staging/production")
             if self.debug:
                 raise ValueError("DEBUG cannot be true in staging/production")
+            local_origins = [origin for origin in self.cors_origins if _is_local_origin(origin)]
+            if local_origins and not (self.app_env == "staging" and self.staging_allow_localhost):
+                raise ValueError("CORS_ORIGINS cannot include localhost in staging/production")
             if self.whatsapp_cloud_enabled and not self.whatsapp_webhook_require_signature:
                 raise ValueError("WHATSAPP_WEBHOOK_REQUIRE_SIGNATURE must be true when WhatsApp is enabled in staging/production")
+        if self.email_mode == "smtp":
+            if not self.smtp_host:
+                raise ValueError("SMTP_HOST is required when EMAIL_MODE=smtp")
+            if not self.smtp_from_email:
+                raise ValueError("SMTP_FROM_EMAIL is required when EMAIL_MODE=smtp")
+        google_values = [
+            self.google_oauth_client_id,
+            self.google_oauth_client_secret,
+            self.google_oauth_redirect_uri,
+            self.google_token_encryption_key,
+        ]
+        if any(google_values) and not all(google_values):
+            raise ValueError("Google OAuth settings must be complete when any Google OAuth value is configured")
+        if self.whatsapp_cloud_enabled:
+            required_whatsapp = {
+                "WHATSAPP_GRAPH_API_VERSION": self.whatsapp_graph_api_version,
+                "WHATSAPP_ACCESS_TOKEN": self.whatsapp_access_token,
+                "WHATSAPP_APP_SECRET": self.whatsapp_app_secret,
+                "WHATSAPP_WEBHOOK_VERIFY_TOKEN": self.whatsapp_webhook_verify_token,
+                "WHATSAPP_PHONE_HMAC_KEY": self.whatsapp_phone_hmac_key,
+            }
+            missing_whatsapp = [name for name, value in required_whatsapp.items() if not value]
+            if missing_whatsapp:
+                raise ValueError(f"Missing WhatsApp settings when enabled: {', '.join(missing_whatsapp)}")
         return self
 
     @property
@@ -256,6 +297,36 @@ class Settings(BaseSettings):
             errors.append("SECRET_KEY must be hardened for staging/production")
         if self.app_env in {"production", "prod"} and self.demo_seed_enabled:
             errors.append("ENABLE_DEMO_SEED must be false in production")
+        if self.app_env in STRICT_ENVS and self.docs_enabled:
+            errors.append("ENABLE_DOCS must be false in staging/production")
+        if self.app_env in STRICT_ENVS and self.demo_seed_enabled:
+            errors.append("ENABLE_DEMO_SEED must be false in staging/production")
+        if self.app_env in STRICT_ENVS:
+            local_origins = [origin for origin in self.cors_origins if _is_local_origin(origin)]
+            if local_origins and not (self.app_env == "staging" and self.staging_allow_localhost):
+                errors.append("CORS_ORIGINS cannot include localhost in staging/production")
+        if self.email_mode == "smtp" and not self.smtp_host:
+            errors.append("SMTP_HOST is required when EMAIL_MODE=smtp")
+        if any(
+            [
+                self.google_oauth_client_id,
+                self.google_oauth_client_secret,
+                self.google_oauth_redirect_uri,
+                self.google_token_encryption_key,
+            ]
+        ) and not self.google_oauth_configured:
+            errors.append("Google OAuth settings must be complete when configured")
+        if self.whatsapp_cloud_enabled:
+            if not self.whatsapp_graph_api_version:
+                errors.append("WHATSAPP_GRAPH_API_VERSION is required when WhatsApp is enabled")
+            if not self.whatsapp_access_token:
+                errors.append("WHATSAPP_ACCESS_TOKEN is required when WhatsApp is enabled")
+            if not self.whatsapp_app_secret:
+                errors.append("WHATSAPP_APP_SECRET is required when WhatsApp is enabled")
+            if not self.whatsapp_webhook_verify_token:
+                errors.append("WHATSAPP_WEBHOOK_VERIFY_TOKEN is required when WhatsApp is enabled")
+            if not self.whatsapp_phone_hmac_key:
+                errors.append("WHATSAPP_PHONE_HMAC_KEY is required when WhatsApp is enabled")
         return errors
 
     @property
@@ -268,6 +339,11 @@ class Settings(BaseSettings):
                 self.google_token_encryption_key,
             ]
         )
+
+
+def _is_local_origin(origin: str) -> bool:
+    parsed = urlparse(origin)
+    return parsed.hostname in LOCAL_HOSTS
 
 
 @lru_cache
