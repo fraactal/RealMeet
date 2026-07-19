@@ -442,6 +442,17 @@ Readiness:
 - Uso clinico real: no listo; requiere privacidad clinica, consentimiento, retencion, auditoria regulatoria y cumplimiento legal.
 
 Modulo 9 agrega hardening tecnico para staging: settings por entorno, rechazo de secretos inseguros en staging/production, headers HTTP, rate limiting basico, Swagger configurable, seed demo configurable, Docker no root cuando es viable y documentacion de backup/restauracion.
+## Preparacion productiva
+
+El MVP funcional completo queda cerrado en `staging`, pero no se declara listo para produccion real. La fase de robustecimiento queda documentada en:
+
+- `docs/hardening/technical-debt-register.md`
+- `docs/hardening/environment-readiness-gates.md`
+- `docs/hardening/production-readiness-roadmap.md`
+- `docs/hardening/mvp-risk-register.md`
+- `specs/hardening/production-readiness-plan/spec.md`
+
+Estos documentos consolidan deuda tecnica, gates por ambiente, roadmap H0-H7, riesgos del MVP y estrategia futura de CI/CD/testing. No reemplazan la implementacion de hardening ni habilitan despliegue productivo por si mismos.
 
 ## Integraciones Google OAuth y Meet
 
