@@ -26,6 +26,7 @@ from app.repositories.integration_repository import IntegrationRepository
 from app.schemas.integrations import IntegrationCreate, IntegrationExecutionCreate, IntegrationUpdate
 from app.services.google_meet import GoogleMeetService
 from app.whatsapp.configuration import validate_whatsapp_local_configuration
+from app.payments.providers.mercado_pago import parse_mercado_pago_config
 
 logger = logging.getLogger("realmeet.integrations")
 
@@ -69,6 +70,8 @@ class IntegrationService:
     def create_integration(self, payload: IntegrationCreate, admin_user: User) -> Integration:
         integration = self.integrations.create(payload)
         integration.enabled = False
+        if integration.provider == IntegrationProvider.mercado_pago:
+            parse_mercado_pago_config(integration)
         if integration.provider in {IntegrationProvider.whatsapp_cloud, IntegrationProvider.n8n, IntegrationProvider.generic_webhook}:
             integration.status = IntegrationStatus.configured
         else:
@@ -82,6 +85,8 @@ class IntegrationService:
         integration = self.get_integration(integration_id)
         changes = payload.model_dump(exclude_unset=True)
         self.integrations.update_allowed_fields(integration, payload)
+        if integration.provider == IntegrationProvider.mercado_pago and {"config", "secret_reference"} & set(changes):
+            parse_mercado_pago_config(integration)
         if {"config", "secret_reference"} & set(changes):
             integration.status = IntegrationStatus.configured if integration.provider in {IntegrationProvider.whatsapp_cloud, IntegrationProvider.n8n, IntegrationProvider.generic_webhook} or self.registry.is_supported(integration.provider) else IntegrationStatus.unsupported
             integration.last_error_message = None

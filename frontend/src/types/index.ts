@@ -74,6 +74,11 @@ export interface ProfessionalPublic {
   years_experience?: number | null;
   consultation_mode: ConsultationMode;
   session_duration_minutes: number;
+  price?: string | null;
+  payment_timing: PaymentTiming;
+  payment_amount?: string | null;
+  payment_currency: PaymentCurrency;
+  payment_expiration_minutes: number;
   city?: string | null;
   country?: string | null;
   category: ProfessionalPublicCategory;
@@ -112,6 +117,11 @@ export interface ProfessionalPublicProfile {
   years_experience?: number | null;
   consultation_mode: ConsultationMode;
   session_duration_minutes: number;
+  price?: string | null;
+  payment_timing: PaymentTiming;
+  payment_amount?: string | null;
+  payment_currency: PaymentCurrency;
+  payment_expiration_minutes: number;
   city?: string | null;
   country?: string | null;
   category_id?: number | null;
@@ -229,7 +239,8 @@ export interface AvailabilityResponse {
   slots: AvailableSlot[];
 }
 
-export type AppointmentStatus = "pending" | "confirmed" | "cancelled" | "completed" | "no_show";
+export type AppointmentStatus = "pending" | "pending_payment" | "confirmed" | "cancelled" | "completed" | "no_show";
+export type PaymentTiming = "no_payment" | "pay_before_confirmation" | "pay_after_confirmation";
 
 export interface AppointmentHistory {
   id: number;
@@ -271,6 +282,14 @@ export interface Appointment {
   meeting_provider?: string | null;
   meeting_url?: string | null;
   meeting?: AppointmentMeeting | null;
+  payment?: {
+    order_id: number;
+    status: PaymentOrderStatus;
+    amount: string;
+    currency: PaymentCurrency;
+    expires_at?: string | null;
+    checkout_available: boolean;
+  } | null;
   cancellation_reason?: string | null;
   client_notes?: string | null;
   history?: AppointmentHistory[];
@@ -405,6 +424,11 @@ export interface AdminProfessionalDetail extends AdminProfessionalListItem {
   years_experience?: number | null;
   session_duration_minutes: number;
   price?: string | null;
+  payment_timing: PaymentTiming;
+  payment_amount?: string | null;
+  payment_currency: PaymentCurrency;
+  payment_expiration_minutes: number;
+  allow_manual_confirmation: boolean;
   city?: string | null;
   country?: string | null;
   specialties: string[];
@@ -418,6 +442,11 @@ export interface AdminProfessionalUpdate {
   consultation_mode?: ConsultationMode | null;
   session_duration_minutes?: number | null;
   price?: string | null;
+  payment_timing?: PaymentTiming | null;
+  payment_amount?: string | null;
+  payment_currency?: PaymentCurrency | null;
+  payment_expiration_minutes?: number | null;
+  allow_manual_confirmation?: boolean | null;
   city?: string | null;
   country?: string | null;
   is_verified?: boolean | null;
@@ -435,7 +464,146 @@ export interface AdminAppointmentListResponse {
   meta: PageMeta;
 }
 
-export type IntegrationType = "meeting" | "calendar" | "messaging" | "email" | "automation" | "webhook";
+export type PaymentProvider = "fake" | "mercado_pago" | "stripe";
+export type PaymentCurrency = "CLP";
+export type PaymentOrderStatus = "draft" | "pending" | "requires_action" | "approved" | "rejected" | "cancelled" | "expired" | "failed" | "refunded";
+export type PaymentRefundStatus = "requested" | "processing" | "approved" | "rejected" | "cancelled" | "failed" | "reconcile_required";
+export type PaymentRefundReasonCode = "appointment_cancelled" | "duplicate_payment" | "service_not_delivered" | "client_request" | "professional_request" | "administrative_adjustment" | "other";
+
+export interface PaymentOrder {
+  id: number;
+  appointment_id?: number | null;
+  description?: string | null;
+  amount: string;
+  currency: PaymentCurrency;
+  provider: PaymentProvider;
+  status: PaymentOrderStatus;
+  expires_at?: string | null;
+  paid_at?: string | null;
+  cancelled_at?: string | null;
+  refunded_amount: string;
+  refundable_amount?: string | null;
+  refund_status: string;
+  last_refunded_at?: string | null;
+  created_at: string;
+}
+
+export interface AdminPaymentOrder extends PaymentOrder {
+  client_id?: number | null;
+  professional_id?: number | null;
+  specialty_id?: number | null;
+  provider: PaymentProvider;
+  external_payment_id?: string | null;
+  external_preference_id?: string | null;
+  checkout_url?: string | null;
+  sandbox_checkout_url?: string | null;
+  provider_status?: string | null;
+  provider_status_detail?: string | null;
+  last_provider_sync_at?: string | null;
+  rejected_at?: string | null;
+  failed_at?: string | null;
+  last_error_code?: string | null;
+  last_error_message?: string | null;
+  created_by_user_id?: number | null;
+  updated_at: string;
+}
+
+export interface PaymentOrderHistory {
+  id: number;
+  payment_order_id: number;
+  previous_status?: string | null;
+  new_status: string;
+  reason_code?: string | null;
+  reason_summary?: string | null;
+  changed_by_user_id?: number | null;
+  provider_reference?: Record<string, string | number | boolean | null> | null;
+  created_at: string;
+}
+
+export interface AdminPaymentOrderListResponse {
+  items: AdminPaymentOrder[];
+  meta: PageMeta;
+}
+
+export interface PaymentOrderCreatePayload {
+  appointment_id?: number | null;
+  client_id?: number | null;
+  professional_id?: number | null;
+  specialty_id?: number | null;
+  provider: PaymentProvider;
+  amount?: string | null;
+  currency: PaymentCurrency;
+  description?: string | null;
+  expires_at?: string | null;
+}
+
+
+export interface PaymentRefundCreatePayload {
+  amount: string;
+  currency: PaymentCurrency;
+  reason_code: PaymentRefundReasonCode;
+  reason_summary?: string | null;
+}
+
+export interface PaymentRefund {
+  id: number;
+  payment_order_id: number;
+  amount: string;
+  currency: PaymentCurrency;
+  status: PaymentRefundStatus;
+  reason_code: PaymentRefundReasonCode;
+  reason_summary?: string | null;
+  requested_at: string;
+  processed_at?: string | null;
+}
+
+export interface AdminPaymentRefund extends PaymentRefund {
+  provider: PaymentProvider;
+  external_refund_id?: string | null;
+  requested_by_user_id?: number | null;
+  failed_at?: string | null;
+  last_error_code?: string | null;
+  last_error_message?: string | null;
+  provider_status?: string | null;
+  last_provider_sync_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PaymentRefundHistory {
+  id: number;
+  refund_id: number;
+  previous_status?: string | null;
+  new_status: string;
+  reason_code?: string | null;
+  reason_summary?: string | null;
+  changed_by_user_id?: number | null;
+  provider_reference?: Record<string, string | number | boolean | null> | null;
+  created_at: string;
+}
+export interface PaymentProviderHealth {
+  provider: PaymentProvider;
+  healthy: boolean;
+  code: string;
+  message: string;
+}
+
+export interface PaymentCheckout {
+  id: number;
+  appointment_id?: number | null;
+  provider: PaymentProvider;
+  description?: string | null;
+  amount: string;
+  currency: PaymentCurrency;
+  status: PaymentOrderStatus;
+  expires_at?: string | null;
+  checkout_available: boolean;
+  test_environment: boolean;
+  checkout_url?: string | null;
+  message: string;
+}
+
+export type IntegrationType = "meeting" | "calendar" | "messaging" | "email" | "automation" | "webhook" | "payment";
 export type IntegrationProvider =
   | "mock"
   | "google_meet"
@@ -445,7 +613,8 @@ export type IntegrationProvider =
   | "twilio"
   | "smtp"
   | "n8n"
-  | "generic_webhook";
+  | "generic_webhook"
+  | "mercado_pago";
 export type IntegrationStatus = "not_configured" | "configured" | "healthy" | "error" | "unsupported";
 export type IntegrationExecutionStatus = "pending" | "running" | "succeeded" | "failed" | "skipped";
 export type WebhookEventType =
@@ -454,6 +623,14 @@ export type WebhookEventType =
   | "appointment.cancelled"
   | "appointment.confirmed"
   | "meeting.ready"
+  | "payment.order.created"
+  | "payment.approved"
+  | "payment.rejected"
+  | "payment.expired"
+  | "payment.refund.requested"
+  | "payment.refund.approved"
+  | "payment.refund.rejected"
+  | "payment.refund.failed"
   | "document.generated"
   | "notification.sent"
   | "notification.failed"
@@ -487,6 +664,15 @@ export interface IntegrationConfig {
   template_mapping?: Partial<Record<WhatsAppTemplatePurpose, number>>;
   base_url?: string;
   environment?: string;
+  country?: "CL";
+  currency?: "CLP";
+  notification_url?: string;
+  success_url?: string;
+  pending_url?: string;
+  failure_url?: string;
+  auto_return?: "approved";
+  access_token_reference?: string;
+  webhook_secret_reference?: string;
 }
 
 export interface WhatsAppSecretReferences {

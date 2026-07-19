@@ -613,6 +613,77 @@ n8n no administra credenciales, no importa/exporta workflows, no ejecuta llamada
 
 Modulo 14.3 agrega contratos de payload operativos y ejemplos importables para n8n en `docs/n8n/examples/`. El backoffice lista ejemplos para Google Sheets, CRM generico y notificacion interna, y los endpoints admin permiten obtener el JSON catalogado sin exponer rutas internas. RealMeet no se conecta directamente a Google Sheets, CRM o Slack; solo emite eventos firmados hacia workflows configurados fuera de RealMeet.
 
+## Pagos y ordenes de cobro
+
+Modulo 17.1 agrega una fundacion provider-agnostic de pagos:
+
+- `PaymentOrder` como intencion interna de cobro.
+- `PaymentOrderStatusHistory` para historial de transiciones.
+- Estados: `draft`, `pending`, `requires_action`, `approved`, `rejected`, `cancelled`, `expired`, `failed` y `refunded`.
+- Moneda inicial unica: `CLP`; se rechazan montos cero, negativos o fraccionarios.
+- Provider `fake` implementado para pruebas deterministicas.
+- Registry con `fake`, `mercado_pago` y `stripe`; los dos ultimos responden como no implementados en 17.1.
+- Idempotencia en creacion mediante `Idempotency-Key` y fingerprint de payload.
+- Maximo una orden activa o aprobada por reserva.
+- Respuestas publicas de cliente/profesional sin fingerprint, idempotency key, referencias internas ni datos de provider sensibles.
+
+No existe una tabla de servicios independiente en el catalogo actual. Cuando una orden se asocia a una reserva, RealMeet toma snapshot del precio del perfil profesional. Si no hay reserva o precio disponible, el backoffice puede indicar un monto manual en 17.1.
+
+Modulo 17.2 agrega checkout fake autenticado y politicas de reserva basadas en pago. La politica se almacena en `ProfessionalProfile` como servicio actual del catalogo para no crear una entidad nueva antes de que exista un CRUD de servicios dedicado.
+
+Politicas disponibles:
+
+- `no_payment`: comportamiento anterior; no crea orden automatica ni checkout.
+- `pay_before_confirmation`: crea reserva `pending_payment`, genera una orden fake y confirma solo cuando el pago queda `approved`.
+- `pay_after_confirmation`: confirma inmediatamente, crea una orden pendiente y no cancela automaticamente si el pago se rechaza.
+
+Campos administrativos de politica:
+
+- `payment_timing`
+- `payment_amount`
+- `payment_currency`, limitado a `CLP`
+- `payment_expiration_minutes`, rango `5` a `1440`, default `30`
+- `allow_manual_confirmation`
+
+La reserva `pending_payment` bloquea el slot mientras espera pago. Si el pago se rechaza o expira, la reserva pasa a `cancelled` y deja de bloquear disponibilidad. Una reserva cancelada por rechazo o expiracion no se reactiva automaticamente, porque el horario pudo haber sido tomado por otra persona; el cliente debe consultar disponibilidad y crear una nueva reserva.
+
+Modulo 17.3 agrega Mercado Pago Checkout Pro como primer provider real:
+
+- Configuracion via `Integration` con `integration_type=payment` y `provider=mercado_pago`.
+- Credenciales solo por referencias de entorno: `access_token_reference` y `webhook_secret_reference`.
+- Creacion de preferencia Checkout Pro con `X-Idempotency-Key` estable.
+- Persistencia minima: preference ID, checkout URL, estado provider y ultimo sync.
+- Webhook publico firmado en `/api/v1/webhooks/mercado-pago`, deduplicado y verificado consultando la API del provider.
+- `sync-provider` administrativo para consulta manual.
+- Retornos frontend informativos en `/payments/success`, `/payments/pending` y `/payments/failure`.
+
+RealMeet no procesa tarjetas, no guarda access tokens y no aprueba pagos solo por retorno del navegador.
+
+APIs principales:
+
+- `GET/POST /api/v1/admin/payment-orders`
+- `GET /api/v1/admin/payment-orders/{payment_order_id}`
+- `POST /api/v1/admin/payment-orders/{payment_order_id}/submit`
+- `POST /api/v1/admin/payment-orders/{payment_order_id}/cancel`
+- `GET /api/v1/admin/payment-orders/{payment_order_id}/history`
+- `POST /api/v1/admin/payment-orders/{payment_order_id}/fake/approve`
+- `POST /api/v1/admin/payment-orders/{payment_order_id}/fake/reject`
+- `POST /api/v1/admin/payment-orders/{payment_order_id}/fake/expire`
+- `POST /api/v1/admin/payment-orders/{payment_order_id}/fake/fail`
+- `POST /api/v1/admin/payment-orders/{payment_order_id}/reconcile`
+- `POST /api/v1/admin/payment-orders/{payment_order_id}/sync-provider`
+- `POST /api/v1/admin/payment-providers/{provider}/health`
+- `GET /api/v1/professionals/me/payment-orders`
+- `GET /api/v1/professionals/me/payment-orders/{payment_order_id}`
+- `GET /api/v1/clients/me/payment-orders`
+- `GET /api/v1/clients/me/payment-orders/{payment_order_id}`
+- `GET /api/v1/clients/me/payment-orders/{payment_order_id}/checkout`
+- `POST /api/v1/clients/me/payment-orders/{payment_order_id}/checkout/approve`
+- `POST /api/v1/clients/me/payment-orders/{payment_order_id}/checkout/reject`
+- `POST /api/v1/webhooks/mercado-pago`
+
+17.3 no implementa checkout publico anonimo, tarjetas dentro de RealMeet, produccion real automatica, reembolsos, impuestos, descuentos, facturacion, suscripciones, scheduler de expiracion, retries automaticos ni conciliacion bancaria.
+
 ## Plan sugerido de commits
 
 El repositorio tiene commits incrementales por modulo. El Modulo 8 debe cerrarse con un unico commit y sin push salvo instruccion explicita.
@@ -620,7 +691,7 @@ El repositorio tiene commits incrementales por modulo. El Modulo 8 debe cerrarse
 ## Limitaciones actuales del MVP
 
 - Integracion automatica de reservas con Google Meet y Zoom no implementada.
-- WhatsApp permite envio manual administrativo y notificaciones transaccionales de reservas con consentimiento; mensajes libres, respuestas, campanas, pagos, suscripciones y facturacion quedan diferidos.
+- WhatsApp permite envio manual administrativo y notificaciones transaccionales de reservas con consentimiento; mensajes libres, respuestas y campanas quedan diferidos. Pagos tiene fundacion interna, checkout fake y Mercado Pago Checkout Pro preparado para sandbox; produccion real, suscripciones y facturacion quedan diferidos.
 - Recuperacion de contrasena, MFA y roles configurables quedan diferidos.
 - Pruebas frontend automaticas y E2E completas quedan diferidas.
 - El backoffice es minimo y prioriza operacion inicial sobre cobertura total de UX.

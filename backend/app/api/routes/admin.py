@@ -1593,6 +1593,13 @@ def patch_professional(
     if not professional:
         raise HTTPException(status_code=404, detail="Professional not found")
     changes = payload.model_dump(exclude_unset=True)
+    if "payment_currency" in changes and changes["payment_currency"] != "CLP":
+        raise HTTPException(status_code=422, detail={"code": "payment_currency_not_supported"})
+    if "payment_amount" in changes and changes["payment_amount"] is not None:
+        if changes["payment_amount"] <= 0:
+            raise HTTPException(status_code=422, detail={"code": "payment_amount_must_be_positive"})
+        if changes["payment_amount"] != changes["payment_amount"].to_integral_value():
+            raise HTTPException(status_code=422, detail={"code": "payment_currency_clp_requires_integer_amount"})
     user_is_active = changes.pop("user_is_active", None)
     for key, value in changes.items():
         setattr(professional, key, value)
@@ -1850,6 +1857,11 @@ def _serialize_professional_detail(db: Session, professional: ProfessionalProfil
         years_experience=professional.years_experience,
         session_duration_minutes=professional.session_duration_minutes,
         price=professional.price,
+        payment_timing=professional.payment_timing,
+        payment_amount=professional.payment_amount,
+        payment_currency=professional.payment_currency,
+        payment_expiration_minutes=professional.payment_expiration_minutes,
+        allow_manual_confirmation=professional.allow_manual_confirmation,
         city=professional.city,
         country=professional.country,
         specialties=specialties,

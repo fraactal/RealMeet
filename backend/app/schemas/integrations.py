@@ -57,6 +57,9 @@ class IntegrationCreate(StrictBaseModel):
             except Exception as exc:
                 detail = getattr(exc, "detail", str(exc))
                 raise ValueError(str(detail)) from exc
+        if self.provider == IntegrationProvider.mercado_pago:
+            if self.integration_type != IntegrationType.payment:
+                raise ValueError("mercado_pago requires integration_type payment")
         return self
 
 

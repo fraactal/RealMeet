@@ -2,7 +2,7 @@ from decimal import Decimal
 
 from pydantic import BaseModel
 
-from app.models.professional_profile import ConsultationMode
+from app.models.professional_profile import ConsultationMode, PaymentTiming
 from app.schemas.common import ORMModel
 from app.schemas.users import UserRead, UserSelfUpdate
 
@@ -100,11 +100,20 @@ class ProfessionalPublicRead(BaseModel):
     years_experience: int | None
     consultation_mode: ConsultationMode
     session_duration_minutes: int
+    price: Decimal | None = None
+    payment_timing: PaymentTiming = PaymentTiming.no_payment
+    payment_amount: Decimal | None = None
+    payment_currency: str = "CLP"
+    payment_expiration_minutes: int = 30
     city: str | None
     country: str | None
     user: ProfessionalPublicUserRead
     category: ProfessionalPublicCategoryRead
     specialties: list[ProfessionalSpecialtyRead] = []
+
+    def model_dump(self, *args, **kwargs):
+        kwargs.setdefault("exclude_none", True)
+        return super().model_dump(*args, **kwargs)
 
 
 class ProfessionalPublicSearchResponse(BaseModel):
@@ -122,6 +131,11 @@ class ProfessionalPublicProfileRead(BaseModel):
     years_experience: int | None
     consultation_mode: ConsultationMode
     session_duration_minutes: int
+    price: Decimal | None = None
+    payment_timing: PaymentTiming = PaymentTiming.no_payment
+    payment_amount: Decimal | None = None
+    payment_currency: str = "CLP"
+    payment_expiration_minutes: int = 30
     city: str | None
     country: str | None
     category_id: int | None

@@ -53,6 +53,9 @@ def _validate_safe_value(value: Any, *, field_name: str, path: str, depth: int, 
             normalized_key = normalize_key(key)
             if normalized_key in NORMALIZED_SENSITIVE_KEYS:
                 raise IntegrationValidationError(f"{field_name} contains a sensitive key: {path}.{key}")
+            if normalized_key.endswith("reference") and isinstance(nested_value, str):
+                validate_secret_reference(nested_value)
+                continue
             _validate_safe_value(nested_value, field_name=field_name, path=f"{path}.{key}", depth=depth + 1, max_depth=max_depth)
         return
 

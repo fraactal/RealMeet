@@ -4,7 +4,7 @@ from decimal import Decimal
 from pydantic import BaseModel, Field
 
 from app.models.appointment import AppointmentStatus
-from app.models.professional_profile import ConsultationMode
+from app.models.professional_profile import ConsultationMode, PaymentTiming
 from app.models.user import UserRole
 from app.schemas.appointments import AppointmentAdminRead
 
@@ -62,6 +62,11 @@ class AdminProfessionalDetail(AdminProfessionalListItem):
     years_experience: int | None
     session_duration_minutes: int
     price: Decimal | None
+    payment_timing: PaymentTiming
+    payment_amount: Decimal | None
+    payment_currency: str
+    payment_expiration_minutes: int
+    allow_manual_confirmation: bool
     city: str | None
     country: str | None
     specialties: list[str]
@@ -75,6 +80,11 @@ class AdminProfessionalUpdate(BaseModel):
     consultation_mode: ConsultationMode | None = None
     session_duration_minutes: int | None = Field(default=None, ge=15, le=240)
     price: Decimal | None = None
+    payment_timing: PaymentTiming | None = None
+    payment_amount: Decimal | None = None
+    payment_currency: str | None = Field(default=None, min_length=3, max_length=3)
+    payment_expiration_minutes: int | None = Field(default=None, ge=5, le=1440)
+    allow_manual_confirmation: bool | None = None
     city: str | None = Field(default=None, max_length=100)
     country: str | None = Field(default=None, max_length=100)
     is_verified: bool | None = None

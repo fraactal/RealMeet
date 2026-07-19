@@ -142,7 +142,7 @@ import {
   getWebhookEventTypeLabel,
 } from "../utils/labels";
 
-const INTEGRATION_TYPES: IntegrationType[] = ["meeting", "calendar", "messaging", "email", "automation", "webhook"];
+const INTEGRATION_TYPES: IntegrationType[] = ["meeting", "calendar", "messaging", "email", "automation", "webhook", "payment"];
 const INTEGRATION_PROVIDERS: IntegrationProvider[] = [
   "mock",
   "google_meet",
@@ -153,10 +153,11 @@ const INTEGRATION_PROVIDERS: IntegrationProvider[] = [
   "smtp",
   "n8n",
   "generic_webhook",
+  "mercado_pago",
 ];
 const INTEGRATION_STATUSES: IntegrationStatus[] = ["not_configured", "configured", "healthy", "error", "unsupported"];
-const SUPPORTED_PROVIDERS: IntegrationProvider[] = ["mock"];
-const CONFIGURABLE_PROVIDERS: IntegrationProvider[] = ["mock", "google_meet", "whatsapp_cloud", "generic_webhook", "n8n"];
+const SUPPORTED_PROVIDERS: IntegrationProvider[] = ["mock", "mercado_pago"];
+const CONFIGURABLE_PROVIDERS: IntegrationProvider[] = ["mock", "google_meet", "whatsapp_cloud", "generic_webhook", "n8n", "mercado_pago"];
 const PAGE_SIZE = 20;
 
 interface FormState {
@@ -188,6 +189,13 @@ interface FormState {
   reminder_minutes_before: number;
   n8n_base_url: string;
   n8n_environment: string;
+  mercado_pago_environment: "sandbox" | "production";
+  mercado_pago_access_token_ref: string;
+  mercado_pago_webhook_secret_ref: string;
+  mercado_pago_notification_url: string;
+  mercado_pago_success_url: string;
+  mercado_pago_pending_url: string;
+  mercado_pago_failure_url: string;
 }
 
 const emptyForm: FormState = {
@@ -218,6 +226,13 @@ const emptyForm: FormState = {
   reminder_minutes_before: 1440,
   n8n_base_url: "https://automation.example.com",
   n8n_environment: "staging",
+  mercado_pago_environment: "sandbox",
+  mercado_pago_access_token_ref: "",
+  mercado_pago_webhook_secret_ref: "",
+  mercado_pago_notification_url: "http://localhost:18000/api/v1/webhooks/mercado-pago",
+  mercado_pago_success_url: "http://localhost:15173/payments/success",
+  mercado_pago_pending_url: "http://localhost:15173/payments/pending",
+  mercado_pago_failure_url: "http://localhost:15173/payments/failure",
 };
 
 export function AdminIntegrationsPage() {
@@ -718,6 +733,13 @@ export function AdminIntegrationsPage() {
       reminder_minutes_before: integration.config.reminder_minutes_before ?? 1440,
       n8n_base_url: integration.config.base_url ?? "https://automation.example.com",
       n8n_environment: integration.config.environment ?? "staging",
+      mercado_pago_environment: integration.config.environment === "production" ? "production" : "sandbox",
+      mercado_pago_access_token_ref: integration.config.access_token_reference ?? "",
+      mercado_pago_webhook_secret_ref: integration.config.webhook_secret_reference ?? "",
+      mercado_pago_notification_url: integration.config.notification_url ?? "http://localhost:18000/api/v1/webhooks/mercado-pago",
+      mercado_pago_success_url: integration.config.success_url ?? "http://localhost:15173/payments/success",
+      mercado_pago_pending_url: integration.config.pending_url ?? "http://localhost:15173/payments/pending",
+      mercado_pago_failure_url: integration.config.failure_url ?? "http://localhost:15173/payments/failure",
     });
     setFormOpen(true);
   };
@@ -1180,6 +1202,20 @@ function buildConfig(form: FormState): IntegrationConfig {
       environment: form.n8n_environment.trim() || "staging",
     };
   }
+  if (form.provider === "mercado_pago") {
+    return {
+      environment: form.mercado_pago_environment,
+      country: "CL",
+      currency: "CLP",
+      notification_url: form.mercado_pago_notification_url.trim(),
+      success_url: form.mercado_pago_success_url.trim(),
+      pending_url: form.mercado_pago_pending_url.trim(),
+      failure_url: form.mercado_pago_failure_url.trim(),
+      auto_return: "approved",
+      access_token_reference: form.mercado_pago_access_token_ref.trim(),
+      webhook_secret_reference: form.mercado_pago_webhook_secret_ref.trim(),
+    };
+  }
   if (form.provider !== "mock") {
     return {};
   }
@@ -1204,6 +1240,7 @@ function providerStageText(provider: IntegrationProvider): string {
   if (provider === "whatsapp_cloud") return "Mensajeria transaccional segun consentimiento";
   if (provider === "generic_webhook") return "Disponible como contenedor de webhooks salientes";
   if (provider === "n8n") return "Disponible para workflows n8n firmados";
+  if (provider === "mercado_pago") return "Checkout Pro sandbox mediante referencias secretas";
   return "Proximamente";
 }
 
@@ -2573,11 +2610,13 @@ function IntegrationFormModal({ form, isSaving, onChange, onClose, onSave }: { f
                           ? "automation"
                           : provider === "generic_webhook"
                             ? "webhook"
-                            : form.integration_type,
+                            : provider === "mercado_pago"
+                              ? "payment"
+                              : form.integration_type,
                 });
               }}
             >
-              {INTEGRATION_PROVIDERS.map((provider) => <option disabled={!isConfigurableProvider(provider)} key={provider} value={provider}>{getIntegrationProviderLabel(provider)}{provider === "google_meet" ? " - OAuth y reservas" : provider === "whatsapp_cloud" ? " - Fundacion sin envio" : provider === "generic_webhook" ? " - Webhooks salientes" : provider === "n8n" ? " - Workflows firmados" : !isConfigurableProvider(provider) ? " - Proximamente" : ""}</option>)}
+              {INTEGRATION_PROVIDERS.map((provider) => <option disabled={!isConfigurableProvider(provider)} key={provider} value={provider}>{getIntegrationProviderLabel(provider)}{provider === "google_meet" ? " - OAuth y reservas" : provider === "whatsapp_cloud" ? " - Fundacion sin envio" : provider === "generic_webhook" ? " - Webhooks salientes" : provider === "n8n" ? " - Workflows firmados" : provider === "mercado_pago" ? " - Checkout Pro" : !isConfigurableProvider(provider) ? " - Proximamente" : ""}</option>)}
             </Select>
           </Field>
           <Field label="Referencia de secreto" id="integration-secret">
@@ -2651,6 +2690,38 @@ function IntegrationFormModal({ form, isSaving, onChange, onClose, onSave }: { f
               </Field>
             </div>
             <p className="mt-3 text-sm font-semibold text-warning-700">No pegues tokens, credenciales, headers ni URLs con secretos. Define cada workflow con un path relativo.</p>
+          </div>
+        ) : form.provider === "mercado_pago" ? (
+          <div className="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-4">
+            <h3 className="text-sm font-semibold text-ink-900">Configuracion Mercado Pago Checkout Pro</h3>
+            <p className="mt-1 text-sm leading-6 text-ink-500">Usa credenciales de prueba por referencia. RealMeet redirige a Mercado Pago y verifica el pago desde backend.</p>
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <Field label="Ambiente" id="mp-environment">
+                <Select id="mp-environment" value={form.mercado_pago_environment} onChange={(event) => onChange({ ...form, mercado_pago_environment: event.target.value as FormState["mercado_pago_environment"] })}>
+                  <option value="sandbox">Sandbox</option>
+                  <option value="production">Produccion bloqueada</option>
+                </Select>
+              </Field>
+              <Field label="Ref. access token" id="mp-access-token-ref">
+                <Input id="mp-access-token-ref" value={form.mercado_pago_access_token_ref} onChange={(event) => onChange({ ...form, mercado_pago_access_token_ref: event.target.value })} placeholder="MERCADO_PAGO_ACCESS_TOKEN" />
+              </Field>
+              <Field label="Ref. webhook secret" id="mp-webhook-secret-ref">
+                <Input id="mp-webhook-secret-ref" value={form.mercado_pago_webhook_secret_ref} onChange={(event) => onChange({ ...form, mercado_pago_webhook_secret_ref: event.target.value })} placeholder="MERCADO_PAGO_WEBHOOK_SECRET" />
+              </Field>
+              <Field label="Notification URL" id="mp-notification-url">
+                <Input id="mp-notification-url" value={form.mercado_pago_notification_url} onChange={(event) => onChange({ ...form, mercado_pago_notification_url: event.target.value })} />
+              </Field>
+              <Field label="Success URL" id="mp-success-url">
+                <Input id="mp-success-url" value={form.mercado_pago_success_url} onChange={(event) => onChange({ ...form, mercado_pago_success_url: event.target.value })} />
+              </Field>
+              <Field label="Pending URL" id="mp-pending-url">
+                <Input id="mp-pending-url" value={form.mercado_pago_pending_url} onChange={(event) => onChange({ ...form, mercado_pago_pending_url: event.target.value })} />
+              </Field>
+              <Field label="Failure URL" id="mp-failure-url">
+                <Input id="mp-failure-url" value={form.mercado_pago_failure_url} onChange={(event) => onChange({ ...form, mercado_pago_failure_url: event.target.value })} />
+              </Field>
+            </div>
+            <p className="mt-3 text-sm font-semibold text-warning-700">No pegues access tokens ni secretos. Produccion real queda fuera de 17.3.</p>
           </div>
         ) : form.provider === "whatsapp_cloud" ? (
           <div className="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-4">

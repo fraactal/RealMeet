@@ -140,7 +140,7 @@ class AvailabilityService:
                     Appointment.professional_id == professional.id,
                     Appointment.start_datetime < end,
                     Appointment.end_datetime > start,
-                    Appointment.status.in_([AppointmentStatus.pending, AppointmentStatus.confirmed]),
+                    Appointment.status.in_([AppointmentStatus.pending, AppointmentStatus.pending_payment, AppointmentStatus.confirmed]),
                 )
             )
         )

@@ -5,6 +5,10 @@ import type {
   IntegrationProvider,
   IntegrationStatus,
   IntegrationType,
+  PaymentOrderStatus,
+  PaymentRefundReasonCode,
+  PaymentRefundStatus,
+  PaymentTiming,
   UserRole,
   WhatsAppConsentPurpose,
   WhatsAppConsentSource,
@@ -21,6 +25,7 @@ export type MeetingStatus = "active" | "inactive" | "pending" | "provisioning" |
 
 export const appointmentStatusLabels: Record<AppointmentStatus, string> = {
   pending: "Pendiente",
+  pending_payment: "Pendiente de pago",
   confirmed: "Confirmada",
   cancelled: "Cancelada",
   completed: "Completada",
@@ -88,6 +93,7 @@ export const integrationTypeLabels: Record<IntegrationType, string> = {
   email: "Correo",
   automation: "Automatizacion",
   webhook: "Webhook",
+  payment: "Pagos",
 };
 
 export const integrationProviderLabels: Record<IntegrationProvider, string> = {
@@ -100,6 +106,7 @@ export const integrationProviderLabels: Record<IntegrationProvider, string> = {
   smtp: "SMTP",
   n8n: "n8n",
   generic_webhook: "Webhook generico",
+  mercado_pago: "Mercado Pago",
 };
 
 export const integrationStatusLabels: Record<IntegrationStatus, string> = {
@@ -290,6 +297,10 @@ export function getWebhookEventTypeLabel(value: string): string {
     "appointment.cancelled": "Reserva cancelada",
     "appointment.confirmed": "Reserva confirmada",
     "meeting.ready": "Reunion lista",
+    "payment.order.created": "Orden de pago creada",
+    "payment.approved": "Pago aprobado",
+    "payment.rejected": "Pago rechazado",
+    "payment.expired": "Pago expirado",
     "document.generated": "Documento generado",
     "notification.sent": "Notificacion enviada",
     "notification.failed": "Notificacion fallida",
@@ -310,4 +321,58 @@ export function getWebhookDeliveryStatusLabel(value: string): string {
     skipped: "Omitida",
   };
   return labels[value] ?? value;
+}
+
+export const paymentOrderStatusLabels: Record<PaymentOrderStatus, string> = {
+  draft: "Borrador",
+  pending: "Pendiente",
+  requires_action: "Requiere accion",
+  approved: "Aprobado",
+  rejected: "Rechazado",
+  cancelled: "Cancelado",
+  expired: "Expirado",
+  failed: "Fallido",
+  refunded: "Reembolsado",
+};
+
+export function getPaymentOrderStatusLabel(value: PaymentOrderStatus | string): string {
+  return paymentOrderStatusLabels[value as PaymentOrderStatus] ?? value;
+}
+
+
+export const paymentRefundStatusLabels: Record<PaymentRefundStatus, string> = {
+  requested: "Solicitado",
+  processing: "Procesando",
+  approved: "Aprobado",
+  rejected: "Rechazado",
+  cancelled: "Cancelado",
+  failed: "Fallido",
+  reconcile_required: "Requiere conciliacion",
+};
+
+export const paymentRefundReasonLabels: Record<PaymentRefundReasonCode, string> = {
+  appointment_cancelled: "Reserva cancelada",
+  duplicate_payment: "Pago duplicado",
+  service_not_delivered: "Servicio no entregado",
+  client_request: "Solicitud del cliente",
+  professional_request: "Solicitud del profesional",
+  administrative_adjustment: "Ajuste administrativo",
+  other: "Otro",
+};
+
+export function getPaymentRefundStatusLabel(value: PaymentRefundStatus | string): string {
+  return paymentRefundStatusLabels[value as PaymentRefundStatus] ?? value;
+}
+
+export function getPaymentRefundReasonLabel(value: PaymentRefundReasonCode | string): string {
+  return paymentRefundReasonLabels[value as PaymentRefundReasonCode] ?? value;
+}
+export const paymentTimingLabels: Record<PaymentTiming, string> = {
+  no_payment: "No requiere pago",
+  pay_before_confirmation: "Pago antes de confirmar",
+  pay_after_confirmation: "Pago despues de confirmar",
+};
+
+export function getPaymentTimingLabel(value: PaymentTiming | string): string {
+  return paymentTimingLabels[value as PaymentTiming] ?? value;
 }

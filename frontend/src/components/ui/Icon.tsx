@@ -9,6 +9,7 @@ export type IconName =
   | "filter"
   | "logout"
   | "menu"
+  | "payment"
   | "search"
   | "settings"
   | "user"
@@ -24,6 +25,7 @@ const paths: Record<IconName, string[]> = {
   filter: ["M4 5h16", "M7 12h10", "M10 19h4"],
   logout: ["M10 17l5-5-5-5", "M15 12H3", "M21 5v14"],
   menu: ["M4 6h16", "M4 12h16", "M4 18h16"],
+  payment: ["M4 7h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1Z", "M3 10h18", "M7 15h5"],
   search: ["M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14Z", "m16 16 4 4"],
   settings: ["M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z", "M19 12h2M3 12h2M12 3v2M12 19v2M17 5l-1.5 1.5M6.5 17.5 5 19M19 19l-1.5-1.5M6.5 6.5 5 5"],
   user: ["M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z", "M4 20a8 8 0 0 1 16 0"],

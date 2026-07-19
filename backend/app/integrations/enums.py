@@ -8,6 +8,7 @@ class IntegrationType(str, enum.Enum):
     email = "email"
     automation = "automation"
     webhook = "webhook"
+    payment = "payment"
 
 
 class IntegrationProvider(str, enum.Enum):
@@ -20,6 +21,7 @@ class IntegrationProvider(str, enum.Enum):
     smtp = "smtp"
     n8n = "n8n"
     generic_webhook = "generic_webhook"
+    mercado_pago = "mercado_pago"
 
 
 class IntegrationStatus(str, enum.Enum):
