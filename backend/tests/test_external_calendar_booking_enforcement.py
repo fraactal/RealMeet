@@ -9,6 +9,8 @@ from sqlalchemy import delete, select
 
 from app.calendars.contracts import BusyPeriod
 from app.calendars.providers.fake import FakeExternalCalendarProvider
+from app.services import appointments as appointment_service_module
+from app.services import availability as availability_service_module
 from app.core.security import create_access_token, hash_password
 from app.db.session import SessionLocal
 from app.main import app
@@ -21,6 +23,21 @@ from app.models.user import User, UserRole
 from app.calendars.schemas import CalendarSyncSettingsUpdate
 from app.services.availability import AvailabilityService
 from app.services.external_availability import ExternalAvailabilityConflict, ExternalAvailabilityService, ExternalAvailabilityUnavailable
+
+
+class _FixedDateTime(datetime):
+    @classmethod
+    def now(cls, tz=None):
+        fixed = datetime(2026, 7, 20, 8, tzinfo=UTC)
+        if tz is None:
+            return fixed.replace(tzinfo=None)
+        return fixed.astimezone(tz)
+
+
+@pytest.fixture(autouse=True)
+def freeze_booking_clock(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(availability_service_module, "datetime", _FixedDateTime)
+    monkeypatch.setattr(appointment_service_module, "datetime", _FixedDateTime)
 
 
 @pytest.fixture()
