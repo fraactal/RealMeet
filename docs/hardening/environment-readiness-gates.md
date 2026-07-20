@@ -12,8 +12,8 @@ Estados:
 | --- | --- | --- | --- |
 | Docker operativo | `docker compose up --build` levanta `db`, `backend`, `frontend`; healthchecks healthy | Dev | cumple: validado en reviews MVP |
 | Migraciones | `alembic upgrade head`, un solo head, migracion desde base vacia | Backend | cumple: reviews reportan head unico y migracion desde cero |
-| Tests principales | suite backend verde | Backend | cumple: review final reporta `272 passed, 1 warning` |
-| Frontend build | `npm run build` exitoso | Frontend | cumple: reviews reportan build correcto |
+| Tests principales | suite backend verde | Backend | cumple: review final reporta `272 passed, 1 warning`; H1 agrega `backend-tests` en CI, pendiente evidencia remota |
+| Frontend build | `npm run build` exitoso | Frontend | cumple: reviews reportan build correcto; H1 agrega `frontend-build` en CI, pendiente evidencia remota |
 | Fakes habilitados | meeting mock, email log, providers fake/sandbox | Backend | cumple: README y closeout |
 | Documentacion basica | README, `.env.example`, credenciales demo y troubleshooting | Dev | cumple |
 | Seed local | seed idempotente con admin/profesional/cliente demo | Backend | cumple |
@@ -30,7 +30,7 @@ Estados:
 | Migraciones controladas | procedimiento de `alembic upgrade head`, backup previo y rollback | Backend/DevOps | parcial: migraciones validas localmente |
 | Health/readiness | `/health` y `/ready` expuestos y monitoreados | Backend/DevOps | parcial: endpoints existen |
 | Logs | stdout capturado por plataforma; sin secretos | DevOps | parcial: logs basicos existen |
-| Smoke tests | health, ready, login por rol, catalogo, disponibilidad, reserva | QA/Dev | pendiente |
+| Smoke tests | health, ready, login por rol, catalogo, disponibilidad, reserva | QA/Dev | parcial: H1 automatiza smoke minimo `/health`, `/ready` y catalogo; flujos por rol/reserva quedan para H5 |
 | Integraciones sandbox | matriz Google/WhatsApp/n8n/Workspace configurada con cuentas sandbox | Backend/Ops | pendiente |
 | Mercado Pago sandbox | credenciales sandbox y webhook publico firmado validado | Backend/Ops | pendiente |
 | Correo controlado | SMTP sandbox/log con remitente controlado | Ops | pendiente |
@@ -60,7 +60,7 @@ Estados:
 | Backups y restore probado | restore productivo ensayado en entorno aislado | DevOps | pendiente |
 | Monitoreo | metricas SLO, logs centralizados, trazas o correlation IDs | DevOps | pendiente |
 | Alertas | alertas accionables con responsables | DevOps/Ops | pendiente |
-| CI/CD | pipelines PR, staging y produccion con aprobacion manual | DevOps | pendiente |
+| CI/CD | pipelines PR, staging y produccion con aprobacion manual | DevOps | parcial: H1 implementa CI PR/push/manual sin deploy; CD y aprobacion manual quedan pendientes |
 | Rollback | rollback de imagen/config/migracion probado | DevOps/Backend | pendiente |
 | E2E critica | suite E2E estable para flujos de ingreso, reserva, pago e integraciones | QA | pendiente |
 | Pruebas de carga | escenarios de busqueda, disponibilidad, reserva y pagos | Backend/QA | pendiente |

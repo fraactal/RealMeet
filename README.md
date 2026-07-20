@@ -340,6 +340,7 @@ El seed es idempotente: reutiliza usuarios, categorias, especialidades, perfil p
 - Compose v1 vs v2: `docker compose` es recomendado; `docker-compose` funciona como alternativa cuando v2 no esta disponible.
 - Staging: usa `APP_ENV=staging`, `DEBUG=false`, `ENABLE_DEMO_SEED=false`, `ENABLE_DOCS=false` si la instancia es publica, `CORS_ORIGINS` explicito y `SECRET_KEY` fuerte de 32+ caracteres.
 - H0 staging baseline: revisa `docs/hardening/h0-staging-baseline.md` y `docs/deployment/staging-configuration.md` para render de compose, smoke minimo y comandos prohibidos.
+- H1 CI: revisa `docs/hardening/h1-ci-quality.md` y `docs/development/continuous-integration.md` para gates automatizados y reproduccion local.
 
 ## Seguridad implementada hasta Modulo 2
 

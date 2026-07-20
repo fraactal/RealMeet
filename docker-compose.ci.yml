@@ -1,0 +1,85 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-realmeet_ci}
+      POSTGRES_USER: ${POSTGRES_USER:-realmeet}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-realmeet}
+    ports:
+      - "${POSTGRES_PORT:-25433}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-realmeet} -d ${POSTGRES_DB:-realmeet_ci}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 5s
+
+  backend:
+    build:
+      context: ./backend
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+pg8000://${POSTGRES_USER:-realmeet}:${POSTGRES_PASSWORD:-realmeet}@db:5432/${POSTGRES_DB:-realmeet_ci}
+      APP_NAME: ${APP_NAME:-RealMeet API}
+      APP_ENV: ${APP_ENV:-docker}
+      DEBUG: ${DEBUG:-false}
+      API_V1_PREFIX: ${API_V1_PREFIX:-/api/v1}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      SECRET_KEY: ${SECRET_KEY:-ci-smoke-secret-with-at-least-32-characters}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-120}
+      CORS_ORIGINS: ${CORS_ORIGINS:-["http://localhost:15180"]}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-noreply@realmeet.local}
+      SMTP_FROM_NAME: ${SMTP_FROM_NAME:-RealMeet}
+      SMTP_USE_TLS: ${SMTP_USE_TLS:-true}
+      SMTP_TIMEOUT_SECONDS: ${SMTP_TIMEOUT_SECONDS:-10}
+      EMAIL_MODE: ${EMAIL_MODE:-log}
+      DEFAULT_MEETING_PROVIDER: ${DEFAULT_MEETING_PROVIDER:-mock}
+      MOCK_MEETING_BASE_URL: ${MOCK_MEETING_BASE_URL:-http://localhost:15180/mock-meeting}
+      ENABLE_DOCS: ${ENABLE_DOCS:-true}
+      RATE_LIMIT_ENABLED: ${RATE_LIMIT_ENABLED:-false}
+      RATE_LIMIT_WINDOW_SECONDS: ${RATE_LIMIT_WINDOW_SECONDS:-60}
+      RATE_LIMIT_MAX_REQUESTS: ${RATE_LIMIT_MAX_REQUESTS:-10}
+      ENABLE_DEMO_SEED: ${ENABLE_DEMO_SEED:-true}
+      STAGING_ALLOW_LOCALHOST: ${STAGING_ALLOW_LOCALHOST:-false}
+      BACKEND_HOST: ${BACKEND_HOST:-0.0.0.0}
+      BACKEND_PORT: ${BACKEND_INTERNAL_PORT:-8000}
+      WHATSAPP_CLOUD_ENABLED: ${WHATSAPP_CLOUD_ENABLED:-false}
+    ports:
+      - "${BACKEND_PORT:-18080}:${BACKEND_INTERNAL_PORT:-8000}"
+    command: python -m app.bootstrap
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os, urllib.request; urllib.request.urlopen(f\"http://127.0.0.1:{os.getenv('BACKEND_PORT', '8000')}/ready\", timeout=3).read()"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  frontend:
+    build:
+      context: ./frontend
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      VITE_API_URL: ${VITE_API_URL:-http://localhost:18080}
+    ports:
+      - "${FRONTEND_PORT:-15180}:5173"
+    command: sh -c "npm run build && npm run preview -- --host 0.0.0.0"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:5173/ >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+volumes:
+  postgres_data:

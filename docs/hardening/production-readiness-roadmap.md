@@ -40,12 +40,12 @@ Mantener un commit por fase o subfase completa cuando sea razonable. Evitar comm
 
 Jobs futuros minimos:
 
-- `backend-tests`: instala backend, levanta PostgreSQL de CI y ejecuta pytest.
-- `frontend-build`: `npm ci` y `npm run build`.
-- `alembic-check`: valida heads, upgrade head y migracion desde base vacia.
-- `openapi-check`: genera OpenAPI y valida JSON, operationIds unicos y ausencia de campos sensibles conocidos.
-- `docker-build`: construye imagen backend/frontend.
-- `smoke-test`: valida despliegue por `/health`, `/ready`, login por rol y flujo basico.
+- `backend-tests`: implementado en H1; instala backend, levanta PostgreSQL de CI y ejecuta pytest.
+- `frontend-build`: implementado en H1; `npm ci` y `npm run build`.
+- `alembic-check`: implementado en H1; valida heads, upgrade head y migracion desde base vacia.
+- `openapi-check`: implementado en H1; genera OpenAPI y valida JSON con operationIds unicos. Ausencia profunda de campos sensibles queda para H2.
+- `docker-build`: implementado en H1; construye imagen backend/frontend sin publicar.
+- `smoke-test`: implementado en H1 como smoke minimo local/CI para `/health`, `/ready` y catalogo; login por rol y flujo basico quedan para H5.
 
 Pull request: ejecutar `backend-tests`, `frontend-build`, `alembic-check` y `openapi-check`.
 
@@ -81,7 +81,7 @@ No se elige herramienta E2E en esta fase.
 | Fase | objetivo | alcance | fuera de alcance | dependencias | criterios de entrada | criterios de salida | riesgos | validaciones | commit esperado |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | H0 - Baseline productivo | Dejar staging desplegable, seguro y reproducible. | Configuracion por ambiente, `.env.example`, validaciones startup, staging seguro, documentacion operativa. | CI completa, E2E, integraciones productivas, refactors. | hosting, dominio, TLS, secret manager, PostgreSQL staging. | `staging` limpio, MVP aprobado, checklist staging. | staging con `APP_ENV=staging`, secrets externos, CORS cerrado, docs decididas, seed demo deshabilitado si publico, health/ready OK. | configuracion incompleta, CORS incorrecto, credenciales demo activas. | `/health`, `/ready`, migraciones, smoke manual minimo. | `chore(hardening): prepare staging baseline` |
-| H1 - CI y calidad automatizada | Bloquear regresiones basicas. | backend tests, frontend build, migraciones, OpenAPI, validacion PR. | deploy automatico produccion, SAST profundo. | runner, PostgreSQL CI, secrets CI. | H0 documentado o config local estable. | workflow PR verde y documentado. | tests lentos o dependientes de datos locales. | PR de prueba con pipeline completo. | `ci: add baseline validation pipeline` |
+| H1 - CI y calidad automatizada | Bloquear regresiones basicas. | backend tests, frontend build, migraciones, OpenAPI, Docker build, smoke minimo y documentacion CI. | deploy automatico, registry push, SAST profundo, E2E extensa. | H0, runner GitHub Actions, PostgreSQL CI. | H0 documentado y validado localmente. | workflow implementado, validacion local proporcional y evidencia remota pendiente tras push/PR. | primera corrida remota puede revelar diferencias de runner o Docker Compose. | push a `codex/**`, PR de prueba y pipeline completo. | `chore(ci): establish automated quality gates` |
 | H2 - Seguridad y secretos | Reducir riesgos de auth, permisos, secretos y endpoints sensibles. | auth/authz, secretos, CORS, headers, rate limiting, webhooks, pagos, dependencias. | rediseño multi-tenant completo, MFA salvo decision explicita. | H1, owners secretos, politica seguridad. | CI minima disponible. | pruebas negativas por rol, SCA inicial, hardening webhooks/rate limit definido. | cambios de auth pueden afectar sesiones. | pytest, OpenAPI, permisos, logs sin secretos. | `chore(hardening): strengthen security baseline` |
 | H3 - Observabilidad y operacion | Hacer diagnosticables staging y piloto. | logs estructurados, correlation IDs, metricas, alertas, health/readiness, runbooks. | tracing distribuido avanzado. | plataforma logs/metricas. | staging desplegable. | dashboards minimos, alertas de 5xx/DB/pagos/webhooks y runbooks. | ruido de alertas o PII en logs. | simulacion de errores controlados. | `chore(hardening): add operational observability baseline` |
 | H4 - Base de datos y recuperacion | Proteger datos y migraciones. | backups, restore, migraciones seguras, rollback, retencion, mantenimiento. | alta disponibilidad avanzada. | PostgreSQL staging, almacenamiento backup. | DB staging creada. | backup automatico, restore probado, runbook migracion/rollback. | restore incompleto o migraciones no reversibles. | restore en base aislada y smoke posterior. | `docs(ops): define database backup and restore runbooks` |
