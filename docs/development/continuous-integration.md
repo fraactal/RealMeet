@@ -9,12 +9,13 @@ El workflow `.github/workflows/ci.yml` se ejecuta en:
 - `push` a ramas `codex/**`.
 - `workflow_dispatch` manual.
 
-No usa `pull_request_target`, no despliega y no consume secretos productivos.
+No usa `pull_request_target`, no despliega y no consume secretos productivos. H2 agrega un gate `security-check` para secretos, configuracion sensible y vulnerabilidades criticas frontend.
 
 ## Jobs
 
 | job | valida | notas |
 | --- | --- | --- |
+| `security-check` | secretos/configuracion sensible y auditoria frontend critica | No usa secretos productivos; ejecuta scripts H2 y `npm audit --audit-level=critical` |
 | `backend-tests` | `pytest` backend completo | Usa PostgreSQL 16 efimero y variables `APP_ENV=test` |
 | `frontend-build` | `npm ci` y `npm run build` | Usa `VITE_API_URL=http://localhost:18000` ficticia |
 | `alembic-check` | head unico, `upgrade head`, `current == head` | Usa base PostgreSQL limpia del job |
@@ -95,6 +96,7 @@ COMPOSE_PROJECT_NAME=realmeet_ci_local BACKEND_PORT=18080 FRONTEND_PORT=15180 PO
 - `alembic-check`: revisar multiples heads o migracion que no aplica desde base limpia.
 - `openapi-check`: revisar rutas sin `operationId` o duplicados generados por FastAPI.
 - `docker-build`: revisar Dockerfile, lockfiles, dependencias o permisos de usuario.
+- `security-check`: revisar hallazgo sin copiar secretos; si falla `npm audit`, evaluar advisory y politica antes de actualizar.
 - `smoke-test`: revisar logs que el job imprime automaticamente para `backend`, `frontend` y `db`.
 
 ## Reintentos
@@ -109,7 +111,7 @@ COMPOSE_PROJECT_NAME=realmeet_ci_local BACKEND_PORT=18080 FRONTEND_PORT=15180 PO
 - No publica imagenes.
 - No usa registry ni OIDC cloud.
 - No ejecuta E2E extensos.
-- No ejecuta SCA/dependency audit.
+- No ejecuta SCA completa ni upgrades automaticos; H2 bloquea solo vulnerabilidades frontend criticas con `npm audit --audit-level=critical`.
 - No prueba integraciones reales externas.
 - No crea lint/tests frontend inexistentes.
 

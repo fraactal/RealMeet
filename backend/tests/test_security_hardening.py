@@ -1,7 +1,10 @@
+import logging
+
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from app.core import middleware
+from app.core.logging import JsonFormatter
 from app.core.middleware import InMemoryRateLimitMiddleware, SecurityHeadersMiddleware
 from app.main import app
 
@@ -48,3 +51,22 @@ def test_rate_limit_returns_429(monkeypatch) -> None:
     assert second.status_code == 429
     assert second.json() == {"detail": "Too many requests"}
     assert "Retry-After" in second.headers
+
+
+def test_json_formatter_redacts_sensitive_values_in_messages() -> None:
+    formatter = JsonFormatter()
+    record = logging.LogRecord(
+        name="realmeet.test",
+        level=logging.INFO,
+        pathname=__file__,
+        lineno=1,
+        msg="received Authorization=Bearer super-secret-token-value and password=plain-text-value",
+        args=(),
+        exc_info=None,
+    )
+
+    payload = formatter.format(record)
+
+    assert "super-secret-token-value" not in payload
+    assert "plain-text-value" not in payload
+    assert "[redacted]" in payload

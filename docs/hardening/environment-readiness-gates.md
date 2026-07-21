@@ -23,7 +23,7 @@ Estados:
 | criterio | evidencia requerida | responsable sugerido | estado actual |
 | --- | --- | --- | --- |
 | Configuracion separada | `APP_ENV=staging`, `.env` externo, variables por ambiente | DevOps | pendiente |
-| Secretos externos | `SECRET_KEY`, SMTP, Google, WhatsApp, Mercado Pago fuera de Git | DevOps | pendiente |
+| Secretos externos | `SECRET_KEY`, SMTP, Google, WhatsApp, Mercado Pago fuera de Git | DevOps | parcial: H2 inventaria categorias, mantiene referencias y agrega escaneo CI; custodia real queda en hosting/secret store |
 | Dominio HTTPS | dominio frontend/backend con TLS valido | DevOps | pendiente |
 | Base administrada o protegida | PostgreSQL persistente con acceso restringido | DevOps | pendiente |
 | Backups | backup programado y prueba de restore aislada | DevOps/Backend | pendiente |
@@ -55,8 +55,8 @@ Estados:
 
 | criterio | evidencia requerida | responsable sugerido | estado actual |
 | --- | --- | --- | --- |
-| Seguridad aprobada | revision auth/authz, secretos, headers, CORS, rate limit, webhooks | Seguridad/Backend | pendiente |
-| Secretos productivos | secret manager, rotacion, owners y auditoria | DevOps | pendiente |
+| Seguridad aprobada | revision auth/authz, secretos, headers, CORS, rate limit, webhooks | Seguridad/Backend | parcial: H2 crea baseline, threat model, secret scan y pruebas de settings/logging; auditoria profunda queda futura |
+| Secretos productivos | secret manager, rotacion, owners y auditoria | DevOps | parcial: inventario H2 y referencias definidas; secret manager/rotacion real pendiente |
 | Backups y restore probado | restore productivo ensayado en entorno aislado | DevOps | pendiente |
 | Monitoreo | metricas SLO, logs centralizados, trazas o correlation IDs | DevOps | pendiente |
 | Alertas | alertas accionables con responsables | DevOps/Ops | pendiente |

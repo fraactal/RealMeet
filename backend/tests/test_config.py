@@ -41,6 +41,7 @@ def test_staging_accepts_hardened_secret_and_explicit_cors() -> None:
         ENABLE_DOCS=False,
         ENABLE_DEMO_SEED=False,
         LOG_LEVEL="warning",
+        RATE_LIMIT_ENABLED=True,
     )
     assert settings.docs_enabled is False
     assert settings.demo_seed_enabled is False
@@ -63,6 +64,7 @@ def test_demo_seed_defaults_to_local_only(monkeypatch: pytest.MonkeyPatch) -> No
         CORS_ORIGINS="https://staging.realmeet.example",
         ENABLE_DOCS=False,
         ENABLE_DEMO_SEED=False,
+        RATE_LIMIT_ENABLED=True,
     )
     assert development.demo_seed_enabled is True
     assert staging.demo_seed_enabled is False
@@ -102,7 +104,7 @@ def test_staging_rejects_localhost_cors_unless_explicitly_allowed() -> None:
     with pytest.raises(ValidationError):
         Settings(**base)
 
-    settings = Settings(**base, STAGING_ALLOW_LOCALHOST=True)
+    settings = Settings(**base, STAGING_ALLOW_LOCALHOST=True, RATE_LIMIT_ENABLED=True)
     assert settings.staging_allow_localhost is True
 
 
@@ -135,4 +137,29 @@ def test_whatsapp_enabled_requires_operational_secrets() -> None:
             CORS_ORIGINS="http://localhost:15173",
             WHATSAPP_CLOUD_ENABLED=True,
             WHATSAPP_GRAPH_API_VERSION="v20.0",
+        )
+
+
+def test_access_token_expiration_has_safe_bounds() -> None:
+    base = {
+        "SECRET_KEY": "secret",
+        "DATABASE_URL": "postgresql+pg8000://user:pass@localhost:25432/db",
+        "CORS_ORIGINS": "http://localhost:15173",
+    }
+    with pytest.raises(ValidationError):
+        Settings(**base, ACCESS_TOKEN_EXPIRE_MINUTES=0)
+    with pytest.raises(ValidationError):
+        Settings(**base, ACCESS_TOKEN_EXPIRE_MINUTES=1441)
+
+
+def test_staging_requires_rate_limiting_enabled() -> None:
+    with pytest.raises(ValidationError):
+        Settings(
+            APP_ENV="staging",
+            SECRET_KEY="staging-secret-with-at-least-32-chars",
+            DATABASE_URL="postgresql+pg8000://user:pass@localhost:25432/db",
+            CORS_ORIGINS="https://staging.realmeet.example",
+            ENABLE_DOCS=False,
+            ENABLE_DEMO_SEED=False,
+            RATE_LIMIT_ENABLED=False,
         )

@@ -341,6 +341,7 @@ El seed es idempotente: reutiliza usuarios, categorias, especialidades, perfil p
 - Staging: usa `APP_ENV=staging`, `DEBUG=false`, `ENABLE_DEMO_SEED=false`, `ENABLE_DOCS=false` si la instancia es publica, `CORS_ORIGINS` explicito y `SECRET_KEY` fuerte de 32+ caracteres.
 - H0 staging baseline: revisa `docs/hardening/h0-staging-baseline.md` y `docs/deployment/staging-configuration.md` para render de compose, smoke minimo y comandos prohibidos.
 - H1 CI: revisa `docs/hardening/h1-ci-quality.md` y `docs/development/continuous-integration.md` para gates automatizados y reproduccion local.
+- H2 seguridad y secretos: revisa `docs/hardening/h2-security-secrets.md`, `docs/security/security-baseline.md`, `docs/security/secrets-inventory.md` y `docs/security/threat-model.md`.
 
 ## Seguridad implementada hasta Modulo 2
 

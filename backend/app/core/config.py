@@ -140,6 +140,13 @@ class Settings(BaseSettings):
             raise ValueError(f"LOG_LEVEL must be one of: {', '.join(sorted(allowed))}")
         return normalized
 
+    @field_validator("access_token_expire_minutes")
+    @classmethod
+    def validate_access_token_expiration(cls, value: int) -> int:
+        if value < 5 or value > 1440:
+            raise ValueError("ACCESS_TOKEN_EXPIRE_MINUTES must be between 5 and 1440")
+        return value
+
     @field_validator("rate_limit_window_seconds", "rate_limit_max_requests")
     @classmethod
     def validate_positive_int(cls, value: int) -> int:
@@ -240,6 +247,8 @@ class Settings(BaseSettings):
                 raise ValueError("ENABLE_DEMO_SEED must be false in staging/production")
             if self.debug:
                 raise ValueError("DEBUG cannot be true in staging/production")
+            if not self.rate_limit_enabled:
+                raise ValueError("RATE_LIMIT_ENABLED must be true in staging/production")
             local_origins = [origin for origin in self.cors_origins if _is_local_origin(origin)]
             if local_origins and not (self.app_env == "staging" and self.staging_allow_localhost):
                 raise ValueError("CORS_ORIGINS cannot include localhost in staging/production")
@@ -301,6 +310,8 @@ class Settings(BaseSettings):
             errors.append("ENABLE_DOCS must be false in staging/production")
         if self.app_env in STRICT_ENVS and self.demo_seed_enabled:
             errors.append("ENABLE_DEMO_SEED must be false in staging/production")
+        if self.app_env in STRICT_ENVS and not self.rate_limit_enabled:
+            errors.append("RATE_LIMIT_ENABLED must be true in staging/production")
         if self.app_env in STRICT_ENVS:
             local_origins = [origin for origin in self.cors_origins if _is_local_origin(origin)]
             if local_origins and not (self.app_env == "staging" and self.staging_allow_localhost):
