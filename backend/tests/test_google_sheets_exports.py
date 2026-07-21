@@ -327,9 +327,11 @@ def test_export_upsert_append_privacy_counts_and_retry(db_session, oauth_setting
     assert second.updated_records == 1
     assert third.skipped_records == 1
     assert len(fake.rows) == 2
+    exported_row = dict(zip(SHEETS_EXPORT_COLUMNS, fake.rows[1], strict=True))
+    exported_appointment_ids = [row[SHEETS_EXPORT_COLUMNS.index("realmeet_appointment_id")] for row in fake.rows[1:]]
     exported = " ".join(fake.rows[1])
-    assert str(active.id) in exported
-    assert str(cancelled.id) not in exported
+    assert exported_row["realmeet_appointment_id"] == str(active.id)
+    assert str(cancelled.id) not in exported_appointment_ids
     assert "clinical note" not in exported
     assert "diagnostico" not in exported
     assert "access-token" not in first.__dict__.__str__()
