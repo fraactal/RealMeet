@@ -479,10 +479,10 @@ Variables:
 
 - `GOOGLE_OAUTH_CLIENT_ID`: client ID de Google Cloud. Debe quedar vacio en Git.
 - `GOOGLE_OAUTH_CLIENT_SECRET`: client secret de Google Cloud. Debe quedar vacio en Git.
-- `GOOGLE_OAUTH_REDIRECT_URI`: callback backend, por defecto local `http://localhost:18000/api/v1/admin/integrations/oauth/google/callback`.
+- `GOOGLE_OAUTH_REDIRECT_URI`: callback backend. Debe quedar vacio si OAuth no esta habilitado; callback local sugerido `http://localhost:18000/api/v1/admin/integrations/oauth/google/callback`.
 - `GOOGLE_OAUTH_SCOPES`: scope minimo `https://www.googleapis.com/auth/calendar.events`.
 - `GOOGLE_OAUTH_STATE_TTL_SECONDS`: TTL del state firmado.
-- `GOOGLE_TOKEN_ENCRYPTION_KEY`: clave Fernet generada fuera del repositorio.
+- `GOOGLE_TOKEN_ENCRYPTION_KEY`: clave Fernet generada fuera del repositorio. Debe configurarse junto con client ID, secret y redirect; si cualquiera queda vacio, deja los cuatro valores OAuth vacios.
 
 Para crear credenciales en Google Cloud, configura una aplicacion OAuth web, registra el redirect URI exacto y solicita solo el scope de eventos de calendario. No agregues Gmail, Drive, contactos ni scopes amplios. Los tokens de la cuenta autorizada se guardan cifrados en base de datos y nunca se muestran en API ni frontend.
 

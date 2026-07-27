@@ -24,9 +24,11 @@ Variables operativas recomendadas:
 
 `STAGING_ALLOW_LOCALHOST=true` solo se permite para una validacion local equivalente. No debe usarse en un staging publico.
 
+Si Google OAuth se habilita en staging, usar el callback publico exacto `https://api.staging.realmeet.example/api/v1/admin/integrations/oauth/google/callback` y configurar tambien `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET` y `GOOGLE_TOKEN_ENCRYPTION_KEY`. No dejar solo el redirect activo.
+
 ## Secretos
 
-No guardar secretos reales en Git. `.env.staging.example` usa placeholders para que el proceso falle si se copia sin reemplazar:
+No guardar secretos reales en Git. `.env.staging.example` usa placeholders para que el proceso falle si se copia sin reemplazar. Google OAuth es opcional: deja client ID, secret, redirect URI y encryption key vacios, o configura los cuatro juntos desde un gestor externo.
 
 - `SECRET_KEY`
 - `POSTGRES_PASSWORD`

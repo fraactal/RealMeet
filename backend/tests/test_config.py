@@ -129,6 +129,43 @@ def test_google_oauth_must_be_complete_when_configured() -> None:
         )
 
 
+def test_google_oauth_empty_values_are_disabled() -> None:
+    settings = Settings(
+        SECRET_KEY="secret",
+        DATABASE_URL="postgresql+pg8000://user:pass@localhost:25432/db",
+        CORS_ORIGINS="http://localhost:15173",
+        GOOGLE_OAUTH_CLIENT_ID="",
+        GOOGLE_OAUTH_CLIENT_SECRET="",
+        GOOGLE_OAUTH_REDIRECT_URI="",
+        GOOGLE_TOKEN_ENCRYPTION_KEY="",
+    )
+
+    assert settings.google_oauth_configured is False
+
+
+def test_google_oauth_redirect_without_secrets_is_rejected() -> None:
+    with pytest.raises(ValidationError):
+        Settings(
+            SECRET_KEY="secret",
+            DATABASE_URL="postgresql+pg8000://user:pass@localhost:25432/db",
+            CORS_ORIGINS="http://localhost:15173",
+            GOOGLE_OAUTH_REDIRECT_URI="http://localhost:18000/api/v1/admin/integrations/oauth/google/callback",
+        )
+
+
+def test_google_oauth_complete_values_are_enabled() -> None:
+    settings = Settings(
+        SECRET_KEY="secret",
+        DATABASE_URL="postgresql+pg8000://user:pass@localhost:25432/db",
+        CORS_ORIGINS="http://localhost:15173",
+        GOOGLE_OAUTH_CLIENT_ID="client-id",
+        GOOGLE_OAUTH_CLIENT_SECRET="client-secret",
+        GOOGLE_OAUTH_REDIRECT_URI="http://localhost:18000/api/v1/admin/integrations/oauth/google/callback",
+        GOOGLE_TOKEN_ENCRYPTION_KEY="fernet-key-placeholder",
+    )
+
+    assert settings.google_oauth_configured is True
+
 def test_whatsapp_enabled_requires_operational_secrets() -> None:
     with pytest.raises(ValidationError):
         Settings(
